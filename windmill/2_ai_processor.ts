@@ -163,6 +163,39 @@ async function generatePaymentLink(args: any, agentId: string, appBaseUrl: strin
   }
 }
 
+// Agrupa os horários em Manhã/Tarde/Noite e amostra no máximo `maxPerPeriod`
+// por período, igualmente espaçados — evita despejar uma lista enorme de
+// slots de 15/30 em 15/30 minutos pro modelo.
+function groupAndSampleSlots(slots: string[], maxPerPeriod = 4): string {
+  const fmtHour = (d: Date) => Number(d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false }));
+  const fmtTime = (d: Date) => d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+
+  const periods: { label: string; items: Date[] }[] = [
+    { label: 'Manhã', items: [] },
+    { label: 'Tarde', items: [] },
+    { label: 'Noite', items: [] },
+  ];
+
+  for (const s of slots) {
+    const d = new Date(s);
+    const hour = fmtHour(d);
+    if (hour < 12) periods[0].items.push(d);
+    else if (hour < 18) periods[1].items.push(d);
+    else periods[2].items.push(d);
+  }
+
+  const sample = (items: Date[]) => {
+    if (items.length <= maxPerPeriod) return items;
+    const step = items.length / maxPerPeriod;
+    return Array.from({ length: maxPerPeriod }, (_, i) => items[Math.floor(i * step)]);
+  };
+
+  return periods
+    .filter((p) => p.items.length > 0)
+    .map((p) => `${p.label}: ${sample(p.items).map(fmtTime).join(', ')}`)
+    .join(' | ');
+}
+
 async function checkCalendarAvailability(args: any, agentId: string, appBaseUrl: string): Promise<string> {
   try {
     const res = await fetch(`${appBaseUrl}/api/calendar/availability`, {
@@ -173,10 +206,8 @@ async function checkCalendarAvailability(args: any, agentId: string, appBaseUrl:
     const data = await res.json();
     if (!res.ok) return `Erro ao consultar disponibilidade: ${data.error || res.status}`;
     if (!data.slots?.length) return 'Não há horários disponíveis nessa data.';
-    const formatted = data.slots.map((s: string) =>
-      new Date(s).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-    );
-    return `Horários disponíveis: ${formatted.join(', ')}`;
+    const grouped = groupAndSampleSlots(data.slots);
+    return `Algumas opções de horário disponíveis (apresente só 2-3 ao cliente, não a lista toda; há mais horários além destes): ${grouped}.`;
   } catch (e: any) {
     return `Não foi possível consultar a disponibilidade: ${e.message}`;
   }
