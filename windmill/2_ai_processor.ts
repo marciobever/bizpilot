@@ -179,6 +179,7 @@ async function generatePaymentLink(args: any, agentId: string, appBaseUrl: strin
     });
     const data = await res.json();
     if (!res.ok) return `Erro ao gerar link de pagamento: ${data.error || res.status}`;
+    if (data.pixCode) return `Envie este código Pix Copia e Cola para o cliente colar no app do banco dele para pagar: ${data.pixCode}`;
     return `Link de pagamento gerado: ${data.url}`;
   } catch (e: any) {
     return `Não foi possível gerar o link de pagamento: ${e.message}`;

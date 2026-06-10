@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { generatePixPayload } from '@/lib/pix';
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -77,13 +78,32 @@ export async function POST(req: NextRequest) {
     .from('integrations').select('status, config')
     .eq('user_id', agent.user_id).eq('provider', 'payments').maybeSingle();
 
-  if (intErr || !integration || integration.status !== 'connected' || !integration.config?.apiKey) {
+  if (intErr || !integration || integration.status !== 'connected') {
     return NextResponse.json({ error: 'Provedor de pagamentos não conectado para este usuário.' }, { status: 400 });
   }
 
-  const { provider, apiKey } = integration.config as { provider: string; apiKey: string };
+  const config = integration.config as any;
+  const { provider, apiKey } = config as { provider: string; apiKey: string };
+
+  if (provider !== 'pix' && !apiKey) {
+    return NextResponse.json({ error: 'Provedor de pagamentos não conectado para este usuário.' }, { status: 400 });
+  }
 
   try {
+    if (provider === 'pix') {
+      if (!config.pixKey || !config.merchantName || !config.merchantCity) {
+        return NextResponse.json({ error: 'Chave Pix, nome e cidade do recebedor não configurados.' }, { status: 400 });
+      }
+      const pixCode = generatePixPayload({
+        pixKey: config.pixKey,
+        merchantName: config.merchantName,
+        merchantCity: config.merchantCity,
+        amount: numericAmount,
+        description,
+      });
+      return NextResponse.json({ pixCode });
+    }
+
     let url: string | undefined;
     if (provider === 'mercadopago') url = await createMercadoPagoLink(apiKey, description, numericAmount);
     else if (provider === 'asaas') url = await createAsaasLink(apiKey, description, numericAmount);

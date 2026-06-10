@@ -74,6 +74,12 @@ const WEBHOOK_EVENTS = [
 
 const PAYMENT_PROVIDERS: { value: string; label: string; keyLabel: string; help: string }[] = [
   {
+    value: "pix",
+    label: "Pix direto (sem gateway)",
+    keyLabel: "",
+    help: "Gera o código Pix Copia e Cola direto para a sua chave Pix, sem taxas e sem confirmação automática de pagamento.",
+  },
+  {
     value: "mercadopago",
     label: "Mercado Pago",
     keyLabel: "Access Token de Produção",
@@ -114,7 +120,7 @@ function Integrations() {
   const [webhookForm, setWebhookForm] = useState({ url: "", secret: "", events: [] as string[] });
 
   // Links de Pagamento (Mercado Pago / Asaas / Woovi)
-  const [paymentsForm, setPaymentsForm] = useState({ provider: "mercadopago", apiKey: "" });
+  const [paymentsForm, setPaymentsForm] = useState({ provider: "mercadopago", apiKey: "", pixKey: "", merchantName: "", merchantCity: "" });
   const [paymentsMsg, setPaymentsMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Instagram / Facebook (Meta Graph)
@@ -191,7 +197,13 @@ function Integrations() {
       setWebhookForm({ url: cfg.url || "", secret: cfg.secret || "", events: cfg.events || [] });
     } else if (id === 'payments') {
       const cfg = statusMap.payments?.config || {};
-      setPaymentsForm({ provider: cfg.provider || "mercadopago", apiKey: cfg.apiKey ? "••••••••••••" : "" });
+      setPaymentsForm({
+        provider: cfg.provider || "mercadopago",
+        apiKey: cfg.apiKey ? "••••••••••••" : "",
+        pixKey: cfg.pixKey || "",
+        merchantName: cfg.merchantName || "",
+        merchantCity: cfg.merchantCity || "",
+      });
     } else if (id === 'instagram' || id === 'facebook') {
       const cfg = statusMap[id]?.config || {};
       setMetaForm({ accessToken: cfg.accessToken ? "••••••••••••" : "", pageId: cfg.pageId || "" });
@@ -232,8 +244,22 @@ function Integrations() {
         });
         setActiveModal(null);
       } else if (id === 'payments') {
-        const key = paymentsForm.apiKey.trim();
         const provider = paymentsForm.provider;
+
+        if (provider === 'pix') {
+          const pixKey = paymentsForm.pixKey.trim();
+          const merchantName = paymentsForm.merchantName.trim();
+          const merchantCity = paymentsForm.merchantCity.trim();
+          if (!pixKey || !merchantName || !merchantCity) {
+            setPaymentsMsg({ ok: false, text: 'Informe a chave Pix, o nome e a cidade do recebedor.' });
+            return;
+          }
+          await upsertIntegration('payments', 'Links de Pagamento', 'connected', { provider, pixKey, merchantName, merchantCity });
+          setActiveModal(null);
+          return;
+        }
+
+        const key = paymentsForm.apiKey.trim();
         if (key.startsWith('•')) {
           // Mantém a chave já salva (campo não foi alterado), mas permite trocar o provedor.
           if (statusMap.payments?.config?.apiKey) {
@@ -487,18 +513,55 @@ function Integrations() {
                       {PAYMENT_PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                     </select>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="paymentsKey">{PAYMENT_PROVIDERS.find(p => p.value === paymentsForm.provider)?.keyLabel}</Label>
-                    <Input
-                      id="paymentsKey"
-                      type="password"
-                      value={paymentsForm.apiKey}
-                      onChange={(e) => setPaymentsForm(prev => ({ ...prev, apiKey: e.target.value }))}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {PAYMENT_PROVIDERS.find(p => p.value === paymentsForm.provider)?.help}
-                    </p>
-                  </div>
+                  {paymentsForm.provider === 'pix' ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="pixKey">Chave Pix</Label>
+                        <Input
+                          id="pixKey"
+                          value={paymentsForm.pixKey}
+                          onChange={(e) => setPaymentsForm(prev => ({ ...prev, pixKey: e.target.value }))}
+                          placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="merchantName">Nome do recebedor</Label>
+                        <Input
+                          id="merchantName"
+                          value={paymentsForm.merchantName}
+                          onChange={(e) => setPaymentsForm(prev => ({ ...prev, merchantName: e.target.value }))}
+                          placeholder="Ex: Salão da Maria"
+                          maxLength={25}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="merchantCity">Cidade do recebedor</Label>
+                        <Input
+                          id="merchantCity"
+                          value={paymentsForm.merchantCity}
+                          onChange={(e) => setPaymentsForm(prev => ({ ...prev, merchantCity: e.target.value }))}
+                          placeholder="Ex: SAO PAULO"
+                          maxLength={15}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {PAYMENT_PROVIDERS.find(p => p.value === paymentsForm.provider)?.help}
+                      </p>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label htmlFor="paymentsKey">{PAYMENT_PROVIDERS.find(p => p.value === paymentsForm.provider)?.keyLabel}</Label>
+                      <Input
+                        id="paymentsKey"
+                        type="password"
+                        value={paymentsForm.apiKey}
+                        onChange={(e) => setPaymentsForm(prev => ({ ...prev, apiKey: e.target.value }))}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {PAYMENT_PROVIDERS.find(p => p.value === paymentsForm.provider)?.help}
+                      </p>
+                    </div>
+                  )}
                   {paymentsMsg && (
                     <div className={`flex items-start gap-2 text-sm p-3 rounded-lg ${paymentsMsg.ok ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
                       <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /> {paymentsMsg.text}
