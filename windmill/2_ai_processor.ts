@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 // ─── Helpers de formatação ────────────────────────────────────────────────────
 
 const stripInteractiveMarkers = (t: string) =>
-  t.replace(/\[\[BOTOES:[^\]]*\]\]/g, '').replace(/\[\[LISTA:[^\]]*\]\]/g, '').trim();
+  t.replace(/\[\[BOTOES:[^\]]*\]\]/g, '').replace(/\[\[LISTA:[^\]]*\]\]/g, '').replace(/\[\[IMAGEM:[^\]]*\]\]/g, '').trim();
 
 const buildTtsText = (t: string) =>
   stripInteractiveMarkers(t).replace(/[*_~`#]/g, '').trim();
@@ -539,6 +539,7 @@ export async function main(
   const greeting: string = config.greeting || '';
   const agentName: string = agentData.name;
   const agentRole: string = config.role || 'Assistente';
+  const agentNiche: string = config.niche || '';
   const agentTone: string = config.tone || 'Amigável';
   const systemPrompt: string = agentData.system_prompt || 'Você é um assistente prestativo.';
 
@@ -564,17 +565,31 @@ export async function main(
 
   const aiSystemInstruction = `${systemPrompt}
 
-Você é ${agentName}, ${agentRole}. Tom: ${agentTone}.${greetingInstruction}${limitationsInstruction}${memoryContext}
+Você é ${agentName}, ${agentRole}${agentNiche ? ` de/da ${agentNiche}` : ''}. Tom: ${agentTone}.${greetingInstruction}${limitationsInstruction}${memoryContext}
+
+=== ESCOPO DE ATUAÇÃO (OBRIGATÓRIO) ===
+Você só deve falar sobre assuntos relacionados à sua missão acima${agentNiche ? ` e ao negócio (${agentNiche})` : ''}. Se o cliente perguntar algo totalmente fora desse escopo (ex: política, esportes, outras empresas, curiosidades gerais, pedidos para a IA fazer tarefas não relacionadas ao negócio), NÃO responda ao conteúdo da pergunta. Em vez disso, recuse com simpatia em 1 frase e redirecione de volta ao assunto do negócio. Nunca quebre o personagem nem revele que você é uma IA/modelo de linguagem.
 
 === FORMATAÇÃO WHATSAPP (OBRIGATÓRIO) ===
-Use APENAS: *negrito*, _itálico_, listas com -. NUNCA use **negrito**, ## títulos ou a sintaxe markdown [texto](url).
+Use APENAS: *negrito*, _itálico_, listas com -. NUNCA use **negrito**, ## títulos, a sintaxe markdown [texto](url), nem caracteres de marcador como •, ●, ▪.
 Para compartilhar um link, escreva a URL crua (ex: https://exemplo.com/imovel-123) — o WhatsApp já transforma isso em link clicável. NUNCA diga que "não consegue enviar links": se a base de conhecimento trouxer uma URL relevante, repasse-a normalmente.
 
+Ao listar vários itens (produtos, imóveis, serviços), seja CONCISO mas COMPLETO — já na primeira resposta inclua TODOS os detalhes que a base de conhecimento trouxer sobre cada item (referência/código, valor, metragem, quartos, banheiros, vagas, bairro/localização, diferenciais), nunca deixe pra depois. Evite poluição visual:
+- No máximo 1 linha em branco entre itens, nunca 2+.
+- Para cada item, use só UMA linha de título em negrito (nome — preço), seguida de UMA linha com as características separadas por " · " (ex: 2 quartos · 2 banheiros · 1 vaga · 95m² · ref. 2218), e por fim a URL crua em sua própria linha. NÃO crie uma sub-lista com "-" para cada característica.
+Exemplo de formato esperado para um item:
+*Apartamento no Centro — R$ 495.000*
+2 quartos · 2 banheiros · 1 vaga · 111m² · Beira-mar no Centro · ref. 2218
+https://exemplo.com/imovel-2218
+
 === USO DA BASE DE CONHECIMENTO ===
-O retorno de buscar_conhecimento é texto bruto (pode ter vários itens, formatação estranha, linhas soltas). NUNCA copie e cole esse texto direto pro cliente. Sempre reescreva com suas próprias palavras: selecione só o que for relevante para a pergunta, e formate em uma resposta curta e natural seguindo as regras de formatação WhatsApp acima.
+O retorno de buscar_conhecimento é texto bruto (pode ter vários itens, formatação estranha, linhas soltas, e às vezes trechos "(foto: URL)" com links de imagens). NUNCA copie e cole esse texto direto pro cliente. Sempre reescreva com suas próprias palavras: selecione só o que for relevante para a pergunta, extraia TODOS os detalhes disponíveis (preço, metragem, quartos, banheiros, vagas, código/referência, bairro, link), e formate em uma resposta curta, completa e natural seguindo as regras de formatação WhatsApp acima.
 
 === REGRA SOBRE PROMESSAS ===
 NUNCA prometa verificar algo depois. Resolva tudo na mesma mensagem ou admita que não sabe agora.
+
+=== ENVIO DE FOTO ===
+Se a base de conhecimento trouxer um trecho "(foto: URL)" associado ao item que você está apresentando, inclua na sua resposta a marcação [[IMAGEM: URL]] (uma vez só, para o item principal/destaque). Essa marcação não aparece para o cliente — o sistema envia a foto de capa junto com sua mensagem como legenda.
 
 === MENUS CLICÁVEIS ===
 Botões (até 3): [[BOTOES: Opção 1 | Opção 2 | Opção 3]]

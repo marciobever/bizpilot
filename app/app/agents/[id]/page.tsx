@@ -305,6 +305,9 @@ export default function AgentConfig() {
   const [addingKnowledge, setAddingKnowledge] = useState(false);
   const [showKnowledgeForm, setShowKnowledgeForm] = useState(false);
   const [knowledgeForm, setKnowledgeForm] = useState({ title: "", content: "", sourceType: "text", sourceUrl: "" });
+  const [sitemapForm, setSitemapForm] = useState({ sitemapUrl: "", urlFilter: "", maxItems: "20" });
+  const [importingSitemap, setImportingSitemap] = useState(false);
+  const [sitemapResult, setSitemapResult] = useState<{ imported: number; total: number; errors: { url: string; error: string }[] } | null>(null);
 
   // Tags e variáveis de integração com Windmill
   const [tags, setTags] = useState<string[]>([]);
@@ -415,6 +418,31 @@ export default function AgentConfig() {
         const d = await res.json(); alert(d.error || 'Erro ao salvar.');
       }
     } finally { setAddingKnowledge(false); }
+  };
+
+  const handleImportSitemap = async () => {
+    if (!sitemapForm.sitemapUrl.trim()) return;
+    setImportingSitemap(true);
+    setSitemapResult(null);
+    try {
+      const res = await fetch('/api/knowledge/import-sitemap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: id,
+          sitemapUrl: sitemapForm.sitemapUrl,
+          urlFilter: sitemapForm.urlFilter,
+          maxItems: sitemapForm.maxItems,
+        }),
+      });
+      const d = await res.json();
+      if (res.ok) {
+        setSitemapResult(d);
+        fetchKnowledge();
+      } else {
+        alert(d.error || 'Erro ao importar sitemap.');
+      }
+    } finally { setImportingSitemap(false); }
   };
 
   const handleDeleteKnowledge = async (entryId: string) => {
@@ -1586,25 +1614,64 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                         onClick={() => setKnowledgeForm(p => ({ ...p, sourceType: 'url' }))}>
                         <Globe className="h-3 w-3 mr-1" /> URL
                       </Button>
-                    </div>
-                    <Input placeholder="Título (ex: Tabela de Preços, FAQ, Sobre a Empresa)"
-                      value={knowledgeForm.title}
-                      onChange={e => setKnowledgeForm(p => ({ ...p, title: e.target.value }))} />
-                    {knowledgeForm.sourceType === 'text' ? (
-                      <Textarea placeholder="Cole aqui o texto: descrição dos serviços, preços, políticas, FAQ..."
-                        rows={6} value={knowledgeForm.content}
-                        onChange={e => setKnowledgeForm(p => ({ ...p, content: e.target.value }))} />
-                    ) : (
-                      <Input placeholder="https://meusite.com/sobre" value={knowledgeForm.sourceUrl}
-                        onChange={e => setKnowledgeForm(p => ({ ...p, sourceUrl: e.target.value }))} />
-                    )}
-                    <div className="flex gap-2 justify-end">
-                      <Button size="sm" variant="outline" onClick={() => setShowKnowledgeForm(false)}>Cancelar</Button>
-                      <Button size="sm" onClick={handleAddKnowledge} disabled={addingKnowledge}>
-                        {addingKnowledge ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                        {addingKnowledge ? 'Processando...' : 'Salvar e Vetorizar'}
+                      <Button size="sm" variant={knowledgeForm.sourceType === 'sitemap' ? 'default' : 'outline'}
+                        onClick={() => setKnowledgeForm(p => ({ ...p, sourceType: 'sitemap' }))}>
+                        <Globe className="h-3 w-3 mr-1" /> Catálogo (Sitemap)
                       </Button>
                     </div>
+
+                    {knowledgeForm.sourceType === 'sitemap' ? (
+                      <>
+                        <p className="text-xs text-muted-foreground">
+                          Importa várias páginas de uma vez (ex: fichas de imóveis/produtos) a partir de um sitemap.xml — cada página vira uma entrada separada na base.
+                        </p>
+                        <Input placeholder="https://meusite.com/sitemap.xml" value={sitemapForm.sitemapUrl}
+                          onChange={e => setSitemapForm(p => ({ ...p, sitemapUrl: e.target.value }))} />
+                        <Input placeholder="Filtro de URL (opcional, ex: /imovel/)" value={sitemapForm.urlFilter}
+                          onChange={e => setSitemapForm(p => ({ ...p, urlFilter: e.target.value }))} />
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="sitemap-max" className="text-xs whitespace-nowrap">Máx. de páginas</Label>
+                          <Input id="sitemap-max" type="number" min={1} max={50} className="w-24" value={sitemapForm.maxItems}
+                            onChange={e => setSitemapForm(p => ({ ...p, maxItems: e.target.value }))} />
+                        </div>
+                        {sitemapResult && (
+                          <div className="text-xs p-2 rounded bg-secondary/40">
+                            Importadas {sitemapResult.imported} de {sitemapResult.total} páginas.
+                            {sitemapResult.errors.length > 0 && (
+                              <span className="text-destructive"> {sitemapResult.errors.length} com erro.</span>
+                            )}
+                          </div>
+                        )}
+                        <div className="flex gap-2 justify-end">
+                          <Button size="sm" variant="outline" onClick={() => setShowKnowledgeForm(false)}>Cancelar</Button>
+                          <Button size="sm" onClick={handleImportSitemap} disabled={importingSitemap}>
+                            {importingSitemap ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                            {importingSitemap ? 'Importando...' : 'Importar Catálogo'}
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <Input placeholder="Título (ex: Tabela de Preços, FAQ, Sobre a Empresa)"
+                          value={knowledgeForm.title}
+                          onChange={e => setKnowledgeForm(p => ({ ...p, title: e.target.value }))} />
+                        {knowledgeForm.sourceType === 'text' ? (
+                          <Textarea placeholder="Cole aqui o texto: descrição dos serviços, preços, políticas, FAQ..."
+                            rows={6} value={knowledgeForm.content}
+                            onChange={e => setKnowledgeForm(p => ({ ...p, content: e.target.value }))} />
+                        ) : (
+                          <Input placeholder="https://meusite.com/sobre" value={knowledgeForm.sourceUrl}
+                            onChange={e => setKnowledgeForm(p => ({ ...p, sourceUrl: e.target.value }))} />
+                        )}
+                        <div className="flex gap-2 justify-end">
+                          <Button size="sm" variant="outline" onClick={() => setShowKnowledgeForm(false)}>Cancelar</Button>
+                          <Button size="sm" onClick={handleAddKnowledge} disabled={addingKnowledge}>
+                            {addingKnowledge ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                            {addingKnowledge ? 'Processando...' : 'Salvar e Vetorizar'}
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 

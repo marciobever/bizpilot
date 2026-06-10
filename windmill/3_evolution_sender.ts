@@ -16,26 +16,35 @@ function formatForWhatsApp(text: string): string {
 
 // ─── Helpers de parsing ───────────────────────────────────────────────────────
 
-// Detecta e extrai marcações [[BOTOES: ...]] e [[LISTA: ...]] do texto do modelo.
-// Retorna { textBody, buttons, list } onde textBody é o texto sem a marcação.
+// Detecta e extrai marcações [[BOTOES: ...]], [[LISTA: ...]] e [[IMAGEM: ...]] do texto do modelo.
+// Retorna { textBody, buttons, list, imageUrl } onde textBody é o texto sem as marcações.
 function parseInteractive(message: string): {
   textBody: string;
   buttons: string[] | null;
   list: { title: string; sections: { title: string; rows: string[] }[] } | null;
+  imageUrl: string | null;
 } {
   let textBody = message;
   let buttons: string[] | null = null;
   let list: { title: string; sections: { title: string; rows: string[] }[] } | null = null;
+  let imageUrl: string | null = null;
+
+  // [[IMAGEM: URL]] — foto de destaque a enviar junto com a mensagem.
+  const imgMatch = message.match(/\[\[IMAGEM:\s*(\S+?)\s*\]\]/s);
+  if (imgMatch) {
+    imageUrl = imgMatch[1];
+    textBody = textBody.replace(imgMatch[0], "").trim();
+  }
 
   // [[BOTOES: Opção 1 | Opção 2 | Opção 3]]
-  const btnMatch = message.match(/\[\[BOTOES:\s*(.+?)\]\]/s);
+  const btnMatch = textBody.match(/\[\[BOTOES:\s*(.+?)\]\]/s);
   if (btnMatch) {
     buttons = btnMatch[1].split("|").map((b) => b.trim()).filter(Boolean).slice(0, 3);
-    textBody = message.replace(btnMatch[0], "").trim();
+    textBody = textBody.replace(btnMatch[0], "").trim();
   }
 
   // [[LISTA: Título da lista || Seção | Opção 1 | Opção 2 || Seção 2 | Opção 3]]
-  const listMatch = message.match(/\[\[LISTA:\s*(.+?)\]\]/s);
+  const listMatch = textBody.match(/\[\[LISTA:\s*(.+?)\]\]/s);
   if (listMatch) {
     const parts = listMatch[1].split("||").map((p) => p.trim());
     const listTitle = parts[0] || "Opções";
@@ -45,11 +54,11 @@ function parseInteractive(message: string): {
     }).filter((s) => s.rows.length > 0);
     if (sections.length > 0) {
       list = { title: listTitle, sections };
-      textBody = message.replace(listMatch[0], "").trim();
+      textBody = textBody.replace(listMatch[0], "").trim();
     }
   }
 
-  return { textBody, buttons, list };
+  return { textBody, buttons, list, imageUrl };
 }
 
 // ─── Envio Meta Oficial (WhatsApp Cloud API) ─────────────────────────────────
@@ -251,11 +260,14 @@ async function sendEvolution(
   }
 
   // Texto simples (fallback e caso padrão)
+  // linkPreview: false evita o card grande de preview ocupando a tela,
+  // especialmente quando a mensagem tem mais de um link (ex: vários imóveis).
   const res = await fetch(`${EVOLUTION_API_URL}/message/sendText/${instanceName}`, {
     method: "POST", headers,
     body: JSON.stringify({
       number: remoteJid,
       text: textBody,
+      linkPreview: false,
       options: { delay: typingDelay, presence: "composing" },
     }),
   });
@@ -274,15 +286,17 @@ export async function main(
     return { success: false, reason: ai_data?.reason || "Mensagem ignorada pelo fluxo." };
   }
 
-  const { remoteJid, message, instanceName, audioBase64, imageUrl } = ai_data;
+  const { remoteJid, message, instanceName, audioBase64, imageUrl: dataImageUrl } = ai_data;
   const channel = ai_data.channel || { provider: "evolution" };
 
   if (!message || typeof message !== "string") {
     return { success: false, reason: "Mensagem vazia ou inválida." };
   }
 
-  const { textBody: rawBody, buttons, list } = parseInteractive(message);
+  const { textBody: rawBody, buttons, list, imageUrl: messageImageUrl } = parseInteractive(message);
   const textBody = formatForWhatsApp(rawBody);
+  // imageUrl do ai_data (ex: QR Code do Pix) tem prioridade sobre [[IMAGEM: ...]] do texto.
+  const imageUrl = dataImageUrl || messageImageUrl;
 
   const delayPerChar = 60;
   const typingDelay = Math.min(Math.max(textBody.length * delayPerChar, 1000), 10000);
