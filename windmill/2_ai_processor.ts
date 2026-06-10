@@ -21,7 +21,7 @@ function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boole
       type: 'function',
       function: {
         name: 'buscar_conhecimento',
-        description: 'Busca informações na base de conhecimento do negócio: produtos, serviços, políticas, preços, FAQs.',
+        description: 'Busca informações na base de conhecimento do negócio: produtos, serviços, políticas, preços, FAQs. O resultado é texto bruto da base — nunca copie e cole literalmente, reescreva de forma natural e formatada para o cliente.',
         parameters: {
           type: 'object',
           properties: { query: { type: 'string', description: 'O que você precisa saber' } },
@@ -568,6 +568,9 @@ Você é ${agentName}, ${agentRole}. Tom: ${agentTone}.${greetingInstruction}${l
 
 === FORMATAÇÃO WHATSAPP (OBRIGATÓRIO) ===
 Use APENAS: *negrito*, _itálico_, listas com -. NUNCA use **negrito**, ## títulos ou [links](url).
+
+=== USO DA BASE DE CONHECIMENTO ===
+O retorno de buscar_conhecimento é texto bruto (pode ter vários itens, formatação estranha, linhas soltas). NUNCA copie e cole esse texto direto pro cliente. Sempre reescreva com suas próprias palavras: selecione só o que for relevante para a pergunta, e formate em uma resposta curta e natural seguindo as regras de formatação WhatsApp acima.
 
 === REGRA SOBRE PROMESSAS ===
 NUNCA prometa verificar algo depois. Resolva tudo na mesma mensagem ou admita que não sabe agora.
