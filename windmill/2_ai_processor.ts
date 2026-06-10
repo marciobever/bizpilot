@@ -567,7 +567,8 @@ export async function main(
 Você é ${agentName}, ${agentRole}. Tom: ${agentTone}.${greetingInstruction}${limitationsInstruction}${memoryContext}
 
 === FORMATAÇÃO WHATSAPP (OBRIGATÓRIO) ===
-Use APENAS: *negrito*, _itálico_, listas com -. NUNCA use **negrito**, ## títulos ou [links](url).
+Use APENAS: *negrito*, _itálico_, listas com -. NUNCA use **negrito**, ## títulos ou a sintaxe markdown [texto](url).
+Para compartilhar um link, escreva a URL crua (ex: https://exemplo.com/imovel-123) — o WhatsApp já transforma isso em link clicável. NUNCA diga que "não consegue enviar links": se a base de conhecimento trouxer uma URL relevante, repasse-a normalmente.
 
 === USO DA BASE DE CONHECIMENTO ===
 O retorno de buscar_conhecimento é texto bruto (pode ter vários itens, formatação estranha, linhas soltas). NUNCA copie e cole esse texto direto pro cliente. Sempre reescreva com suas próprias palavras: selecione só o que for relevante para a pergunta, e formate em uma resposta curta e natural seguindo as regras de formatação WhatsApp acima.

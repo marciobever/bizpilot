@@ -40,6 +40,11 @@ async function fetchUrlContent(url: string): Promise<string> {
   return html
     .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
     .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+    // Preserva links: <a href="URL">texto</a> -> "texto (URL)", para o agente poder repassá-los.
+    .replace(/<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_m, href, text) => {
+      const label = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      return label ? `${label} (${href})` : href;
+    })
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
