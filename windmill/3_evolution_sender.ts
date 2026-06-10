@@ -133,8 +133,28 @@ async function sendMeta(
     body: JSON.stringify(payload),
   });
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(`Meta API error: ${JSON.stringify(data)}`);
-  return data;
+  if (res.ok) return data;
+
+  // Se o envio da imagem (ex: QR Code do Pix) falhar, cai no fallback de texto.
+  if (imageUrl) {
+    console.error(`Meta API image error: ${JSON.stringify(data)}`);
+    const textRes = await fetch(base, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: recipient,
+        type: "text",
+        text: { body: textBody },
+      }),
+    });
+    const textData = await textRes.json().catch(() => null);
+    if (!textRes.ok) throw new Error(`Meta API error: ${JSON.stringify(textData)}`);
+    return textData;
+  }
+
+  throw new Error(`Meta API error: ${JSON.stringify(data)}`);
 }
 
 // ─── Envio Evolution API (QR Code / não-oficial) ─────────────────────────────
@@ -154,19 +174,23 @@ async function sendEvolution(
   const headers = { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY };
 
   // Imagem (ex: QR Code do Pix) tem prioridade sobre os demais formatos.
+  // Se o envio da mídia falhar, cai no fallback de texto simples abaixo
+  // para garantir que o cliente receba ao menos o código Pix.
   if (imageUrl) {
     const res = await fetch(`${EVOLUTION_API_URL}/message/sendMedia/${instanceName}`, {
       method: "POST", headers,
       body: JSON.stringify({
         number: remoteJid,
         mediatype: "image",
+        mimetype: "image/png",
+        fileName: "pix-qrcode.png",
         media: imageUrl,
         caption: textBody,
-        options: { delay: typingDelay, presence: "composing" },
+        delay: typingDelay,
       }),
     });
-    if (!res.ok) throw new Error(`Evolution media error: ${await res.text()}`);
-    return res.json().catch(() => null);
+    if (res.ok) return res.json().catch(() => null);
+    console.error(`Evolution media error: ${await res.text()}`);
   }
 
   // Áudio tem prioridade sobre interativos.
