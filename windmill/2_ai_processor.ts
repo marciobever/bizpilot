@@ -81,6 +81,28 @@ function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boole
         },
       },
     });
+    tools.push({
+      type: 'function',
+      function: {
+        name: 'reagendar_horario',
+        description: 'Move o agendamento ativo do cliente para uma nova data/horário, cancelando o horário anterior. Use quando o cliente pedir para remarcar/reagendar um compromisso já existente.',
+        parameters: {
+          type: 'object',
+          properties: {
+            datetime: { type: 'string', description: 'Nova data e hora no formato ISO 8601 (ex: 2026-06-10T14:00:00-03:00)' },
+          },
+          required: ['datetime'],
+        },
+      },
+    });
+    tools.push({
+      type: 'function',
+      function: {
+        name: 'cancelar_agendamento',
+        description: 'Cancela o agendamento ativo do cliente. Use quando o cliente pedir para cancelar/desmarcar o compromisso.',
+        parameters: { type: 'object', properties: {}, required: [] },
+      },
+    });
   }
 
   for (const tool of config.tools || []) {
@@ -228,6 +250,36 @@ async function bookCalendarSlot(args: any, agentId: string, appBaseUrl: string, 
   }
 }
 
+async function rescheduleCalendarSlot(args: any, agentId: string, appBaseUrl: string, leadId: string): Promise<string> {
+  try {
+    const res = await fetch(`${appBaseUrl}/api/calendar/reschedule`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId, leadId, datetime: args.datetime }),
+    });
+    const data = await res.json();
+    if (!res.ok) return `Erro ao reagendar: ${data.error || res.status}`;
+    return data.message || 'Agendamento reagendado.';
+  } catch (e: any) {
+    return `Não foi possível reagendar: ${e.message}`;
+  }
+}
+
+async function cancelCalendarBooking(agentId: string, appBaseUrl: string, leadId: string): Promise<string> {
+  try {
+    const res = await fetch(`${appBaseUrl}/api/calendar/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId, leadId }),
+    });
+    const data = await res.json();
+    if (!res.ok) return `Erro ao cancelar: ${data.error || res.status}`;
+    return data.message || 'Agendamento cancelado.';
+  } catch (e: any) {
+    return `Não foi possível cancelar: ${e.message}`;
+  }
+}
+
 async function executeTool(
   toolCall: any, config: any, agentId: string, supabase: any, openaiKey: string, appBaseUrl: string,
   leadId: string, conversationId: string
@@ -250,6 +302,14 @@ async function executeTool(
 
   if (name === 'agendar_horario') {
     return bookCalendarSlot(args, agentId, appBaseUrl, leadId, conversationId);
+  }
+
+  if (name === 'reagendar_horario') {
+    return rescheduleCalendarSlot(args, agentId, appBaseUrl, leadId);
+  }
+
+  if (name === 'cancelar_agendamento') {
+    return cancelCalendarBooking(agentId, appBaseUrl, leadId);
   }
 
   const tool = (config.tools || []).find((t: any) => t.name === name);

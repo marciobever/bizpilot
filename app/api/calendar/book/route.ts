@@ -34,7 +34,7 @@ async function bookCalcom(config: any, datetime: string, name: string, email: st
   });
   const data = await res.json();
   if (!res.ok || data?.status === 'error') throw new Error(data?.error?.message || 'Erro ao criar agendamento no Cal.com.');
-  return { confirmed: true, message: `Agendamento confirmado para ${datetime}.` };
+  return { confirmed: true, message: `Agendamento confirmado para ${datetime}.`, providerBookingId: data?.data?.uid as string | undefined };
 }
 
 async function bookGoogle(config: any, datetime: string, name: string, email: string, description: string) {
@@ -56,7 +56,7 @@ async function bookGoogle(config: any, datetime: string, name: string, email: st
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.error?.message || 'Erro ao criar evento no Google Calendar.');
-  return { confirmed: true, message: `Agendamento confirmado para ${datetime}.` };
+  return { confirmed: true, message: `Agendamento confirmado para ${datetime}.`, providerBookingId: data?.id as string | undefined };
 }
 
 async function bookCalendly(config: any) {
@@ -121,6 +121,7 @@ export async function POST(req: NextRequest) {
         customer_name: name,
         customer_email: email || null,
         description: description || null,
+        provider_booking_id: result.providerBookingId || null,
       });
     }
 
