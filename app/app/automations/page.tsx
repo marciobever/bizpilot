@@ -126,6 +126,7 @@ function Integrations() {
     apiKey: "", eventTypeId: "",
     apiToken: "", schedulingUrl: "",
     clientId: "", clientSecret: "",
+    reminderHours: "2",
   });
   const [calendarMsg, setCalendarMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [appOrigin, setAppOrigin] = useState("");
@@ -204,6 +205,7 @@ function Integrations() {
         schedulingUrl: cfg.schedulingUrl || "",
         clientId: cfg.clientId || "",
         clientSecret: cfg.clientSecret ? "••••••••••••" : "",
+        reminderHours: String(cfg.reminderHours ?? 2),
       });
     }
   };
@@ -283,7 +285,7 @@ function Integrations() {
           const data = await res.json();
           if (!data.success) { setCalendarMsg({ ok: false, text: data.error || 'Credencial inválida.' }); return; }
 
-          await upsertIntegration('calendar', 'Calendário / Agenda', 'connected', { provider, apiKey: finalApiKey, eventTypeId });
+          await upsertIntegration('calendar', 'Calendário / Agenda', 'connected', { provider, apiKey: finalApiKey, eventTypeId, reminderHours: Number(calendarForm.reminderHours) || 2 });
           setActiveModal(null);
         } else if (provider === 'calendly') {
           const apiToken = calendarForm.apiToken.trim();
@@ -316,7 +318,7 @@ function Integrations() {
           if (!data.success) { setCalendarMsg({ ok: false, text: data.error || 'Dados inválidos.' }); return; }
 
           await upsertIntegration('calendar', 'Calendário / Agenda', existing.refreshToken ? 'connected' : 'disconnected', {
-            ...existing, provider, clientId, clientSecret: finalSecret,
+            ...existing, provider, clientId, clientSecret: finalSecret, reminderHours: Number(calendarForm.reminderHours) || 2,
           });
           window.location.href = `/api/calendar/google/auth?userId=${user.id}`;
         }
@@ -625,6 +627,18 @@ function Integrations() {
                         <p className="text-xs text-emerald-500">Conta do Google já autorizada.</p>
                       )}
                     </>
+                  )}
+
+                  {(calendarForm.provider === 'calcom' || calendarForm.provider === 'google') && (
+                    <div className="space-y-2">
+                      <Label htmlFor="reminderHours">Lembrete de confirmação (horas antes)</Label>
+                      <Input
+                        id="reminderHours" type="number" min="1" max="48" placeholder="2"
+                        value={calendarForm.reminderHours}
+                        onChange={(e) => setCalendarForm(prev => ({ ...prev, reminderHours: e.target.value }))}
+                      />
+                      <p className="text-xs text-muted-foreground">O agente enviará uma mensagem automática pedindo confirmação do compromisso esse tempo antes do horário marcado.</p>
+                    </div>
                   )}
 
                   {calendarMsg && (

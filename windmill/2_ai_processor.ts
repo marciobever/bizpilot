@@ -182,12 +182,12 @@ async function checkCalendarAvailability(args: any, agentId: string, appBaseUrl:
   }
 }
 
-async function bookCalendarSlot(args: any, agentId: string, appBaseUrl: string): Promise<string> {
+async function bookCalendarSlot(args: any, agentId: string, appBaseUrl: string, leadId: string, conversationId: string): Promise<string> {
   try {
     const res = await fetch(`${appBaseUrl}/api/calendar/book`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agentId, datetime: args.datetime, name: args.nome, email: args.email, description: args.descricao }),
+      body: JSON.stringify({ agentId, datetime: args.datetime, name: args.nome, email: args.email, description: args.descricao, leadId, conversationId }),
     });
     const data = await res.json();
     if (!res.ok) return `Erro ao agendar: ${data.error || res.status}`;
@@ -198,7 +198,8 @@ async function bookCalendarSlot(args: any, agentId: string, appBaseUrl: string):
 }
 
 async function executeTool(
-  toolCall: any, config: any, agentId: string, supabase: any, openaiKey: string, appBaseUrl: string
+  toolCall: any, config: any, agentId: string, supabase: any, openaiKey: string, appBaseUrl: string,
+  leadId: string, conversationId: string
 ): Promise<string> {
   const name: string = toolCall.function.name;
   let args: any = {};
@@ -217,7 +218,7 @@ async function executeTool(
   }
 
   if (name === 'agendar_horario') {
-    return bookCalendarSlot(args, agentId, appBaseUrl);
+    return bookCalendarSlot(args, agentId, appBaseUrl, leadId, conversationId);
   }
 
   const tool = (config.tools || []).find((t: any) => t.name === name);
@@ -530,7 +531,7 @@ Lista (4+): [[LISTA: Título || Seção | Opção 1 | Opção 2]]`;
           assistantMsg.tool_calls.map(async (tc: any) => ({
             role: 'tool',
             tool_call_id: tc.id,
-            content: await executeTool(tc, config, agentData.id, supabase, finalOpenAiKey!, appBaseUrl),
+            content: await executeTool(tc, config, agentData.id, supabase, finalOpenAiKey!, appBaseUrl, lead.id, conversation.id),
           }))
         );
         messages.push(...toolResults);

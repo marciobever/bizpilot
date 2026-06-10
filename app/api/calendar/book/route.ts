@@ -74,10 +74,10 @@ async function bookCalendly(config: any) {
   };
 }
 
-// POST /api/calendar/book { agentId, datetime, name, email, description }
+// POST /api/calendar/book { agentId, datetime, name, email, description, leadId, conversationId }
 // Chamado pelo Windmill (tool `agendar_horario`).
 export async function POST(req: NextRequest) {
-  const { agentId, datetime, name, email, description } = await req.json();
+  const { agentId, datetime, name, email, description, leadId, conversationId } = await req.json();
   if (!agentId || !name) return NextResponse.json({ error: 'agentId e name são obrigatórios' }, { status: 400 });
 
   const supabase = getServiceSupabase();
@@ -96,18 +96,35 @@ export async function POST(req: NextRequest) {
   const config = integration.config as any;
 
   try {
+    let result: any;
     if (config.provider === 'calcom') {
       if (!datetime) return NextResponse.json({ error: 'datetime é obrigatório' }, { status: 400 });
-      return NextResponse.json(await bookCalcom(config, datetime, name, email || '', description || ''));
-    }
-    if (config.provider === 'google') {
+      result = await bookCalcom(config, datetime, name, email || '', description || '');
+    } else if (config.provider === 'google') {
       if (!datetime) return NextResponse.json({ error: 'datetime é obrigatório' }, { status: 400 });
-      return NextResponse.json(await bookGoogle(config, datetime, name, email || '', description || ''));
+      result = await bookGoogle(config, datetime, name, email || '', description || '');
+    } else if (config.provider === 'calendly') {
+      result = await bookCalendly(config);
+    } else {
+      return NextResponse.json({ error: 'Provedor de calendário não suportado.' }, { status: 400 });
     }
-    if (config.provider === 'calendly') {
-      return NextResponse.json(await bookCalendly(config));
+
+    // Salva o agendamento confirmado para permitir lembretes automáticos.
+    if (result.confirmed && datetime) {
+      await supabase.from('bookings').insert({
+        user_id: agent.user_id,
+        agent_id: agentId,
+        lead_id: leadId || null,
+        conversation_id: conversationId || null,
+        provider: config.provider,
+        datetime: new Date(datetime).toISOString(),
+        customer_name: name,
+        customer_email: email || null,
+        description: description || null,
+      });
     }
-    return NextResponse.json({ error: 'Provedor de calendário não suportado.' }, { status: 400 });
+
+    return NextResponse.json(result);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });
   }
