@@ -30,7 +30,8 @@ async function calcomSlots(apiKey: string, eventTypeId: string, date: string) {
   const data = await res.json();
   if (!res.ok || data?.status === 'error') throw new Error(data?.error?.message || 'Erro ao consultar disponibilidade no Cal.com.');
   const slotsByDate = data.data ?? data;
-  return (slotsByDate?.[date] || []) as string[];
+  const raw = (slotsByDate?.[date] || []) as any[];
+  return raw.map((s) => (typeof s === 'string' ? s : s.start));
 }
 
 async function googleSlots(config: any, date: string) {
