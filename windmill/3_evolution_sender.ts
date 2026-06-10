@@ -60,7 +60,8 @@ async function sendMeta(
   recipient: string,
   textBody: string,
   buttons: string[] | null,
-  list: { title: string; sections: { title: string; rows: string[] }[] } | null
+  list: { title: string; sections: { title: string; rows: string[] }[] } | null,
+  imageUrl?: string | null
 ): Promise<any> {
   const base = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
   const headers = {
@@ -70,7 +71,15 @@ async function sendMeta(
 
   let payload: any;
 
-  if (buttons && buttons.length > 0) {
+  if (imageUrl) {
+    payload = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: recipient,
+      type: "image",
+      image: { link: imageUrl, caption: textBody },
+    };
+  } else if (buttons && buttons.length > 0) {
     payload = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
@@ -139,9 +148,26 @@ async function sendEvolution(
   buttons: string[] | null,
   list: { title: string; sections: { title: string; rows: string[] }[] } | null,
   audioBase64: string | null,
-  typingDelay: number
+  typingDelay: number,
+  imageUrl?: string | null
 ): Promise<any> {
   const headers = { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY };
+
+  // Imagem (ex: QR Code do Pix) tem prioridade sobre os demais formatos.
+  if (imageUrl) {
+    const res = await fetch(`${EVOLUTION_API_URL}/message/sendMedia/${instanceName}`, {
+      method: "POST", headers,
+      body: JSON.stringify({
+        number: remoteJid,
+        mediatype: "image",
+        media: imageUrl,
+        caption: textBody,
+        options: { delay: typingDelay, presence: "composing" },
+      }),
+    });
+    if (!res.ok) throw new Error(`Evolution media error: ${await res.text()}`);
+    return res.json().catch(() => null);
+  }
 
   // Áudio tem prioridade sobre interativos.
   // Evolution API v2: audio é base64 puro (sem prefixo data:URI), delay na raiz.
@@ -224,7 +250,7 @@ export async function main(
     return { success: false, reason: ai_data?.reason || "Mensagem ignorada pelo fluxo." };
   }
 
-  const { remoteJid, message, instanceName, audioBase64 } = ai_data;
+  const { remoteJid, message, instanceName, audioBase64, imageUrl } = ai_data;
   const channel = ai_data.channel || { provider: "evolution" };
 
   if (!message || typeof message !== "string") {
@@ -244,7 +270,7 @@ export async function main(
       return { success: false, reason: "Credenciais da Meta ausentes no canal do agente." };
     }
     const recipient = String(remoteJid).replace("@s.whatsapp.net", "").replace(/\D/g, "");
-    const result = await sendMeta(phoneNumberId, accessToken, recipient, textBody, buttons, list);
+    const result = await sendMeta(phoneNumberId, accessToken, recipient, textBody, buttons, list, imageUrl || null);
     return {
       success: true, deliveredTo: recipient, provider: "meta",
       interactive: !!(buttons || list), metaResponse: result,
@@ -260,7 +286,7 @@ export async function main(
 
   const result = await sendEvolution(
     EVOLUTION_API_URL, EVOLUTION_API_KEY, instanceName,
-    remoteJid, textBody, buttons, list, audioBase64 || null, typingDelay
+    remoteJid, textBody, buttons, list, audioBase64 || null, typingDelay, imageUrl || null
   );
 
   return {

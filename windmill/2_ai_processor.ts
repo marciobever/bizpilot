@@ -170,7 +170,7 @@ async function searchKnowledge(
   }
 }
 
-async function generatePaymentLink(args: any, agentId: string, appBaseUrl: string): Promise<string> {
+async function generatePaymentLink(args: any, agentId: string, appBaseUrl: string, sideEffects: { imageUrl?: string }): Promise<string> {
   try {
     const res = await fetch(`${appBaseUrl}/api/payments/create-link`, {
       method: 'POST',
@@ -179,7 +179,10 @@ async function generatePaymentLink(args: any, agentId: string, appBaseUrl: strin
     });
     const data = await res.json();
     if (!res.ok) return `Erro ao gerar link de pagamento: ${data.error || res.status}`;
-    if (data.pixCode) return `Envie este código Pix Copia e Cola para o cliente colar no app do banco dele para pagar: ${data.pixCode}`;
+    if (data.pixCode) {
+      if (data.qrCodeUrl) sideEffects.imageUrl = data.qrCodeUrl;
+      return `O QR Code do Pix já foi enviado ao cliente como imagem. Envie também este código Pix Copia e Cola, caso ele prefira colar no app do banco: ${data.pixCode}`;
+    }
     return `Link de pagamento gerado: ${data.url}`;
   } catch (e: any) {
     return `Não foi possível gerar o link de pagamento: ${e.message}`;
@@ -283,7 +286,7 @@ async function cancelCalendarBooking(agentId: string, appBaseUrl: string, leadId
 
 async function executeTool(
   toolCall: any, config: any, agentId: string, supabase: any, openaiKey: string, appBaseUrl: string,
-  leadId: string, conversationId: string
+  leadId: string, conversationId: string, sideEffects: { imageUrl?: string }
 ): Promise<string> {
   const name: string = toolCall.function.name;
   let args: any = {};
@@ -294,7 +297,7 @@ async function executeTool(
   }
 
   if (name === 'gerar_link_pagamento') {
-    return generatePaymentLink(args, agentId, appBaseUrl);
+    return generatePaymentLink(args, agentId, appBaseUrl, sideEffects);
   }
 
   if (name === 'verificar_disponibilidade') {
@@ -586,6 +589,7 @@ Lista (4+): [[LISTA: Título || Seção | Opção 1 | Opção 2]]`;
 
   const modelToUse = config.model || 'gpt-5.4-mini';
   let responseText = 'Desculpe, não consegui processar sua mensagem no momento.';
+  const sideEffects: { imageUrl?: string } = {};
 
   if (!modelToUse.includes('gemini') && finalOpenAiKey) {
     const tools = buildOpenAITools(config, hasKnowledge, hasPayments && !!appBaseUrl, hasCalendar && !!appBaseUrl);
@@ -623,7 +627,7 @@ Lista (4+): [[LISTA: Título || Seção | Opção 1 | Opção 2]]`;
           assistantMsg.tool_calls.map(async (tc: any) => ({
             role: 'tool',
             tool_call_id: tc.id,
-            content: await executeTool(tc, config, agentData.id, supabase, finalOpenAiKey!, appBaseUrl, lead.id, conversation.id),
+            content: await executeTool(tc, config, agentData.id, supabase, finalOpenAiKey!, appBaseUrl, lead.id, conversation.id, sideEffects),
           }))
         );
         messages.push(...toolResults);
@@ -671,7 +675,7 @@ Lista (4+): [[LISTA: Título || Seção | Opção 1 | Opção 2]]`;
       .catch(() => {});
   }
 
-  return buildReturn(true, remoteJid, instanceName, responseText, audioBase64, wasAudio, channelInfo, agentData, config, lead, senderName, phoneNumber, conversation, isNewConversation);
+  return buildReturn(true, remoteJid, instanceName, responseText, audioBase64, wasAudio, channelInfo, agentData, config, lead, senderName, phoneNumber, conversation, isNewConversation, sideEffects.imageUrl);
 }
 
 // ─── Helpers de retorno ────────────────────────────────────────────────────────
@@ -697,10 +701,11 @@ function buildReturn(
   message: string, audioBase64: string | null, wasAudio: boolean,
   channel: any, agentData: any, config: any,
   lead: any, senderName: string, phoneNumber: string,
-  conversation: any, isNewConversation: boolean
+  conversation: any, isNewConversation: boolean,
+  imageUrl?: string | null
 ) {
   return {
-    send, remoteJid, instanceName, message, audioBase64, wasAudio, channel,
+    send, remoteJid, instanceName, message, audioBase64, wasAudio, channel, imageUrl: imageUrl || null,
     agent: {
       id: agentData.id, name: agentData.name, type: agentData.type,
       role: config.role || '', niche: config.niche || '', tone: config.tone || '',

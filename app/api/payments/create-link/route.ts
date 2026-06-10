@@ -101,7 +101,8 @@ export async function POST(req: NextRequest) {
         amount: numericAmount,
         description,
       });
-      return NextResponse.json({ pixCode });
+      const qrCodeUrl = `${req.nextUrl.origin}/api/payments/qrcode?data=${encodeURIComponent(pixCode)}`;
+      return NextResponse.json({ pixCode, qrCodeUrl });
     }
 
     let url: string | undefined;
