@@ -16,6 +16,21 @@ const buildTtsText = (t: string) =>
 function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boolean, hasCalendar: boolean, hasDataRecords: boolean): any[] {
   const tools: any[] = [];
 
+  tools.push({
+    type: 'function',
+    function: {
+      name: 'transferir_atendimento',
+      description: 'Transfere a conversa para um atendente humano e pausa as respostas automáticas. Use quando o cliente pedir explicitamente para falar com uma pessoa/atendente/humano, ou quando a situação exigir escalar conforme as regras restritas (ex: reclamação grave, urgência, fora da sua capacidade).',
+      parameters: {
+        type: 'object',
+        properties: {
+          motivo: { type: 'string', description: 'Breve motivo da transferência, para o atendente humano entender o contexto rapidamente.' },
+        },
+        required: ['motivo'],
+      },
+    },
+  });
+
   if (hasDataRecords) {
     tools.push({
       type: 'function',
@@ -347,9 +362,56 @@ async function queryDataRecords(args: any, agentId: string, leadId: string, supa
   return JSON.stringify(data.map((r: any) => ({ ...r.data, data_registro: r.created_at })));
 }
 
+// Avisa um humano disponível (número configurado) que uma conversa precisa de atenção.
+async function notifyHandoff(
+  config: any, channelInfo: any, instanceName: string, leadName: string, leadPhone: string, motivo: string
+): Promise<void> {
+  const handoffPhone = String(config.handoffPhone || '').replace(/\D/g, '');
+  if (!handoffPhone) return;
+
+  const text = `🔔 *Atendimento transferido para humano*\nCliente: ${leadName || 'Cliente'} (${leadPhone})\nMotivo: ${motivo || 'Solicitado pelo cliente'}\n\nA IA foi pausada nesta conversa. Acesse o painel de Conversas para responder.`;
+
+  try {
+    if (channelInfo?.provider === 'meta' && channelInfo.meta?.accessToken && channelInfo.meta?.phoneNumberId) {
+      await fetch(`https://graph.facebook.com/v21.0/${channelInfo.meta.phoneNumberId}/messages`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${channelInfo.meta.accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: handoffPhone, type: 'text', text: { body: text } }),
+      });
+      return;
+    }
+
+    if (!instanceName) return;
+    const { getVariable } = await import('windmill-client');
+    const tryGet = async (...paths: string[]) => {
+      for (const p of paths) { try { const v = await getVariable(p); if (v) return v; } catch {} }
+      return '';
+    };
+    const evoUrl = await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_URL', 'u/bevervansomarcio/EVOLUTION_API_URL');
+    const evoKey = await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_KEY', 'u/bevervansomarcio/EVOLUTION_API_KEY');
+    if (!evoUrl || !evoKey) return;
+
+    await fetch(`${evoUrl}/message/sendText/${instanceName}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: evoKey },
+      body: JSON.stringify({ number: `${handoffPhone}@s.whatsapp.net`, text, linkPreview: false }),
+    });
+  } catch { /* notificação é best-effort */ }
+}
+
+async function transferToHuman(
+  args: any, config: any, channelInfo: any, instanceName: string, conversationId: string,
+  leadName: string, leadPhone: string, supabase: any
+): Promise<string> {
+  await supabase.from('conversations').update({ status: 'paused' }).eq('id', conversationId);
+  await notifyHandoff(config, channelInfo, instanceName, leadName, leadPhone, args?.motivo || '');
+  return 'Atendimento transferido para um humano com sucesso e a IA foi pausada nesta conversa. Responda ao cliente em 1 frase curta avisando que um atendente vai continuar o atendimento em instantes.';
+}
+
 async function executeTool(
   toolCall: any, config: any, agentId: string, supabase: any, openaiKey: string, appBaseUrl: string,
-  leadId: string, conversationId: string, sideEffects: { imageUrl?: string }, userId: string
+  leadId: string, conversationId: string, sideEffects: { imageUrl?: string }, userId: string,
+  channelInfo: any, instanceName: string, leadName: string, leadPhone: string
 ): Promise<string> {
   const name: string = toolCall.function.name;
   let args: any = {};
@@ -385,6 +447,10 @@ async function executeTool(
 
   if (name === 'consultar_dados') {
     return queryDataRecords(args, agentId, leadId, supabase);
+  }
+
+  if (name === 'transferir_atendimento') {
+    return transferToHuman(args, config, channelInfo, instanceName, conversationId, leadName, leadPhone, supabase);
   }
 
   const tool = (config.tools || []).find((t: any) => t.name === name);
@@ -666,6 +732,9 @@ NUNCA prometa verificar algo depois. Resolva tudo na mesma mensagem ou admita qu
 === ENVIO DE FOTO ===
 Se a base de conhecimento trouxer um trecho "(foto: URL)" associado ao item que você está apresentando, inclua na sua resposta a marcação [[IMAGEM: URL]] (uma vez só, para o item principal/destaque). Essa marcação não aparece para o cliente — o sistema envia a foto de capa junto com sua mensagem como legenda.
 
+=== ATENDIMENTO HUMANO ===
+Se o cliente pedir para falar com um atendente/humano/pessoa, ou a situação exigir escalar conforme as regras restritas acima, chame transferir_atendimento com um breve motivo. Depois disso, responda ao cliente em 1 frase curta avisando que um atendente vai continuar por ali.
+
 === MENUS CLICÁVEIS ===
 Botões (até 3): [[BOTOES: Opção 1 | Opção 2 | Opção 3]]
 Lista (4+): [[LISTA: Título || Seção | Opção 1 | Opção 2]]${hasDataRecords ? `
@@ -724,7 +793,7 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
           assistantMsg.tool_calls.map(async (tc: any) => ({
             role: 'tool',
             tool_call_id: tc.id,
-            content: await executeTool(tc, config, agentData.id, supabase, finalOpenAiKey!, appBaseUrl, lead.id, conversation.id, sideEffects, userId),
+            content: await executeTool(tc, config, agentData.id, supabase, finalOpenAiKey!, appBaseUrl, lead.id, conversation.id, sideEffects, userId, channelInfo, instanceName, lead.name || senderName, phoneNumber),
           }))
         );
         messages.push(...toolResults);

@@ -1,6 +1,90 @@
 // Windmill Script 1: Webhook Receiver (Evolution API + Meta)
 // Runtime: Bun
-// Recebe webhook, transcreve áudio (OpenAI Whisper) e enfileira texto (debounce 8s anti-encavalamento).
+// Recebe webhook, transcreve áudio (OpenAI Whisper), faz OCR de imagens/documentos
+// (OpenAI Vision/Responses) e enfileira texto (debounce 8s anti-encavalamento).
+
+// ─── Helpers de mídia (OCR / leitura de imagens e documentos) ────────────────
+
+async function downloadMedia(
+  messageId: string, EVOLUTION_API_URL: string, EVOLUTION_API_KEY: string, instanceName: string
+): Promise<string | null> {
+  try {
+    const res = await fetch(`${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${instanceName}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY },
+      body: JSON.stringify({ message: { key: { id: messageId } } }),
+    });
+    if (!res.ok) return null;
+    const media = await res.json();
+    return media?.base64 || media?.data?.base64 || null;
+  } catch { return null; }
+}
+
+// Lê o conteúdo de uma imagem (comprovantes, documentos fotografados, prints, fotos, etc).
+async function analyzeImage(base64: string, mimetype: string, caption: string, OPENAI_API_KEY: string): Promise<string> {
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "Você analisa imagens enviadas por clientes via WhatsApp (comprovantes de pagamento, documentos fotografados, prints de tela, fotos de imóveis/produtos, etc). Transcreva todo texto visível (OCR) e descreva objetivamente as informações relevantes (valores, datas, nomes, itens, condições). Seja conciso e direto.",
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: caption ? `Legenda enviada pelo cliente: "${caption}"` : "Analise esta imagem e transcreva as informações relevantes." },
+              { type: "image_url", image_url: { url: `data:${mimetype || "image/jpeg"};base64,${base64}` } },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!res.ok) return "";
+    const { choices } = await res.json();
+    return choices?.[0]?.message?.content?.trim() || "";
+  } catch { return ""; }
+}
+
+// Lê o conteúdo de um PDF (contratos, extratos, comprovantes em PDF, etc).
+async function analyzePdf(base64: string, fileName: string, OPENAI_API_KEY: string): Promise<string> {
+  try {
+    const buf = Buffer.from(base64, "base64");
+    const form = new FormData();
+    form.append("file", new Blob([buf], { type: "application/pdf" }), fileName || "documento.pdf");
+    form.append("purpose", "user_data");
+    const upRes = await fetch("https://api.openai.com/v1/files", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+      body: form,
+    });
+    if (!upRes.ok) return "";
+    const file = await upRes.json();
+
+    const res = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${OPENAI_API_KEY}` },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        input: [{
+          role: "user",
+          content: [
+            { type: "input_text", text: "Transcreva o conteúdo relevante deste documento (texto, tabelas, valores, datas) de forma resumida e organizada." },
+            { type: "input_file", file_id: file.id },
+          ],
+        }],
+      }),
+    });
+    if (!res.ok) return "";
+    const result = await res.json();
+    if (typeof result.output_text === "string") return result.output_text.trim();
+    const textPart = result.output?.flatMap((o: any) => o.content || []).find((c: any) => c.type === "output_text");
+    return (textPart?.text || "").trim();
+  } catch { return ""; }
+}
 
 export async function main(payload: any) {
   // Busca variáveis do Windmill internamente — sem parâmetros novos no flow.
@@ -110,16 +194,40 @@ export async function main(payload: any) {
     }
 
   } else if (msg.imageMessage) {
-    incomingMessage = msg.imageMessage.caption || "[Cliente enviou uma imagem]";
+    const caption = msg.imageMessage.caption || "";
+    incomingMessage = caption || "[Cliente enviou uma imagem]";
     messageType = "image";
+    if (messageId && OPENAI_API_KEY) {
+      const base64 = await downloadMedia(messageId, EVOLUTION_API_URL, EVOLUTION_API_KEY, instanceName);
+      if (base64) {
+        const analysis = await analyzeImage(base64, msg.imageMessage.mimetype, caption, OPENAI_API_KEY);
+        if (analysis) {
+          incomingMessage = `[Cliente enviou uma imagem${caption ? ` com a legenda: "${caption}"` : ""}]\nConteúdo identificado na imagem:\n${analysis}`;
+        }
+      }
+    }
 
   } else if (msg.videoMessage) {
     incomingMessage = msg.videoMessage.caption || "[Cliente enviou um vídeo]";
     messageType = "video";
 
   } else if (msg.documentMessage) {
-    incomingMessage = msg.documentMessage.caption || `[Cliente enviou um documento: ${msg.documentMessage.fileName || "arquivo"}]`;
+    const caption = msg.documentMessage.caption || "";
+    const fileName = msg.documentMessage.fileName || "arquivo";
+    const mimetype = msg.documentMessage.mimetype || "";
+    incomingMessage = caption || `[Cliente enviou um documento: ${fileName}]`;
     messageType = "document";
+    if (messageId && OPENAI_API_KEY) {
+      const base64 = await downloadMedia(messageId, EVOLUTION_API_URL, EVOLUTION_API_KEY, instanceName);
+      if (base64) {
+        let analysis = "";
+        if (mimetype.startsWith("image/")) analysis = await analyzeImage(base64, mimetype, caption, OPENAI_API_KEY);
+        else if (mimetype === "application/pdf") analysis = await analyzePdf(base64, fileName, OPENAI_API_KEY);
+        if (analysis) {
+          incomingMessage = `[Cliente enviou o documento "${fileName}"${caption ? ` com a legenda: "${caption}"` : ""}]\nConteúdo identificado no documento:\n${analysis}`;
+        }
+      }
+    }
 
   } else if (msg.stickerMessage) {
     incomingMessage = "[Cliente enviou um sticker]"; messageType = "sticker";

@@ -50,7 +50,7 @@ Seu único objetivo é transformar visitantes em clientes. Faça isso em 3 etapa
 - Se o cliente objetar (preço, tempo, etc.), reconheça a objeção e reposicione o valor.
 
 === SOBRE A EMPRESA ===
-(Adicione aqui informações sobre seus produtos, preços, diferenciais e processo de compra.)`,
+Use a ferramenta buscar_conhecimento para consultar produtos, preços, diferenciais e condições de compra cadastrados na Base de Conhecimento (aba "Arquivos RAG"). Não invente informações que não estiverem lá.`,
     limitations: [
       "Nunca oferecer descontos não autorizados",
       "Não inventar especificações ou prazos de entrega",
@@ -82,7 +82,7 @@ Resolver o problema do cliente de forma rápida e eficiente, garantindo que ele 
 - Nunca culpe o cliente pelo problema.
 
 === INFORMAÇÕES ÚTEIS ===
-(Adicione aqui as perguntas frequentes, processos de troca/reembolso e políticas da empresa.)`,
+Use a ferramenta buscar_conhecimento para consultar perguntas frequentes, processos de troca/reembolso e políticas da empresa cadastrados na Base de Conhecimento (aba "Arquivos RAG"). Não invente informações que não estiverem lá.`,
     limitations: [
       "Nunca prometer reembolso sem verificar a política da empresa",
       "Não compartilhar dados de outros clientes",
@@ -115,8 +115,8 @@ Coletar os dados do cliente e registrar a solicitação de agendamento. Você N�
 - Siga o mesmo fluxo: colete os dados e informe que a equipe processará.
 - Ofereça: [[BOTOES: Reagendar | Cancelar | Falar com atendente]]
 
-=== AGENDA E DISPONIBILIDADE ===
-(Adicione aqui os horários de funcionamento, serviços oferecidos e valores.)`,
+=== SERVIÇOS E HORÁRIOS ===
+Use a ferramenta buscar_conhecimento para consultar horários de funcionamento, serviços oferecidos e valores cadastrados na Base de Conhecimento (aba "Arquivos RAG"). Não invente informações que não estiverem lá.`,
     limitations: [
       "NUNCA dizer que vai verificar disponibilidade e retornar — você não tem essa capacidade",
       "Sempre informar que a equipe confirmará em breve pelo mesmo canal",
@@ -152,7 +152,7 @@ Colete estas informações (uma por vez, naturalmente):
 - Termine sempre convidando para visita.
 
 === SOBRE O PORTFÓLIO ===
-(Adicione aqui a lista de imóveis disponíveis, faixas de preço e diferenciais.)`,
+Use a ferramenta buscar_conhecimento para consultar os imóveis disponíveis, valores e diferenciais cadastrados na Base de Conhecimento (aba "Arquivos RAG"). Não invente imóveis, preços ou características que não estiverem lá.`,
     limitations: [
       "Não garantir aprovação de financiamento ou crédito",
       "Não citar valores de outros imóveis da concorrência",
@@ -184,7 +184,7 @@ Acolher os pacientes, tirar dúvidas sobre serviços e realizar agendamentos com
 - Seja sensível a situações delicadas.
 
 === SOBRE A CLÍNICA ===
-(Adicione aqui as especialidades, convênios aceitos, horários e endereço.)`,
+Use a ferramenta buscar_conhecimento para consultar especialidades, convênios aceitos, horários e endereço cadastrados na Base de Conhecimento (aba "Arquivos RAG"). Não invente informações que não estiverem lá.`,
     limitations: [
       "NUNCA dar diagnósticos médicos ou receitar medicamentos",
       "Não recomendar tratamentos específicos",
@@ -225,7 +225,7 @@ Esclareça sobre formas de pagamento, parcelamento e confirmação de pagamento.
 - Termine com "Posso ajudar com mais alguma coisa?"
 
 === POLÍTICAS DA LOJA ===
-(Adicione aqui: prazo de entrega, política de troca, formas de pagamento e link de rastreamento.)`,
+Use a ferramenta buscar_conhecimento para consultar prazos de entrega, política de troca, formas de pagamento e link de rastreamento cadastrados na Base de Conhecimento (aba "Arquivos RAG"). Não invente informações que não estiverem lá.`,
     limitations: [
       "Não processar reembolso sem verificar a política (prazo e condições)",
       "Não confirmar estoque sem checar o sistema",
@@ -307,6 +307,7 @@ export default function AgentConfig() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [ignoreGroups, setIgnoreGroups] = useState(true);
   const [dataRecordsEnabled, setDataRecordsEnabled] = useState(false);
+  const [handoffPhone, setHandoffPhone] = useState("");
 
   // ── Mini agentes de IA (geração de saudação e instruções) ─────────────────
   const [showGreetingAI, setShowGreetingAI] = useState(false);
@@ -797,6 +798,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
           if (cfg.limitations && Array.isArray(cfg.limitations)) setLimitations(cfg.limitations);
           if (cfg.ignoreGroups !== undefined) setIgnoreGroups(cfg.ignoreGroups);
           if (cfg.dataRecordsEnabled !== undefined) setDataRecordsEnabled(cfg.dataRecordsEnabled);
+          if (cfg.handoffPhone) setHandoffPhone(cfg.handoffPhone);
           if (cfg.blocklist && Array.isArray(cfg.blocklist)) setBlocklist(cfg.blocklist);
           if (cfg.tags && Array.isArray(cfg.tags)) {
             setTags(cfg.tags);
@@ -870,6 +872,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
       limitations: limitations,
       ignoreGroups: ignoreGroups,
       dataRecordsEnabled: dataRecordsEnabled,
+      handoffPhone: handoffPhone.trim(),
       blocklist: blocklist,
       tags: tags,
       variables: varsObject,
@@ -933,6 +936,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
       limitations: limitations,
       ignoreGroups: ignoreGroups,
       dataRecordsEnabled: dataRecordsEnabled,
+      handoffPhone: handoffPhone.trim(),
       blocklist: blocklist,
       tags: tags,
       variables: varsObject,
@@ -1419,6 +1423,17 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                       <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
                     </label>
                   </div>
+                </div>
+
+                <div className="space-y-2 pt-4 border-t border-border mt-4">
+                  <Label htmlFor="handoffPhone">Número para Transferência (Atendimento Humano)</Label>
+                  <Input
+                    id="handoffPhone"
+                    placeholder="Ex: 5511999999999"
+                    value={handoffPhone}
+                    onChange={(e) => setHandoffPhone(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">Quando o cliente pedir para falar com um atendente (ou a IA decidir escalar), a conversa é pausada e este número recebe um aviso por WhatsApp com o contexto. Deixe em branco para apenas pausar a IA, sem notificação.</p>
                 </div>
 
                 <div className="space-y-4 pt-4 border-t border-border mt-4">
