@@ -14,10 +14,18 @@ async function downloadMedia(
       headers: { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY },
       body: JSON.stringify({ message: { key: { id: messageId } } }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`downloadMedia: Evolution API ${res.status}: ${await res.text()}`);
+      return null;
+    }
     const media = await res.json();
-    return media?.base64 || media?.data?.base64 || null;
-  } catch { return null; }
+    const b64 = media?.base64 || media?.data?.base64 || null;
+    if (!b64) console.error(`downloadMedia: resposta sem base64: ${JSON.stringify(media).slice(0, 300)}`);
+    return b64;
+  } catch (e: any) {
+    console.error(`downloadMedia: erro: ${e.message}`);
+    return null;
+  }
 }
 
 // Lê o conteúdo de uma imagem (comprovantes, documentos fotografados, prints, fotos, etc).
@@ -43,10 +51,16 @@ async function analyzeImage(base64: string, mimetype: string, caption: string, O
         ],
       }),
     });
-    if (!res.ok) return "";
+    if (!res.ok) {
+      console.error(`analyzeImage: OpenAI ${res.status}: ${await res.text()}`);
+      return "";
+    }
     const { choices } = await res.json();
     return choices?.[0]?.message?.content?.trim() || "";
-  } catch { return ""; }
+  } catch (e: any) {
+    console.error(`analyzeImage: erro: ${e.message}`);
+    return "";
+  }
 }
 
 // Lê o conteúdo de um PDF (contratos, extratos, comprovantes em PDF, etc).
@@ -61,7 +75,10 @@ async function analyzePdf(base64: string, fileName: string, OPENAI_API_KEY: stri
       headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
       body: form,
     });
-    if (!upRes.ok) return "";
+    if (!upRes.ok) {
+      console.error(`analyzePdf: OpenAI files ${upRes.status}: ${await upRes.text()}`);
+      return "";
+    }
     const file = await upRes.json();
 
     const res = await fetch("https://api.openai.com/v1/responses", {
@@ -78,12 +95,18 @@ async function analyzePdf(base64: string, fileName: string, OPENAI_API_KEY: stri
         }],
       }),
     });
-    if (!res.ok) return "";
+    if (!res.ok) {
+      console.error(`analyzePdf: OpenAI responses ${res.status}: ${await res.text()}`);
+      return "";
+    }
     const result = await res.json();
     if (typeof result.output_text === "string") return result.output_text.trim();
     const textPart = result.output?.flatMap((o: any) => o.content || []).find((c: any) => c.type === "output_text");
     return (textPart?.text || "").trim();
-  } catch { return ""; }
+  } catch (e: any) {
+    console.error(`analyzePdf: erro: ${e.message}`);
+    return "";
+  }
 }
 
 export async function main(payload: any) {
@@ -120,7 +143,8 @@ export async function main(payload: any) {
   if (fromMe) return { process: false, reason: "Mensagem ignorada (fromMe: true)." };
   if (!remoteJid) return { process: false, reason: "remoteJid não encontrado no payload." };
 
-  const msg = payload.data?.message || {};
+  // Documentos enviados com legenda chegam encapsulados em documentWithCaptionMessage.
+  const msg = payload.data?.message?.documentWithCaptionMessage?.message || payload.data?.message || {};
   let incomingMessage = "";
   let messageType = "text";
   let wasAudio = false;
