@@ -13,8 +13,42 @@ const buildTtsText = (t: string) =>
 
 // ─── Tools: construção e execução ─────────────────────────────────────────────
 
-function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boolean, hasCalendar: boolean): any[] {
+function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boolean, hasCalendar: boolean, hasDataRecords: boolean): any[] {
   const tools: any[] = [];
+
+  if (hasDataRecords) {
+    tools.push({
+      type: 'function',
+      function: {
+        name: 'salvar_dado',
+        description: 'Salva uma informação estruturada deste cliente para consulta posterior (ex: lançamento financeiro, pedido, anotação, medição). Escolha uma "categoria" curta e use sempre a mesma categoria para o mesmo tipo de dado, para poder consultar depois.',
+        parameters: {
+          type: 'object',
+          properties: {
+            categoria: { type: 'string', description: 'Tipo do dado, ex: "transacao", "pedido", "anotacao". Use sempre o mesmo nome para o mesmo tipo de dado.' },
+            dados: { type: 'object', description: 'Conteúdo do registro em campos livres (ex: {"valor": -50, "descricao": "mercado", "tipo": "despesa"})', additionalProperties: true },
+          },
+          required: ['categoria', 'dados'],
+        },
+      },
+    });
+    tools.push({
+      type: 'function',
+      function: {
+        name: 'consultar_dados',
+        description: 'Consulta os dados estruturados salvos anteriormente para este cliente, filtrando por categoria e opcionalmente por período. Use para responder perguntas sobre o histórico (ex: "quanto gastei esse mês?").',
+        parameters: {
+          type: 'object',
+          properties: {
+            categoria: { type: 'string', description: 'Categoria usada ao salvar o dado (ex: "transacao").' },
+            data_inicio: { type: 'string', description: 'Data inicial do filtro, formato AAAA-MM-DD (opcional).' },
+            data_fim: { type: 'string', description: 'Data final do filtro, formato AAAA-MM-DD (opcional).' },
+          },
+          required: ['categoria'],
+        },
+      },
+    });
+  }
 
   if (hasKnowledge) {
     tools.push({
@@ -284,9 +318,38 @@ async function cancelCalendarBooking(agentId: string, appBaseUrl: string, leadId
   }
 }
 
+async function saveDataRecord(args: any, agentId: string, userId: string, leadId: string, supabase: any): Promise<string> {
+  if (!args.categoria || !args.dados) return 'categoria e dados são obrigatórios.';
+  const { error } = await supabase.from('agent_records').insert({
+    user_id: userId,
+    agent_id: agentId,
+    lead_id: leadId,
+    category: String(args.categoria).toLowerCase().trim(),
+    data: args.dados,
+  });
+  if (error) return `Erro ao salvar: ${error.message}`;
+  return 'Dado salvo com sucesso.';
+}
+
+async function queryDataRecords(args: any, agentId: string, leadId: string, supabase: any): Promise<string> {
+  if (!args.categoria) return 'categoria é obrigatória.';
+  let query = supabase.from('agent_records').select('data, created_at')
+    .eq('agent_id', agentId).eq('lead_id', leadId)
+    .eq('category', String(args.categoria).toLowerCase().trim())
+    .order('created_at', { ascending: true })
+    .limit(200);
+  if (args.data_inicio) query = query.gte('created_at', `${args.data_inicio}T00:00:00`);
+  if (args.data_fim) query = query.lte('created_at', `${args.data_fim}T23:59:59`);
+
+  const { data, error } = await query;
+  if (error) return `Erro ao consultar: ${error.message}`;
+  if (!data?.length) return 'Nenhum registro encontrado para essa categoria/período.';
+  return JSON.stringify(data.map((r: any) => ({ ...r.data, data_registro: r.created_at })));
+}
+
 async function executeTool(
   toolCall: any, config: any, agentId: string, supabase: any, openaiKey: string, appBaseUrl: string,
-  leadId: string, conversationId: string, sideEffects: { imageUrl?: string }
+  leadId: string, conversationId: string, sideEffects: { imageUrl?: string }, userId: string
 ): Promise<string> {
   const name: string = toolCall.function.name;
   let args: any = {};
@@ -314,6 +377,14 @@ async function executeTool(
 
   if (name === 'cancelar_agendamento') {
     return cancelCalendarBooking(agentId, appBaseUrl, leadId);
+  }
+
+  if (name === 'salvar_dado') {
+    return saveDataRecord(args, agentId, userId, leadId, supabase);
+  }
+
+  if (name === 'consultar_dados') {
+    return queryDataRecords(args, agentId, leadId, supabase);
   }
 
   const tool = (config.tools || []).find((t: any) => t.name === name);
@@ -516,6 +587,10 @@ export async function main(
     .select('status').eq('user_id', userId).eq('provider', 'calendar').maybeSingle();
   const hasCalendar = calendarIntegration?.status === 'connected';
 
+  // ── Memória de dados estruturados (registros livres por categoria) ───────
+
+  const hasDataRecords = !!config.dataRecordsEnabled;
+
   let appBaseUrl = process.env.APP_BASE_URL || '';
   if (!appBaseUrl) {
     try {
@@ -593,7 +668,10 @@ Se a base de conhecimento trouxer um trecho "(foto: URL)" associado ao item que 
 
 === MENUS CLICÁVEIS ===
 Botões (até 3): [[BOTOES: Opção 1 | Opção 2 | Opção 3]]
-Lista (4+): [[LISTA: Título || Seção | Opção 1 | Opção 2]]`;
+Lista (4+): [[LISTA: Título || Seção | Opção 1 | Opção 2]]${hasDataRecords ? `
+
+=== MEMÓRIA DE DADOS (REGISTROS) ===
+Sempre que o cliente fornecer uma informação que deva ser guardada para consulta futura (ex: um lançamento financeiro, um pedido, uma anotação, uma medição), chame salvar_dado com uma "categoria" curta e consistente (ex: "transacao") e os campos relevantes em "dados". Quando o cliente perguntar sobre o histórico ou pedir totais/resumos (ex: "quanto gastei esse mês?"), chame consultar_dados com a mesma categoria e, se fizer sentido, um período, e calcule a resposta a partir dos registros retornados.` : ''}`;
 
   // ── Verificações de segurança ─────────────────────────────────────────────
 
@@ -611,7 +689,7 @@ Lista (4+): [[LISTA: Título || Seção | Opção 1 | Opção 2]]`;
   const sideEffects: { imageUrl?: string } = {};
 
   if (!modelToUse.includes('gemini') && finalOpenAiKey) {
-    const tools = buildOpenAITools(config, hasKnowledge, hasPayments && !!appBaseUrl, hasCalendar && !!appBaseUrl);
+    const tools = buildOpenAITools(config, hasKnowledge, hasPayments && !!appBaseUrl, hasCalendar && !!appBaseUrl, hasDataRecords);
     const messages: any[] = [
       { role: 'system', content: aiSystemInstruction },
       ...cleanHistory.map((m: any) => ({
@@ -646,7 +724,7 @@ Lista (4+): [[LISTA: Título || Seção | Opção 1 | Opção 2]]`;
           assistantMsg.tool_calls.map(async (tc: any) => ({
             role: 'tool',
             tool_call_id: tc.id,
-            content: await executeTool(tc, config, agentData.id, supabase, finalOpenAiKey!, appBaseUrl, lead.id, conversation.id, sideEffects),
+            content: await executeTool(tc, config, agentData.id, supabase, finalOpenAiKey!, appBaseUrl, lead.id, conversation.id, sideEffects, userId),
           }))
         );
         messages.push(...toolResults);

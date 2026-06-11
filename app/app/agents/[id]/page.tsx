@@ -24,6 +24,7 @@ type PromptTemplate = {
   limitations: string[];
   tone: string;
   role: string;
+  enableDataRecords?: boolean;
 };
 
 const PROMPT_TEMPLATES: PromptTemplate[] = [
@@ -232,6 +233,40 @@ Esclareça sobre formas de pagamento, parcelamento e confirmação de pagamento.
       "Escalar para humano casos de fraude ou chargeback",
     ],
   },
+  {
+    id: "financeiro",
+    label: "Auxiliar Financeiro Pessoal",
+    emoji: "💰",
+    description: "Registra gastos e receitas que o usuário for informando e gera resumos sob demanda.",
+    tone: "Amigável e Empático",
+    role: "Assistente Financeiro",
+    systemPrompt: `Você é {agentName}, {role} de {niche}.
+
+=== SUA MISSÃO ===
+Ajudar o usuário a controlar suas finanças pessoais, registrando os lançamentos que ele for informando ao longo das conversas e respondendo perguntas sobre seus gastos e receitas.
+
+=== REGISTRO DE LANÇAMENTOS ===
+Sempre que o usuário mencionar um gasto ou recebimento (ex: "gastei 50 reais no mercado", "recebi 2000 de salário hoje"), use a ferramenta salvar_dado com categoria "transacao" e os campos: valor (negativo para gasto, positivo para receita), descricao, tipo ("despesa" ou "receita") e categoria_gasto (ex: "alimentação", "transporte", "lazer", "salário").
+- Confirme rapidamente o que foi registrado, em 1 frase.
+- Se faltar alguma informação importante (valor), pergunte antes de registrar.
+
+=== CONSULTAS E RESUMOS ===
+Quando o usuário pedir um resumo, saldo ou total (ex: "quanto gastei esse mês?", "qual meu saldo?"), use consultar_dados com categoria "transacao" e o período pedido, e calcule a resposta com base nos registros retornados. Apresente o resumo de forma clara, com total de receitas, total de despesas e saldo.
+
+=== COMO SE COMUNICAR ===
+- Seja direto e prático, sem julgar os hábitos do usuário.
+- Use valores em R$ sempre formatados (ex: R$ 1.234,56).
+
+=== SOBRE O CONTEXTO ===
+(Adicione aqui particularidades do usuário/negócio, se houver: categorias de gasto comuns, metas, etc.)`,
+    limitations: [
+      "Nunca dar conselhos de investimento ou recomendações financeiras formais",
+      "Nunca inventar valores ou registros que o usuário não informou",
+      "Sempre confirmar o valor antes de registrar um lançamento",
+      "Não excluir ou alterar registros — apenas adicionar novos lançamentos",
+    ],
+    enableDataRecords: true,
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -271,6 +306,7 @@ export default function AgentConfig() {
   const [newLimitation, setNewLimitation] = useState("");
   const [showTemplates, setShowTemplates] = useState(false);
   const [ignoreGroups, setIgnoreGroups] = useState(true);
+  const [dataRecordsEnabled, setDataRecordsEnabled] = useState(false);
 
   // ── Mini agentes de IA (geração de saudação e instruções) ─────────────────
   const [showGreetingAI, setShowGreetingAI] = useState(false);
@@ -647,6 +683,7 @@ export default function AgentConfig() {
     setLimitations(tpl.limitations);
     if (!tone || tone === "Profissional e Direto") setTone(tpl.tone);
     if (!role) setRole(tpl.role);
+    if (tpl.enableDataRecords) setDataRecordsEnabled(true);
     setShowTemplates(false);
   };
 
@@ -759,6 +796,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
           if (cfg.voice_voice) setVoiceVoice(cfg.voice_voice);
           if (cfg.limitations && Array.isArray(cfg.limitations)) setLimitations(cfg.limitations);
           if (cfg.ignoreGroups !== undefined) setIgnoreGroups(cfg.ignoreGroups);
+          if (cfg.dataRecordsEnabled !== undefined) setDataRecordsEnabled(cfg.dataRecordsEnabled);
           if (cfg.blocklist && Array.isArray(cfg.blocklist)) setBlocklist(cfg.blocklist);
           if (cfg.tags && Array.isArray(cfg.tags)) {
             setTags(cfg.tags);
@@ -831,6 +869,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
       voice_voice: voiceVoice,
       limitations: limitations,
       ignoreGroups: ignoreGroups,
+      dataRecordsEnabled: dataRecordsEnabled,
       blocklist: blocklist,
       tags: tags,
       variables: varsObject,
@@ -893,6 +932,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
       voice_voice: voiceVoice,
       limitations: limitations,
       ignoreGroups: ignoreGroups,
+      dataRecordsEnabled: dataRecordsEnabled,
       blocklist: blocklist,
       tags: tags,
       variables: varsObject,
@@ -1376,6 +1416,19 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" checked={ignoreGroups} onChange={(e) => setIgnoreGroups(e.target.checked)} />
+                      <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-4 border-t border-border mt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Memória de Dados (Registros)</Label>
+                      <p className="text-xs text-muted-foreground mt-1">Permite que o agente guarde informações que o cliente for fornecendo ao longo da conversa (ex: lançamentos financeiros, pedidos, anotações) e consulte esse histórico depois para responder perguntas e gerar resumos.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" className="sr-only peer" checked={dataRecordsEnabled} onChange={(e) => setDataRecordsEnabled(e.target.checked)} />
                       <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
                     </label>
                   </div>
