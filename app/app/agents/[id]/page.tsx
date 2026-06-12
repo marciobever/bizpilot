@@ -1207,19 +1207,19 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
   return (
     <div className="space-y-6 pb-20">
       {/* Header */}
-      <div className="flex items-center justify-between sticky top-0 z-10 bg-background/95 backdrop-blur py-4 border-b border-border">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate.push("/app/agents")}>
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 sticky top-0 z-10 bg-background/95 backdrop-blur py-4 border-b border-border">
+        <div className="flex items-center gap-4 min-w-0">
+          <Button variant="ghost" size="icon" className="shrink-0" onClick={() => navigate.push("/app/agents")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">{isNew ? "Novo Agente Virtual" : "Configurar Agente"}</h2>
+          <div className="min-w-0">
+            <h2 className="text-2xl font-bold tracking-tight truncate">{isNew ? "Novo Agente Virtual" : "Configurar Agente"}</h2>
             <p className="text-muted-foreground text-sm">Treine a personalidade e os limites da inteligência artificial.</p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Button variant="outline">Testar no Chat</Button>
-          <Button className="gap-2" onClick={handleSave} disabled={saving}>
+          <Button variant="outline" className="flex-1 md:flex-initial">Testar no Chat</Button>
+          <Button className="gap-2 flex-1 md:flex-initial" onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
             Salvar e Publicar
           </Button>
