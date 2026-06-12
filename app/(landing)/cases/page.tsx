@@ -9,7 +9,7 @@ export default function CaseStudies() {
       company: "Real Estate Prime (Imobiliária)",
       metric: "+320%",
       metricDesc: "aumento nas visitas agendadas",
-      description: "Ao plugar um Agente da Synapse no Evolution API (WhatsApp), a Real Estate Prime conseguiu garantir atendimento 24/7. O agente responde às dúvidas sobre os imóveis baseados na planilha RAG, qualifica o lead (renda e interesse) e usa o webhhok do Calendly para agendar o corretor.",
+      description: "Ao plugar um Agente da BizPilot no Evolution API (WhatsApp), a Real Estate Prime conseguiu garantir atendimento 24/7. O agente responde às dúvidas sobre os imóveis baseados na planilha RAG, qualifica o lead (renda e interesse) e usa o webhhok do Calendly para agendar o corretor.",
       icon: TrendingUp,
       color: "text-emerald-500",
       bg: "bg-emerald-500/10"
@@ -20,8 +20,8 @@ export default function CaseStudies() {
       metricDesc: "redução no tempo de resposta",
       description: "Antes os pacientes esperavam horas. Hoje, a IA faz toda a triagem de plano de saúde e sintomas. Nos raros casos que a IA não tem permissão para prosseguir, ela aciona a fila de 'Handoff' transferindo para a secretária humana.",
       icon: Clock,
-      color: "text-indigo-500",
-      bg: "bg-indigo-500/10"
+      color: "text-brand-500",
+      bg: "bg-brand-500/10"
     },
     {
       company: "Agência Digital Growth",
@@ -42,7 +42,7 @@ export default function CaseStudies() {
       className="w-full max-w-6xl mx-auto px-6 py-24 md:py-32"
     >
       <div className="text-center max-w-3xl mx-auto mb-20">
-         <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-6">Eles decolaram com a Synapse</h1>
+         <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-6">Eles decolaram com a BizPilot</h1>
          <p className="text-xl text-muted-foreground leading-relaxed">
            Veja como soluções de negócio reais aumentaram margens e salvaram milhares de 
            horas integrando inteligência artificial nos seus canais.
@@ -76,7 +76,7 @@ export default function CaseStudies() {
                 <p className="text-lg text-muted-foreground leading-relaxed mb-6">
                   {item.description}
                 </p>
-                <Link href="/app" className="inline-flex items-center gap-2 text-foreground font-semibold hover:text-indigo-400 transition-colors">
+                <Link href="/app" className="inline-flex items-center gap-2 text-foreground font-semibold hover:text-brand-400 transition-colors">
                   Ver integração completa <ArrowUpRight className="h-4 w-4" />
                 </Link>
              </div>

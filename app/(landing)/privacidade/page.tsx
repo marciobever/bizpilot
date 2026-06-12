@@ -15,7 +15,7 @@ export default function Privacy() {
       </div>
       <div className="prose prose-invert max-w-none text-muted-foreground space-y-6">
         <p>
-          Sua privacidade é importante para nós. É política da Synapse AI respeitar a sua privacidade em
+          Sua privacidade é importante para nós. É política da BizPilot respeitar a sua privacidade em
           relação a qualquer informação sua que possamos coletar em nosso site e em outros sites que 
           possuímos e operamos.
         </p>

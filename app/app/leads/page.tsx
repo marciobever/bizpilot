@@ -13,7 +13,7 @@ import { Lead } from "@/types/database";
 const STATUS_MAP = [
   { id: "novo", title: "Novo Lead", color: "bg-blue-500" },
   { id: "em_atendimento", title: "Em Atendimento", color: "bg-amber-500" },
-  { id: "qualificado", title: "Qualificado", color: "bg-indigo-500" },
+  { id: "qualificado", title: "Qualificado", color: "bg-brand-500" },
   { id: "convertido", title: "Convertido", color: "bg-emerald-500" },
   { id: "perdido", title: "Perdido", color: "bg-red-500" }
 ];
@@ -248,10 +248,10 @@ export default function Leads() {
                     <div
                       key={lead.id}
                       onClick={() => openLeadDetails(lead)}
-                      className="bg-card border border-border p-3 rounded-lg shadow-sm cursor-pointer hover:border-indigo-500/50 transition-colors group relative"
+                      className="bg-card border border-border p-3 rounded-lg shadow-sm cursor-pointer hover:border-brand-500/50 transition-colors group relative"
                     >
                       <div className="flex items-center gap-2 mb-2">
-                        <Avatar fallback={(lead.name || "??").substring(0, 2).toUpperCase()} className="h-7 w-7 shrink-0 bg-gradient-to-br from-indigo-500 to-purple-500 text-white border-0 text-[10px]" />
+                        <Avatar fallback={(lead.name || "??").substring(0, 2).toUpperCase()} className="h-7 w-7 shrink-0 bg-gradient-to-br from-brand-500 to-purple-500 text-white border-0 text-[10px]" />
                         <div className="min-w-0">
                           <div className="font-medium text-sm truncate">{lead.name || lead.phone}</div>
                           <div className="text-[11px] text-muted-foreground truncate">{lead.email || "Sem e-mail"}</div>
@@ -387,7 +387,7 @@ export default function Leads() {
                   <select
                     value={editForm.status}
                     onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}
-                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
                   >
                     {STATUS_MAP.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
                   </select>

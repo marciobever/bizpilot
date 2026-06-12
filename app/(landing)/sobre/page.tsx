@@ -11,14 +11,14 @@ export default function About() {
       className="w-full max-w-4xl mx-auto px-6 py-24 md:py-32"
     >
       <div className="mb-12">
-        <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">Sobre a Synapse AI</h1>
+        <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">Sobre a BizPilot</h1>
         <p className="text-xl text-muted-foreground">
           Nossa missão é democratizar a inteligência artificial para empresas de todos os tamanhos.
         </p>
       </div>
       <div className="prose prose-invert max-w-none text-muted-foreground leading-relaxed space-y-6">
         <p>
-          A Synapse AI foi fundada com uma visão clara: automatizar as interações maçantes do dia a dia e devolver
+          A BizPilot foi fundada com uma visão clara: automatizar as interações maçantes do dia a dia e devolver
           o tempo para que humanos foquem naquilo que realmente importa - estratégia, criatividade e relacionamento.
         </p>
         <p>

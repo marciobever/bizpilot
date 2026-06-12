@@ -31,10 +31,10 @@ const INTEGRATIONS_META = [
   },
   {
     id: "supabase",
-    name: "Supabase DB",
-    description: "Sincronize contatos e leads diretamente com seu banco de dados.",
+    name: "Banco de Dados Integrado",
+    description: "Seus contatos e leads já ficam sincronizados automaticamente — sem configuração necessária.",
     icon: Database,
-    category: "Database",
+    category: "Armazenamento",
     color: "text-foreground",
     bgClass: "bg-secondary border-border"
   },
@@ -96,6 +96,12 @@ const PAYMENT_PROVIDERS: { value: string; label: string; keyLabel: string; help:
     label: "Woovi (Pix)",
     keyLabel: "AppID",
     help: "Painel da Woovi → Aplicações → Gerar AppID.",
+  },
+  {
+    value: "stripe",
+    label: "Stripe",
+    keyLabel: "Chave Secreta (Secret Key)",
+    help: "Painel da Stripe → Desenvolvedores → Chaves de API → Chave secreta (sk_live_... ou sk_test_...).",
   },
 ];
 
@@ -487,7 +493,7 @@ function Integrations() {
                         <label key={ev.value} className="flex items-center gap-2 text-sm cursor-pointer">
                           <input
                             type="checkbox"
-                            className="h-4 w-4 rounded border-border accent-indigo-500"
+                            className="h-4 w-4 rounded border-border accent-brand-500"
                             checked={webhookForm.events.includes(ev.value)}
                             onChange={() => toggleWebhookEvent(ev.value)}
                           />
@@ -508,7 +514,7 @@ function Integrations() {
                       id="paymentsProvider"
                       value={paymentsForm.provider}
                       onChange={(e) => setPaymentsForm(prev => ({ ...prev, provider: e.target.value }))}
-                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
                     >
                       {PAYMENT_PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                     </select>
@@ -601,7 +607,7 @@ function Integrations() {
                       id="calendarProvider"
                       value={calendarForm.provider}
                       onChange={(e) => setCalendarForm(prev => ({ ...prev, provider: e.target.value }))}
-                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
                     >
                       {CALENDAR_PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                     </select>
@@ -610,9 +616,9 @@ function Integrations() {
                   {calendarForm.provider === 'calcom' && (
                     <>
                       <div className="p-3 bg-secondary/50 border border-border rounded-lg text-xs text-muted-foreground space-y-1.5">
-                        <p>1. Crie uma conta gratuita em <a href="https://cal.com/signup" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline">cal.com/signup</a>.</p>
-                        <p>2. Gere uma API Key em <a href="https://app.cal.com/settings/developer/api-keys" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline">app.cal.com/settings/developer/api-keys</a>.</p>
-                        <p>3. Acesse <a href="https://app.cal.com/event-types" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline">app.cal.com/event-types</a>, escolha o tipo de evento que o agente deve oferecer e copie o ID que aparece na URL ao editá-lo (ex: .../event-types/123456 → ID é 123456).</p>
+                        <p>1. Crie uma conta gratuita em <a href="https://cal.com/signup" target="_blank" rel="noopener noreferrer" className="text-brand-400 underline">cal.com/signup</a>.</p>
+                        <p>2. Gere uma API Key em <a href="https://app.cal.com/settings/developer/api-keys" target="_blank" rel="noopener noreferrer" className="text-brand-400 underline">app.cal.com/settings/developer/api-keys</a>.</p>
+                        <p>3. Acesse <a href="https://app.cal.com/event-types" target="_blank" rel="noopener noreferrer" className="text-brand-400 underline">app.cal.com/event-types</a>, escolha o tipo de evento que o agente deve oferecer e copie o ID que aparece na URL ao editá-lo (ex: .../event-types/123456 → ID é 123456).</p>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="calcomApiKey">API Key</Label>
@@ -636,8 +642,8 @@ function Integrations() {
                   {calendarForm.provider === 'calendly' && (
                     <>
                       <div className="p-3 bg-secondary/50 border border-border rounded-lg text-xs text-muted-foreground space-y-1.5">
-                        <p>1. Crie uma conta em <a href="https://calendly.com/" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline">calendly.com</a> (um plano pago é necessário para gerar links de agendamento via API).</p>
-                        <p>2. Gere um Personal Access Token em <a href="https://calendly.com/integrations/api_webhooks" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline">calendly.com/integrations/api_webhooks</a>.</p>
+                        <p>1. Crie uma conta em <a href="https://calendly.com/" target="_blank" rel="noopener noreferrer" className="text-brand-400 underline">calendly.com</a> (um plano pago é necessário para gerar links de agendamento via API).</p>
+                        <p>2. Gere um Personal Access Token em <a href="https://calendly.com/integrations/api_webhooks" target="_blank" rel="noopener noreferrer" className="text-brand-400 underline">calendly.com/integrations/api_webhooks</a>.</p>
                         <p>3. Cole abaixo o link público do tipo de evento que o agente deve oferecer (ex: https://calendly.com/seunome/30min).</p>
                         <p className="text-amber-400">Atenção: o Calendly não permite que o agente confirme um horário diretamente. Em vez disso, ele vai gerar um link único para o cliente escolher e confirmar o melhor horário.</p>
                       </div>
@@ -663,7 +669,7 @@ function Integrations() {
                   {calendarForm.provider === 'google' && (
                     <>
                       <div className="p-3 bg-secondary/50 border border-border rounded-lg text-xs text-muted-foreground space-y-1.5">
-                        <p>1. Acesse o <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-indigo-400 underline">Google Cloud Console → Credenciais</a> e crie um projeto (gratuito).</p>
+                        <p>1. Acesse o <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-brand-400 underline">Google Cloud Console → Credenciais</a> e crie um projeto (gratuito).</p>
                         <p>2. Em "APIs e Serviços → Biblioteca", ative a "Google Calendar API".</p>
                         <p>3. Em "Credenciais", crie um "ID do cliente OAuth" do tipo "Aplicativo da Web".</p>
                         <p>4. Em "URIs de redirecionamento autorizados", adicione exatamente:</p>
@@ -725,7 +731,7 @@ function Integrations() {
 
                 <div className="flex gap-3">
                   <Button type="button" variant="outline" onClick={() => setActiveModal(null)} disabled={savingIntegration}>Cancelar</Button>
-                  <Button type="submit" className="bg-indigo-500 hover:bg-indigo-600 text-white" disabled={savingIntegration}>
+                  <Button type="submit" className="bg-brand-500 hover:bg-brand-600 text-white" disabled={savingIntegration}>
                     {savingIntegration ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                     {activeModal === 'calendar' && calendarForm.provider === 'google' ? 'Conectar com Google' : 'Salvar Conexão'}
                   </Button>

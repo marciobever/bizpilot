@@ -1,4 +1,4 @@
-# Arquitetura do Sistema Synapse AI
+# Arquitetura do Sistema BizPilot
 
 Para que os agentes conversem com inteligência e executem ações, a arquitetura foi desenhada para ter o **menor tempo de resposta (latência) possível**.
 

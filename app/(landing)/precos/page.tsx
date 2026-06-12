@@ -5,47 +5,45 @@ import { Button } from "@/components/ui/Button";
 export default function Pricing() {
   const tiers = [
     {
-      name: "Starter",
-      desc: "Ideal para freelancers e negócios locais iniciando na automação.",
-      price: "199",
+      name: "Básico",
+      desc: "Ideal para começar a automatizar o atendimento com o essencial.",
+      price: "39,99",
       features: [
         "1 Agente Inteligente",
-        "Conexão Web e Instagrando",
-        "Até 1.000 mensagens/mês",
-        "Suporte por Email",
-        "Analytics Básico"
+        "Respostas em texto, ilimitadas",
+        "Personalidade, tom de voz e saudação",
+        "Repasse (Handoff) para atendimento humano",
+        "Base de Conhecimento (RAG)",
+        "WhatsApp via Evolution API (QR Code, grátis) ou Meta Oficial*"
       ],
-      cta: "Começar no Starter",
+      cta: "Começar no Básico",
       highlight: false
     },
     {
-      name: "Pro",
-      desc: "Perfeito para agências e empresas que dependem de vendas.",
-      price: "499",
+      name: "Profissional",
+      desc: "Para quem quer humanizar o atendimento e automatizar tarefas.",
+      price: "79,99",
       features: [
-        "Até 5 Agentes Inteligentes",
-        "WhatsApp (Evolution API - QR Code)",
-        "Até 10.000 mensagens/mês",
-        "Suporte Prioritário",
-        "Integrações Externas (Webhooks)",
-        "Repasse (Handoff) In-App"
+        "Tudo do plano Básico",
+        "Respostas em Áudio (Voz Inteligente / TTS)",
+        "Memória de Dados (registros do cliente)",
+        "Ações e APIs (Tools/Webhooks)",
+        "Até 3 Agentes Inteligentes"
       ],
-      cta: "Assinar o Premium",
+      cta: "Assinar o Profissional",
       highlight: true
     },
     {
-      name: "Enterprise",
-      desc: "Estrutura personalizada e volume e APIs de parceiros ilimitados.",
-      price: "Personalizado",
+      name: "Avançado",
+      desc: "Para operações maiores, com múltiplos agentes e canais.",
+      price: "119,99",
       features: [
-        "Agentes Ilimitados",
-        "WhatsApp Oficial (Meta Cloud API)",
-        "Mensagens Customizadas Ilimitadas",
-        "API Completo de Gerenciamento",
-        "Treinamento de RAG Privado",
-        "Gerente de Conta AAA"
+        "Tudo do plano Profissional",
+        "Agentes Inteligentes ilimitados",
+        "Múltiplos canais por agente",
+        "Suporte prioritário"
       ],
-      cta: "Falar com Vendas",
+      cta: "Assinar o Avançado",
       highlight: false
     }
   ];
@@ -65,12 +63,12 @@ export default function Pricing() {
             key={tier.name} 
             className={`rounded-3xl p-8 ${
               tier.highlight 
-                ? "bg-gradient-to-b from-indigo-500/10 to-transparent border border-indigo-500/50 relative shadow-2xl shadow-indigo-500/10 scale-105" 
+                ? "bg-gradient-to-b from-brand-500/10 to-transparent border border-brand-500/50 relative shadow-2xl shadow-brand-500/10 scale-105" 
                 : "bg-card border border-border"
             }`}
           >
             {tier.highlight && (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-4 py-1.5 bg-indigo-500 text-white text-xs font-bold rounded-full uppercase tracking-wider">
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-4 py-1.5 bg-brand-500 text-white text-xs font-bold rounded-full uppercase tracking-wider">
                 Mais Popular
               </div>
             )}
@@ -87,7 +85,7 @@ export default function Pricing() {
 
             <Button 
                asChild 
-               className={`w-full h-12 mb-8 ${tier.highlight ? "bg-indigo-500 hover:bg-indigo-600 text-white" : ""}`}
+               className={`w-full h-12 mb-8 ${tier.highlight ? "bg-brand-500 hover:bg-brand-600 text-white" : ""}`}
                variant={tier.highlight ? "default" : "outline"}
             >
               <Link href="/app">{tier.cta}</Link>
@@ -113,6 +111,11 @@ export default function Pricing() {
           Oferecemos aluguel de números virtuais dedicados conectados diretamente à nossa infraestrutura por apenas <strong className="text-foreground">R$ 29/mês</strong> por número (Add-on disponível em qualquer plano).
         </p>
       </div>
+
+      <p className="mt-6 text-center text-xs text-muted-foreground max-w-2xl mx-auto">
+        *O WhatsApp Oficial (Meta Cloud API) está disponível em qualquer plano. A Meta cobra por mensagem/conversa
+        enviada fora da janela gratuita de 24h — esse custo é cobrado diretamente na sua conta Meta Business, à parte da assinatura.
+      </p>
     </div>
   )
 }

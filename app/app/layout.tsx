@@ -8,22 +8,23 @@ import {
   BarChart,
   Settings,
   LogOut,
-  Sparkles,
   HelpCircle,
   Sun,
   Moon,
   Menu,
-  X
+  X,
+  ChevronDown,
+  User as UserIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/Button";
+import { Logo, LogoWordmark } from "@/components/ui/Logo";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
 
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const SIDEBAR_ITEMS = [
   { icon: BarChart, label: "Visão Geral", path: "/app" },
@@ -41,6 +42,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user, loading } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -48,10 +51,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [user, loading, navigate]);
 
-  // Fecha a sidebar mobile ao navegar para outra página.
+  // Fecha a sidebar mobile e o menu do usuário ao navegar para outra página.
   useEffect(() => {
     setSidebarOpen(false);
+    setUserMenuOpen(false);
   }, [location]);
+
+  // Fecha o menu do usuário ao clicar fora dele.
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -79,9 +94,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-border">
-          <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
-            <Sparkles className="h-5 w-5 text-indigo-500" />
-            <span>Synapse<span className="text-muted-foreground font-normal">AI</span></span>
+          <Link href="/" className="flex items-center gap-2 text-lg">
+            <Logo className="h-7 w-7" />
+            <LogoWordmark />
           </Link>
           <button className="md:hidden text-muted-foreground" onClick={() => setSidebarOpen(false)}>
             <X className="h-5 w-5" />
@@ -112,39 +127,70 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </div>
 
-        <div className="p-4 border-t border-border">
-          <div className="flex items-center gap-3 mb-4 px-2">
-            <div className="h-8 w-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center text-xs font-bold text-white uppercase shrink-0">
-              {user?.user_metadata?.full_name?.substring(0, 2) || "AD"}
-            </div>
-            <div className="flex flex-col overflow-hidden">
-              <span className="text-sm font-medium leading-none truncate">
-                {user?.user_metadata?.full_name || "Usuário"}
-              </span>
-              <span className="text-xs text-muted-foreground mt-1 truncate">
-                {user?.email}
-              </span>
-            </div>
-          </div>
-          <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-foreground hover:bg-secondary mb-1" onClick={toggleTheme}>
-            {theme === "dark" ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
-            {theme === "dark" ? "Modo Claro" : "Modo Escuro"}
-          </Button>
-          <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-red-400 hover:bg-red-500/10" onClick={handleSignOut}>
-            <LogOut className="mr-2 h-4 w-4" />
-            Sair
-          </Button>
-        </div>
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto flex flex-col min-w-0">
-        <header className="h-16 border-b border-border flex items-center px-4 md:px-8 bg-card/50 backdrop-blur-sm sticky top-0 z-10 shrink-0">
-          <button className="md:hidden mr-3 text-muted-foreground" onClick={() => setSidebarOpen(true)}>
+        <header className="h-16 border-b border-border flex items-center px-4 md:px-8 bg-card/50 backdrop-blur-sm sticky top-0 z-10 shrink-0 gap-3">
+          <button className="md:hidden text-muted-foreground" onClick={() => setSidebarOpen(true)}>
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex-1" />
-          <div className="text-sm text-muted-foreground mr-4 hidden sm:block">Status: <span className="text-emerald-500 font-medium">Sistemas Operacionais</span></div>
+          <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground mr-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            Sistemas Operacionais
+          </div>
+
+          {/* User menu */}
+          <div className="relative" ref={userMenuRef}>
+            <button
+              onClick={() => setUserMenuOpen((v) => !v)}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-secondary transition-colors"
+            >
+              <div className="h-8 w-8 rounded-lg bg-brand-500 flex items-center justify-center text-xs font-bold text-white uppercase shrink-0">
+                {user?.user_metadata?.full_name?.substring(0, 2) || <UserIcon className="h-4 w-4" />}
+              </div>
+              <div className="hidden md:flex flex-col items-start leading-tight">
+                <span className="text-sm font-medium text-foreground truncate max-w-[140px]">
+                  {user?.user_metadata?.full_name || "Usuário"}
+                </span>
+                <span className="text-xs text-muted-foreground truncate max-w-[140px]">
+                  {user?.email}
+                </span>
+              </div>
+              <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform hidden md:block", userMenuOpen && "rotate-180")} />
+            </button>
+
+            {userMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-border bg-card shadow-xl py-1.5 z-20">
+                <div className="px-3 py-2 border-b border-border md:hidden">
+                  <div className="text-sm font-medium text-foreground truncate">{user?.user_metadata?.full_name || "Usuário"}</div>
+                  <div className="text-xs text-muted-foreground truncate">{user?.email}</div>
+                </div>
+                <button
+                  onClick={toggleTheme}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                >
+                  {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                  {theme === "dark" ? "Modo Claro" : "Modo Escuro"}
+                </button>
+                <Link
+                  href="/app/settings"
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+                >
+                  <Settings className="h-4 w-4" />
+                  Configurações
+                </Link>
+                <button
+                  onClick={handleSignOut}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sair
+                </button>
+              </div>
+            )}
+          </div>
         </header>
         <div className="p-4 md:p-8 max-w-7xl mx-auto w-full flex-1">
           {children}

@@ -1,5 +1,5 @@
 {
-  "name": "Synapse AI - Virtual Employees",
+  "name": "BizPilot - Virtual Employees",
   "description": "A premium SaaS platform for business automation with virtual AI employees.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

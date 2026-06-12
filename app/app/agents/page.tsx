@@ -74,6 +74,17 @@ export default function Agents() {
     }
   };
 
+  const handleToggleStatus = async (agent: Agent) => {
+    const newStatus = agent.status === 'online' ? 'offline' : 'online';
+    try {
+      const { error } = await supabase.from('agents').update({ status: newStatus }).eq('id', agent.id);
+      if (error) throw error;
+      setAgents(agents.map(a => a.id === agent.id ? { ...a, status: newStatus } : a));
+    } catch (error) {
+      console.error('Erro ao atualizar status do agente:', error);
+    }
+  };
+
   const handleDeleteAgent = async (id: string) => {
     try {
       const { error } = await supabase.from('agents').delete().eq('id', id);
@@ -92,7 +103,7 @@ export default function Agents() {
           <h2 className="text-2xl font-bold tracking-tight">Meus Agentes</h2>
           <p className="text-muted-foreground">Crie e gerencie sua equipe de inteligência artificial.</p>
         </div>
-        <Button asChild className="bg-indigo-500 hover:bg-indigo-600 text-white gap-2">
+        <Button asChild className="bg-brand-500 hover:bg-brand-600 text-white gap-2">
           <Link href="/app/agents/new">
             <Plus className="h-4 w-4" />
             Novo Agente
@@ -103,7 +114,7 @@ export default function Agents() {
       <div className="rounded-xl border border-border bg-card">
         {loading ? (
           <div className="py-12 flex justify-center items-center">
-            <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
+            <Loader2 className="h-8 w-8 text-brand-500 animate-spin" />
           </div>
         ) : agents.length === 0 ? (
           <div className="py-12 flex flex-col items-center justify-center text-center px-4">
@@ -140,9 +151,20 @@ export default function Agents() {
                     </td>
                     <td className="px-6 py-4 text-muted-foreground capitalize">{agent.type}</td>
                     <td className="px-6 py-4">
-                      <Badge variant={agent.status === 'online' ? 'success' : agent.status === 'paused' ? 'warning' : 'secondary'} className="border-0">
-                        {agent.status}
-                      </Badge>
+                      <div className="flex items-center gap-3">
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={agent.status === 'online'}
+                            onChange={() => handleToggleStatus(agent)}
+                          />
+                          <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
+                        </label>
+                        <Badge variant={agent.status === 'online' ? 'success' : agent.status === 'paused' ? 'warning' : 'secondary'} className="border-0">
+                          {agent.status}
+                        </Badge>
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -188,7 +210,7 @@ export default function Agents() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Tipo</label>
                 <select 
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
                   value={newAgentType}
                   onChange={(e) => setNewAgentType(e.target.value)}
                 >
@@ -200,7 +222,7 @@ export default function Agents() {
 
               <div className="pt-4 flex justify-end gap-3">
                 <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>Cancelar</Button>
-                <Button type="submit" className="bg-indigo-500 hover:bg-indigo-600 text-white" disabled={!newAgentName}>
+                <Button type="submit" className="bg-brand-500 hover:bg-brand-600 text-white" disabled={!newAgentName}>
                   Confirmar
                 </Button>
               </div>

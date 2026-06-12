@@ -42,14 +42,14 @@ export default function HelpCenter() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: i * 0.1 }}
             key={cat.title} 
-            className="p-6 rounded-2xl bg-card border border-border hover:border-indigo-500/30 transition-colors cursor-pointer group"
+            className="p-6 rounded-2xl bg-card border border-border hover:border-brand-500/30 transition-colors cursor-pointer group"
           >
             <div className="flex items-start gap-4">
-              <div className="h-10 w-10 bg-indigo-500/10 rounded-lg flex items-center justify-center shrink-0">
-                <cat.icon className="h-5 w-5 text-indigo-400" />
+              <div className="h-10 w-10 bg-brand-500/10 rounded-lg flex items-center justify-center shrink-0">
+                <cat.icon className="h-5 w-5 text-brand-400" />
               </div>
               <div>
-                <h3 className="font-semibold mb-1 group-hover:text-indigo-400 transition-colors">{cat.title}</h3>
+                <h3 className="font-semibold mb-1 group-hover:text-brand-400 transition-colors">{cat.title}</h3>
                 <p className="text-sm text-muted-foreground">{cat.desc}</p>
               </div>
             </div>

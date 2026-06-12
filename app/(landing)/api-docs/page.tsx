@@ -25,7 +25,7 @@ export default function ApiDocs() {
           className="md:col-span-1 space-y-2 text-sm"
         >
           <div className="font-semibold text-foreground mb-4">Sumário</div>
-          <a href="#" className="block py-1 text-indigo-400 font-medium">Autenticação</a>
+          <a href="#" className="block py-1 text-brand-400 font-medium">Autenticação</a>
           <a href="#" className="block py-1 text-muted-foreground hover:text-foreground">Criar Agente (POST)</a>
           <a href="#" className="block py-1 text-muted-foreground hover:text-foreground">Enviar Mensagem (POST)</a>
           <a href="#" className="block py-1 text-muted-foreground hover:text-foreground">Webhook de Tools</a>
@@ -39,11 +39,11 @@ export default function ApiDocs() {
             transition={{ duration: 0.5, delay: 0.3 }}
           >
             <div className="flex items-center gap-3 mb-4">
-              <Key className="h-5 w-5 text-indigo-400" />
+              <Key className="h-5 w-5 text-brand-400" />
               <h2 className="text-2xl font-bold">Autenticação</h2>
             </div>
             <p className="text-muted-foreground leading-relaxed mb-4">
-              Todas as requisições para a API da Synapse exigem um token Bearer que pode ser 
+              Todas as requisições para a API da BizPilot exigem um token Bearer que pode ser
               obtido no painel de controle (Menu Configurações &gt; API Keys).
             </p>
             <div className="bg-black/90 p-4 rounded-lg border border-border/50 text-sm font-mono text-gray-300">
@@ -57,7 +57,7 @@ export default function ApiDocs() {
             transition={{ duration: 0.5, delay: 0.4 }}
           >
             <div className="flex items-center gap-3 mb-4">
-              <Code2 className="h-5 w-5 text-indigo-400" />
+              <Code2 className="h-5 w-5 text-brand-400" />
               <h2 className="text-2xl font-bold">Enviar Mensagem</h2>
             </div>
             <p className="text-muted-foreground leading-relaxed mb-4">

@@ -62,7 +62,7 @@ export default function Login() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="password">Senha</Label>
-          <Link href="/auth/recuperar" className="text-xs text-indigo-400 hover:text-indigo-300">
+          <Link href="/auth/recuperar" className="text-xs text-brand-400 hover:text-brand-300">
             Esqueceu a senha?
           </Link>
         </div>
@@ -76,13 +76,13 @@ export default function Login() {
         />
       </div>
 
-      <Button type="submit" className="w-full bg-indigo-500 hover:bg-indigo-600 text-white" disabled={loading}>
+      <Button type="submit" className="w-full bg-brand-500 hover:bg-brand-600 text-white" disabled={loading}>
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Entrar"}
       </Button>
 
       <div className="text-center text-sm text-muted-foreground mt-4">
         Não tem uma conta?{" "}
-        <Link href="/auth/registro" className="text-indigo-400 hover:text-indigo-300 font-medium">
+        <Link href="/auth/registro" className="text-brand-400 hover:text-brand-300 font-medium">
           Cadastre-se grátis
         </Link>
       </div>

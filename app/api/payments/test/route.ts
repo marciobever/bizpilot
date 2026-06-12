@@ -37,6 +37,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
+    if (provider === 'stripe') {
+      const res = await fetch('https://api.stripe.com/v1/balance', {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      const data = await res.json();
+      if (!res.ok) return NextResponse.json({ success: false, error: data?.error?.message || 'Chave secreta inválida.' }, { status: 400 });
+      return NextResponse.json({ success: true });
+    }
+
     return NextResponse.json({ success: false, error: 'Provedor não suportado.' }, { status: 400 });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

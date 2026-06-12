@@ -1,4 +1,4 @@
--- Setup inicial do banco de dados Synapse no Supabase
+-- Setup inicial do banco de dados BizPilot no Supabase
 
 -- 1. Tabela de Leads (Contatos/Clientes)
 CREATE TABLE public.leads (

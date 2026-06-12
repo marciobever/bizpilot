@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from 'next/link';
 import { useRouter as useNavigate } from 'next/navigation';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Save, Bot, MessageSquare, ShieldAlert, Database, Zap, Smartphone, SlidersHorizontal, FileText, Code2, Plus, Webhook, Loader2, Volume2, Info, CheckCircle2, Copy, ShieldCheck, AlertTriangle, QrCode, Trash2, Globe, X, Brain, Wand2 } from "lucide-react";
+import { ArrowLeft, Save, Bot, MessageSquare, ShieldAlert, Database, Zap, Smartphone, FileText, Plus, Webhook, Loader2, Volume2, Info, CheckCircle2, Copy, ShieldCheck, AlertTriangle, QrCode, Trash2, Globe, X, Brain, Wand2, Smile, Settings, Puzzle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -287,9 +287,10 @@ export default function AgentConfig() {
   const [activeTab, setActiveTab] = useState("identity");
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
+  const [userPlan, setUserPlan] = useState<"basico" | "profissional" | "avancado">("basico");
 
   const [agentName, setAgentName] = useState("Lucas");
-  const [systemPrompt, setSystemPrompt] = useState("Você é o Lucas, um especialista de vendas da Synapse. Seu objetivo principal é entender a dor do cliente, apresentar nossos planos SaaS e agendar uma reunião com um atendente humano caso o cliente demonstre alto interesse.");
+  const [systemPrompt, setSystemPrompt] = useState("Você é o Lucas, um especialista de vendas da BizPilot. Seu objetivo principal é entender a dor do cliente, apresentar nossos planos SaaS e agendar uma reunião com um atendente humano caso o cliente demonstre alto interesse.");
   const [selectedModel, setSelectedModel] = useState("gpt-5.4-mini");
   const [role, setRole] = useState("Especialista em Vendas");
   const [niche, setNiche] = useState("Software B2B / SaaS");
@@ -372,6 +373,8 @@ export default function AgentConfig() {
   const [metaConnected, setMetaConnected] = useState(false);
   const [metaTesting, setMetaTesting] = useState(false);
   const [metaTestMsg, setMetaTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  // Confirmação de que o cliente entende que a Meta cobra por mensagem/conversa enviada
+  const [metaCostAck, setMetaCostAck] = useState(false);
   const [webhookOrigin, setWebhookOrigin] = useState("");
 
   // Garante um Verify Token estável para o webhook da Meta e captura a origem pública.
@@ -405,6 +408,13 @@ export default function AgentConfig() {
       setLoading(false);
     }
   }, [user, id, authLoading]);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("profiles").select("plan").eq("id", user.id).single().then(({ data }) => {
+      if (data?.plan) setUserPlan(data.plan);
+    });
+  }, [user]);
 
   const checkWhatsappStatus = async () => {
     if (!id || id === 'new') return;
@@ -624,6 +634,10 @@ export default function AgentConfig() {
       alert("Salve o agente primeiro antes de conectar canais!");
       return;
     }
+    if (!metaCostAck) {
+      setMetaTestMsg({ ok: false, text: "Confirme que entendeu a cobrança por mensagem da Meta antes de conectar." });
+      return;
+    }
     if (!metaPhoneNumberId.trim() || !metaAccessToken.trim()) {
       setMetaTestMsg({ ok: false, text: "Preencha o Phone Number ID e o Token de Acesso." });
       return;
@@ -658,6 +672,7 @@ export default function AgentConfig() {
           wabaId: metaWabaId.trim(),
           verifyToken: metaVerifyToken.trim(),
           connected: true,
+          costAcknowledged: metaCostAck,
         },
       };
       await supabase.from("agents").update({ config: cfg, status: "online" }).eq("id", id);
@@ -685,6 +700,7 @@ export default function AgentConfig() {
     if (!tone || tone === "Profissional e Direto") setTone(tpl.tone);
     if (!role) setRole(tpl.role);
     if (tpl.enableDataRecords) setDataRecordsEnabled(true);
+    setGreeting("");
     setShowTemplates(false);
   };
 
@@ -824,6 +840,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
               if (wa.meta.wabaId) setMetaWabaId(wa.meta.wabaId);
               if (wa.meta.verifyToken) setMetaVerifyToken(wa.meta.verifyToken);
               if (wa.meta.connected) setMetaConnected(true);
+              if (wa.meta.costAcknowledged) setMetaCostAck(true);
             }
           }
         }
@@ -884,7 +901,8 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
           accessToken: metaAccessToken.trim(),
           wabaId: metaWabaId.trim(),
           verifyToken: metaVerifyToken.trim(),
-          connected: metaConnected
+          connected: metaConnected,
+          costAcknowledged: metaCostAck
         }
       }
     };
@@ -948,7 +966,8 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
           accessToken: metaAccessToken.trim(),
           wabaId: metaWabaId.trim(),
           verifyToken: metaVerifyToken.trim(),
-          connected: metaConnected
+          connected: metaConnected,
+          costAcknowledged: metaCostAck
         }
       }
     };
@@ -990,20 +1009,23 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
     }
   };
 
+  const addonsLocked = userPlan === "basico";
+
   const tabs = [
     { id: "identity", label: "Identidade", icon: Bot },
-    { id: "behavior", label: "Comportamento", icon: SlidersHorizontal },
-    { id: "instructions", label: "Instruções Reativas", icon: ShieldAlert },
+    { id: "personality", label: "Personalidade", icon: Smile },
+    { id: "config", label: "Configurações", icon: Settings },
+    { id: "addons", label: "Addons", icon: Puzzle },
+    { id: "instructions", label: "Personalizada", icon: ShieldAlert },
     { id: "tags", label: "Tags e Variáveis", icon: FileText },
     { id: "knowledge", label: "Arquivos RAG", icon: Database },
-    { id: "skills", label: "Ações e APIs (Tools)", icon: Code2 },
     { id: "channels", label: "Canais", icon: Zap },
   ];
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[50vh]">
-        <Loader2 className="h-8 w-8 text-indigo-500 animate-spin" />
+        <Loader2 className="h-8 w-8 text-brand-500 animate-spin" />
       </div>
     );
   }
@@ -1061,7 +1083,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
             
             <div className="pt-4 border-t border-border flex justify-end">
               <Button 
-                className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-white" 
+                className="gap-2 bg-brand-600 hover:bg-brand-700 text-white" 
                 onClick={handleCreateAndContinue} 
                 disabled={saving}
               >
@@ -1096,7 +1118,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-sm text-indigo-200">
+            <div className="p-4 bg-brand-500/10 border border-brand-500/20 rounded-lg text-sm text-brand-200">
               <div className="font-semibold mb-1">O que é uma Instância?</div>
               Uma instância é o canal seguro que conecta o seu número de WhatsApp à automação do agente. Ela atua como a voz do seu bot.
             </div>
@@ -1129,7 +1151,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
               <div className="flex flex-col items-center justify-center py-6 border border-dashed border-border rounded-lg bg-secondary/10">
                 {waLoading ? (
                   <div className="flex flex-col items-center justify-center p-8">
-                     <Loader2 className="h-10 w-10 text-indigo-500 animate-spin mb-4" />
+                     <Loader2 className="h-10 w-10 text-brand-500 animate-spin mb-4" />
                      <p className="text-sm font-medium">Gerando QR Code...</p>
                   </div>
                 ) : waQrCode ? (
@@ -1157,7 +1179,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center p-8">
-                     <Loader2 className="h-8 w-8 text-indigo-500 animate-spin mb-3" />
+                     <Loader2 className="h-8 w-8 text-brand-500 animate-spin mb-3" />
                      <p className="text-sm">Buscando código QR...</p>
                   </div>
                 )}
@@ -1179,7 +1201,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                 </div>
                 
                 <Button 
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white w-full max-w-xs"
+                  className="bg-brand-600 hover:bg-brand-700 text-white w-full max-w-xs"
                   onClick={() => navigate.push(`/app/agents/${id}`)}
                 >
                   Ir para Painel do Agente 🎉
@@ -1191,7 +1213,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
               <div className="pt-6 border-t border-border flex justify-between text-xs text-muted-foreground">
                 <p>Opcional: Você também pode realizar as configurações avançadas primeiro.</p>
                 <button 
-                  className="text-indigo-400 hover:text-indigo-300 font-medium" 
+                  className="text-brand-400 hover:text-brand-300 font-medium" 
                   onClick={() => navigate.push(`/app/agents/${id}`)}
                 >
                   Ir para Configurações Avançadas &gt;
@@ -1243,6 +1265,9 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
               >
                 <Icon className="h-4 w-4" />
                 {tab.label}
+                {tab.id === "addons" && addonsLocked && (
+                  <Badge variant="outline" className="ml-auto text-[10px] h-4 bg-brand-500/10 text-brand-500 border-0">PRO</Badge>
+                )}
               </button>
             );
           })}
@@ -1285,54 +1310,62 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
             </Card>
           )}
 
-          {activeTab === "behavior" && (
+          {activeTab === "config" && (
             <Card>
               <CardHeader>
-                <CardTitle>Comportamento e Inteligência</CardTitle>
-                <CardDescription>Defina o cérebro e a personalidade do agente.</CardDescription>
+                <CardTitle>Motor de Inteligência</CardTitle>
+                <CardDescription>Escolha qual modelo de IA vai processar as respostas deste agente.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className="space-y-3 pb-4 border-b border-border">
-                  <Label>Motor de Inteligência (LLM)</Label>
-                  <p className="text-xs text-muted-foreground mb-3">Escolha qual modelo vai processar as respostas deste agente.</p>
+                <div className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3">
-                    <div 
-                      className={`p-3 rounded-lg border cursor-pointer relative transition-colors ${selectedModel === 'gemini-2.5-flash' ? 'border-indigo-500 bg-indigo-500/10' : 'border-border bg-card hover:border-muted-foreground/50'}`}
+                    <div
+                      className={`p-3 rounded-lg border cursor-pointer relative transition-colors ${selectedModel === 'gemini-2.5-flash' ? 'border-brand-500 bg-brand-500/10' : 'border-border bg-card hover:border-muted-foreground/50'}`}
                       onClick={() => setSelectedModel('gemini-2.5-flash')}
                     >
                       {selectedModel === 'gemini-2.5-flash' && (
                         <div className="absolute top-3 right-3 flex items-center h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span>
                         </div>
                       )}
-                      <div className={`font-medium text-sm ${selectedModel === 'gemini-2.5-flash' ? 'text-indigo-200' : 'text-foreground'}`}>Google Gemini</div>
-                      <div className={`text-[11px] mt-1 ${selectedModel === 'gemini-2.5-flash' ? 'text-indigo-400/80' : 'text-muted-foreground'}`}>Extremamente rápido, ideal para grande volume. Padrão.</div>
+                      <div className={`font-medium text-sm ${selectedModel === 'gemini-2.5-flash' ? 'text-brand-200' : 'text-foreground'}`}>Google Gemini</div>
+                      <div className={`text-[11px] mt-1 ${selectedModel === 'gemini-2.5-flash' ? 'text-brand-400/80' : 'text-muted-foreground'}`}>Extremamente rápido, ideal para grande volume. Padrão.</div>
                     </div>
-                    <div 
-                      className={`p-3 rounded-lg border cursor-pointer relative transition-colors ${selectedModel === 'gpt-5.4-mini' ? 'border-indigo-500 bg-indigo-500/10' : 'border-border bg-card hover:border-muted-foreground/50'}`}
+                    <div
+                      className={`p-3 rounded-lg border cursor-pointer relative transition-colors ${selectedModel === 'gpt-5.4-mini' ? 'border-brand-500 bg-brand-500/10' : 'border-border bg-card hover:border-muted-foreground/50'}`}
                       onClick={() => setSelectedModel('gpt-5.4-mini')}
                     >
                       {selectedModel === 'gpt-5.4-mini' && (
                         <div className="absolute top-3 right-3 flex items-center h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span>
                         </div>
                       )}
-                      <div className={`font-medium text-sm ${selectedModel === 'gpt-5.4-mini' ? 'text-indigo-200' : 'text-foreground'}`}>OpenAI</div>
-                      <div className={`text-[11px] mt-1 ${selectedModel === 'gpt-5.4-mini' ? 'text-indigo-400/80' : 'text-muted-foreground'}`}>Avançado, balanceado em custo e inteligência geral.</div>
+                      <div className={`font-medium text-sm ${selectedModel === 'gpt-5.4-mini' ? 'text-brand-200' : 'text-foreground'}`}>OpenAI</div>
+                      <div className={`text-[11px] mt-1 ${selectedModel === 'gpt-5.4-mini' ? 'text-brand-400/80' : 'text-muted-foreground'}`}>Avançado, balanceado em custo e inteligência geral.</div>
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          )}
 
+          {activeTab === "personality" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Personalidade</CardTitle>
+                <CardDescription>Defina o tom de voz, a saudação e o ritmo de resposta do agente.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
                 <div className="space-y-2">
                   <Label>Tom de Voz Principal</Label>
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-2">
                     {["Profissional e Direto", "Amigável e Empático", "Descontraído (Usa Emojis)", "Técnico e Especialista"].map((t) => (
-                      <div 
-                        key={t} 
+                      <div
+                        key={t}
                         onClick={() => setTone(t)}
-                        className={`p-3 rounded-lg border text-sm cursor-pointer transition-colors ${tone === t ? "border-indigo-500 bg-indigo-500/10 text-indigo-200" : "border-border bg-card hover:border-muted-foreground/50 text-muted-foreground"}`}
+                        className={`p-3 rounded-lg border text-sm cursor-pointer transition-colors ${tone === t ? "border-brand-500 bg-brand-500/10 text-brand-200" : "border-border bg-card hover:border-muted-foreground/50 text-muted-foreground"}`}
                       >
                         {t}
                       </div>
@@ -1342,7 +1375,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="greeting">Mensagem de Saudação (Opcional)</Label>
-                    <Button variant="ghost" size="sm" className="text-xs h-7 text-indigo-400 hover:text-indigo-300" onClick={() => setShowGreetingAI(!showGreetingAI)}>
+                    <Button variant="ghost" size="sm" className="text-xs h-7 text-brand-400 hover:text-brand-300" onClick={() => setShowGreetingAI(!showGreetingAI)}>
                       <Wand2 className="mr-1.5 h-3.5 w-3.5" />
                       Gerar com IA
                     </Button>
@@ -1368,14 +1401,48 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                   <Label>Tempo de Digitação (Humanização)</Label>
                   <div className="flex items-center gap-4 border border-border rounded-md p-4 bg-secondary/20">
                      <div className="flex-1">
-                       <input type="range" className="w-full accent-indigo-500" min="0" max="100" value={typingSpeed} onChange={(e) => setTypingSpeed(e.target.value)} />
+                       <input type="range" className="w-full accent-brand-500" min="0" max="100" value={typingSpeed} onChange={(e) => setTypingSpeed(e.target.value)} />
                      </div>
                      <span className="text-sm font-medium w-16 text-right">Médio</span>
                   </div>
                   <p className="text-xs text-muted-foreground">Simula o tempo de digitação de um ser humano antes de enviar a resposta.</p>
                 </div>
+              </CardContent>
+            </Card>
+          )}
 
-                <div className="space-y-4 pt-4 border-t border-border">
+          {activeTab === "addons" && addonsLocked && (
+            <Card className="border-brand-500/30 bg-brand-500/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Puzzle className="h-5 w-5 text-brand-500" />
+                  Addons — Disponível no plano Profissional
+                </CardTitle>
+                <CardDescription>
+                  Resposta em áudio (TTS), memória de dados e ferramentas/APIs externas fazem parte do plano Profissional (R$ 79,99/mês) e do plano Avançado (R$ 119,99/mês).
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ul className="text-sm text-muted-foreground space-y-1.5">
+                  <li>• Respostas em áudio com voz natural (TTS)</li>
+                  <li>• Memória de dados — o agente guarda e consulta registros do cliente</li>
+                  <li>• Ações e APIs (Tools) — o agente chama webhooks externos para agendar, buscar dados, etc.</li>
+                </ul>
+                <Button className="bg-brand-600 hover:bg-brand-700 text-white" onClick={() => navigate.push("/app/settings")}>
+                  Fazer upgrade de plano
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === "addons" && !addonsLocked && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Voz e Áudio</CardTitle>
+                <CardDescription>Permite que o agente envie respostas em áudio (TTS).</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <Label>Responder em Áudio (Voz Inteligente)</Label>
@@ -1383,7 +1450,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" checked={voiceEnabled} onChange={(e) => setVoiceEnabled(e.target.checked)} />
-                      <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                      <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
                     </label>
                   </div>
 
@@ -1391,10 +1458,10 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                     <div className="space-y-2 mt-4 bg-secondary/10 p-4 rounded-md border border-border">
                       <Label>Voz da OpenAI</Label>
                       <div className="flex items-center gap-2">
-                        <select 
-                          value={voiceVoice} 
+                        <select
+                          value={voiceVoice}
                           onChange={(e) => setVoiceVoice(e.target.value)}
-                          className="flex-1 bg-background border border-border rounded-md h-10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          className="flex-1 bg-background border border-border rounded-md h-10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
                         >
                           <option value="alloy">Alloy (Neutra / Masculina)</option>
                           <option value="echo">Echo (Masculina)</option>
@@ -1411,8 +1478,18 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                     </div>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          )}
 
-                <div className="space-y-4 pt-4 border-t border-border mt-6">
+          {activeTab === "config" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Regras de Atendimento</CardTitle>
+                <CardDescription>Controle quando e para quem o agente responde.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <Label>Ignorar Grupos do WhatsApp</Label>
@@ -1420,12 +1497,12 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input type="checkbox" className="sr-only peer" checked={ignoreGroups} onChange={(e) => setIgnoreGroups(e.target.checked)} />
-                      <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+                      <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
                     </label>
                   </div>
                 </div>
 
-                <div className="space-y-2 pt-4 border-t border-border mt-4">
+                <div className="space-y-2 pt-4 border-t border-border">
                   <Label htmlFor="handoffPhone">Número para Transferência (Atendimento Humano)</Label>
                   <Input
                     id="handoffPhone"
@@ -1436,29 +1513,16 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                   <p className="text-xs text-muted-foreground">Quando o cliente pedir para falar com um atendente (ou a IA decidir escalar), a conversa é pausada e este número recebe um aviso por WhatsApp com o contexto. Deixe em branco para apenas pausar a IA, sem notificação.</p>
                 </div>
 
-                <div className="space-y-4 pt-4 border-t border-border mt-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Memória de Dados (Registros)</Label>
-                      <p className="text-xs text-muted-foreground mt-1">Permite que o agente guarde informações que o cliente for fornecendo ao longo da conversa (ex: lançamentos financeiros, pedidos, anotações) e consulte esse histórico depois para responder perguntas e gerar resumos.</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" checked={dataRecordsEnabled} onChange={(e) => setDataRecordsEnabled(e.target.checked)} />
-                      <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="space-y-4 pt-4 border-t border-border mt-4">
+                <div className="space-y-4 pt-4 border-t border-border">
                   <div>
                     <Label>Números Bloqueados (Exceções)</Label>
                     <p className="text-xs text-muted-foreground mt-1 mb-2">O bot ignorará atividades e conversas contendo estes números (apenas números, como 5511999999999).</p>
                   </div>
 
                   <div className="flex gap-2">
-                    <Input 
-                      placeholder="Ex: 5511999999999" 
-                      value={newBlock} 
+                    <Input
+                      placeholder="Ex: 5511999999999"
+                      value={newBlock}
                       onChange={(e) => setNewBlock(e.target.value)}
                       onKeyDown={(e) => {
                          if (e.key === 'Enter') {
@@ -1470,7 +1534,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                          }
                       }}
                     />
-                    <Button 
+                    <Button
                       variant="secondary"
                       onClick={() => {
                         if (newBlock.trim()) {
@@ -1498,6 +1562,29 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
             </Card>
           )}
 
+          {activeTab === "addons" && !addonsLocked && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Memória de Dados (Registros)</CardTitle>
+                <CardDescription>Permite que o agente guarde e consulte informações fornecidas pelo cliente durante a conversa.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label>Memória de Dados (Registros)</Label>
+                      <p className="text-xs text-muted-foreground mt-1">Permite que o agente guarde informações que o cliente for fornecendo ao longo da conversa (ex: lançamentos financeiros, pedidos, anotações) e consulte esse histórico depois para responder perguntas e gerar resumos.</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input type="checkbox" className="sr-only peer" checked={dataRecordsEnabled} onChange={(e) => setDataRecordsEnabled(e.target.checked)} />
+                      <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
+                    </label>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {activeTab === "instructions" && (
             <Card>
               <CardHeader>
@@ -1510,7 +1597,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                 {!showTemplates ? (
                   <div className="flex flex-col sm:flex-row gap-3 p-3 rounded-lg bg-secondary/30 border border-border">
                     <div className="flex gap-2">
-                      <Info className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" />
+                      <Info className="h-4 w-4 text-brand-400 shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-muted-foreground">
                           <strong className="text-foreground">Não sabe por onde começar?</strong> Use um template pronto para o seu nicho e personalize depois. Ou escreva do zero se preferir controle total.
@@ -1524,7 +1611,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                       <Button variant="ghost" size="sm" onClick={handleAutoComplete} className="text-xs h-7 whitespace-nowrap">
                         Auto-completar
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setShowInstructionsAI(!showInstructionsAI)} className="text-xs h-7 whitespace-nowrap text-indigo-400 hover:text-indigo-300">
+                      <Button variant="ghost" size="sm" onClick={() => setShowInstructionsAI(!showInstructionsAI)} className="text-xs h-7 whitespace-nowrap text-brand-400 hover:text-brand-300">
                         <Wand2 className="mr-1.5 h-3.5 w-3.5" />
                         Gerar com IA
                       </Button>
@@ -1542,10 +1629,10 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                           key={tpl.id}
                           type="button"
                           onClick={() => applyTemplate(tpl)}
-                          className="text-left p-3 rounded-lg border border-border bg-card hover:border-indigo-500 hover:bg-indigo-500/5 transition-all group"
+                          className="text-left p-3 rounded-lg border border-border bg-card hover:border-brand-500 hover:bg-brand-500/5 transition-all group"
                         >
                           <div className="text-lg mb-1">{tpl.emoji}</div>
-                          <div className="font-medium text-sm group-hover:text-indigo-300 transition-colors">{tpl.label}</div>
+                          <div className="font-medium text-sm group-hover:text-brand-300 transition-colors">{tpl.label}</div>
                           <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{tpl.description}</div>
                         </button>
                       ))}
@@ -1629,8 +1716,8 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                   <div className="space-y-2 mt-4">
                      {limitations.map((limit, idx) => (
                        <div key={idx} className="flex items-start gap-3 bg-secondary/30 p-3 rounded-md border border-border">
-                         <div className="h-5 w-5 mt-0.5 rounded border border-indigo-500 bg-indigo-500/20 flex items-center justify-center shrink-0">
-                           <div className="w-2.5 h-2.5 bg-indigo-500 rounded-sm" />
+                         <div className="h-5 w-5 mt-0.5 rounded border border-brand-500 bg-brand-500/20 flex items-center justify-center shrink-0">
+                           <div className="w-2.5 h-2.5 bg-brand-500 rounded-sm" />
                          </div>
                          <div className="flex-1">
                            <div className="text-sm font-medium">{limit}</div>
@@ -1757,7 +1844,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                     {knowledgeEntries.map(entry => (
                       <div key={entry.id} className="flex items-center justify-between p-3 border border-border rounded-lg bg-card">
                         <div className="flex items-center gap-3 min-w-0">
-                          {entry.source_type === 'url' ? <Globe className="h-4 w-4 text-indigo-500 shrink-0" /> : <FileText className="h-4 w-4 text-emerald-500 shrink-0" />}
+                          {entry.source_type === 'url' ? <Globe className="h-4 w-4 text-brand-500 shrink-0" /> : <FileText className="h-4 w-4 text-emerald-500 shrink-0" />}
                           <div className="min-w-0">
                             <p className="text-sm font-medium truncate">{entry.title}</p>
                             <p className="text-xs text-muted-foreground">{entry.chunk_count} chunks · {new Date(entry.created_at).toLocaleDateString('pt-BR')}</p>
@@ -1775,7 +1862,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
             </Card>
           )}
 
-          {activeTab === "skills" && (
+          {activeTab === "addons" && !addonsLocked && (
             <Card>
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -1897,7 +1984,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                   <div className="space-y-2">
                     {tools.map(tool => (
                       <div key={tool.id} className="flex items-start gap-3 p-3 border border-border bg-card rounded-lg">
-                        <div className="mt-0.5 text-indigo-500 shrink-0">
+                        <div className="mt-0.5 text-brand-500 shrink-0">
                           <Webhook className="h-4 w-4" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -1933,9 +2020,9 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
           {activeTab === "tags" && (
             <Card>
               <CardHeader>
-                <CardTitle>Tags e Variáveis (Integração Windmill)</CardTitle>
+                <CardTitle>Tags e Variáveis</CardTitle>
                 <CardDescription>
-                  Defina parâmetros e marcadores dinâmicos que serão enviados no payload JSON do WhatsApp à sua automação no Windmill.
+                  Defina parâmetros e marcadores dinâmicos que serão enviados no payload JSON do WhatsApp à sua automação externa.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-8">
@@ -1986,12 +2073,12 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                       <Badge 
                         key={idx} 
                         variant="secondary" 
-                        className="flex items-center gap-1.5 px-3 py-1 bg-indigo-500/10 text-indigo-500 border border-indigo-500/20 font-mono text-xs rounded-full"
+                        className="flex items-center gap-1.5 px-3 py-1 bg-brand-500/10 text-brand-500 border border-brand-500/20 font-mono text-xs rounded-full"
                       >
                         {tag}
                         <button 
                           type="button"
-                          className="hover:text-indigo-300 font-bold ml-1 text-xs"
+                          className="hover:text-brand-300 font-bold ml-1 text-xs"
                           onClick={() => setTags(tags.filter((_, i) => i !== idx))}
                         >
                           ×
@@ -2079,7 +2166,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                     {variables.map((v, idx) => (
                       <div key={idx} className="flex items-center justify-between p-3 border border-border bg-secondary/20 rounded-lg text-xs max-w-2xl font-mono">
                         <div className="flex items-center gap-3 truncate mr-4">
-                          <span className="text-indigo-400 font-semibold">{v.key}:</span>
+                          <span className="text-brand-400 font-semibold">{v.key}:</span>
                           <span className="text-muted-foreground truncate max-w-md">{v.value}</span>
                         </div>
                         <Button 
@@ -2102,8 +2189,8 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                 </div>
 
                 <div className="p-4 bg-muted/60 border rounded-lg text-xs leading-relaxed text-muted-foreground">
-                  <div className="font-semibold text-foreground mb-1">Como consumir no Windmill:</div>
-                  Estes valores são exportados no formato JSON original sob o campo <code className="bg-secondary px-1 py-0.5 rounded text-indigo-400 font-mono">config.tags</code> e <code className="bg-secondary px-1 py-0.5 rounded text-indigo-400 font-mono">config.variables</code> no objeto retornado pela tabela de agentes do Supabase, facilitando o mapeamento das automações via Windmill Workflow!
+                  <div className="font-semibold text-foreground mb-1">Como esses dados são enviados:</div>
+                  Estes valores são exportados no formato JSON sob o campo <code className="bg-secondary px-1 py-0.5 rounded text-brand-400 font-mono">config.tags</code> e <code className="bg-secondary px-1 py-0.5 rounded text-brand-400 font-mono">config.variables</code> junto com os demais dados do agente, facilitando o mapeamento nas suas automações externas!
                 </div>
               </CardContent>
             </Card>
@@ -2133,7 +2220,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                        <button
                          type="button"
                          onClick={() => setWhatsappProvider("evolution")}
-                         className={`text-left p-3 rounded-lg border transition-all ${whatsappProvider === "evolution" ? "border-indigo-500 bg-indigo-500/5 ring-1 ring-indigo-500/40" : "border-border bg-background hover:border-muted-foreground/40"}`}
+                         className={`text-left p-3 rounded-lg border transition-all ${whatsappProvider === "evolution" ? "border-brand-500 bg-brand-500/5 ring-1 ring-brand-500/40" : "border-border bg-background hover:border-muted-foreground/40"}`}
                        >
                          <div className="flex items-center justify-between mb-2">
                            <div className="flex items-center gap-2">
@@ -2152,14 +2239,14 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                        <button
                          type="button"
                          onClick={() => setWhatsappProvider("meta")}
-                         className={`text-left p-3 rounded-lg border transition-all ${whatsappProvider === "meta" ? "border-indigo-500 bg-indigo-500/5 ring-1 ring-indigo-500/40" : "border-border bg-background hover:border-muted-foreground/40"}`}
+                         className={`text-left p-3 rounded-lg border transition-all ${whatsappProvider === "meta" ? "border-brand-500 bg-brand-500/5 ring-1 ring-brand-500/40" : "border-border bg-background hover:border-muted-foreground/40"}`}
                        >
                          <div className="flex items-center justify-between mb-2">
                            <div className="flex items-center gap-2">
-                             <ShieldCheck className="h-4 w-4 text-indigo-500" />
+                             <ShieldCheck className="h-4 w-4 text-brand-500" />
                              <span className="font-medium text-sm">WhatsApp Oficial</span>
                            </div>
-                           <Badge variant="outline" className="text-[10px] h-4 bg-indigo-500/10 text-indigo-500 border-0">Meta API</Badge>
+                           <Badge variant="outline" className="text-[10px] h-4 bg-brand-500/10 text-brand-500 border-0">Meta API</Badge>
                          </div>
                          <ul className="text-[11px] text-muted-foreground space-y-1">
                            <li className="text-emerald-500/90">+ Oficial, estável e sem risco de ban</li>
@@ -2171,7 +2258,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
 
                      {/* Explicação do trade-off */}
                      <div className="flex gap-3 p-3 rounded-lg bg-secondary/40 border border-border">
-                       <Info className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" />
+                       <Info className="h-4 w-4 text-brand-400 shrink-0 mt-0.5" />
                        <div className="text-[11px] text-muted-foreground leading-relaxed">
                          <strong className="text-foreground">Qual escolher?</strong> Para um evento, teste rápido ou quando não compensa
                          cadastrar um número na Meta e esperar aprovação, use a <strong>Evolution</strong> — conecta em segundos
@@ -2200,7 +2287,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                                </div>
                                <div className="text-xs text-muted-foreground mt-0.5">
                                  {waConnected
-                                   ? `Instância 'agent_${id}' ativa e recebendo no Windmill.`
+                                   ? `Instância 'agent_${id}' ativa e recebendo mensagens.`
                                    : "Escaneie o QR Code com o celular que vai atender."}
                                </div>
                              </div>
@@ -2243,7 +2330,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                        <div className="pt-2 border-t border-border space-y-5">
                          <div className="flex items-center justify-between flex-wrap gap-2">
                            <div className="flex items-center gap-2 flex-wrap">
-                             <ShieldCheck className="h-4 w-4 text-indigo-500" />
+                             <ShieldCheck className="h-4 w-4 text-brand-500" />
                              <span className="font-medium text-sm">WhatsApp Cloud API</span>
                              {metaConnected ? (
                                <Badge variant="outline" className="text-[10px] h-4 bg-muted text-emerald-500 border-0">Conectado</Badge>
@@ -2256,21 +2343,37 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                            )}
                          </div>
 
+                         {/* Aviso de custo por mensagem cobrado pela Meta */}
+                         <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                           <div className="flex gap-2">
+                             <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                             <div className="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed">
+                               <strong className="text-foreground">Atenção: a Meta cobra por mensagem/conversa.</strong> Ao usar o WhatsApp Cloud API oficial,
+                               toda conversa iniciada fora da janela gratuita de 24h é cobrada pela Meta <strong>diretamente na sua conta Meta Business</strong> —
+                               esse custo não é cobrado pela BizPilot e varia por categoria de mensagem e país.
+                             </div>
+                           </div>
+                           <label className="flex items-center gap-2 mt-3 text-xs cursor-pointer">
+                             <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={metaCostAck} onChange={(e) => setMetaCostAck(e.target.checked)} />
+                             Entendi e estou de acordo com a cobrança por mensagem feita pela Meta.
+                           </label>
+                         </div>
+
                          {/* Passo 1: credenciais */}
-                         <div className="space-y-3">
+                         <div className={`space-y-3 ${!metaCostAck ? "opacity-50 pointer-events-none" : ""}`}>
                            <div className="text-xs font-semibold text-foreground">1. Cole as credenciais do seu app na Meta</div>
                            <div className="space-y-1.5">
                              <Label className="text-xs">Phone Number ID</Label>
-                             <Input value={metaPhoneNumberId} onChange={(e) => setMetaPhoneNumberId(e.target.value)} placeholder="Ex: 109987654321000" />
+                             <Input value={metaPhoneNumberId} onChange={(e) => setMetaPhoneNumberId(e.target.value)} placeholder="Ex: 109987654321000" disabled={!metaCostAck} />
                            </div>
                            <div className="space-y-1.5">
                              <Label className="text-xs">Token de Acesso Permanente</Label>
-                             <Input type="password" value={metaAccessToken} onChange={(e) => setMetaAccessToken(e.target.value)} placeholder="EAAG..." />
+                             <Input type="password" value={metaAccessToken} onChange={(e) => setMetaAccessToken(e.target.value)} placeholder="EAAG..." disabled={!metaCostAck} />
                              <p className="text-[10px] text-muted-foreground">Gere um token permanente em Meta Business → Usuários do Sistema.</p>
                            </div>
                            <div className="space-y-1.5">
                              <Label className="text-xs">WhatsApp Business Account ID (opcional)</Label>
-                             <Input value={metaWabaId} onChange={(e) => setMetaWabaId(e.target.value)} placeholder="Ex: 220712345678900" />
+                             <Input value={metaWabaId} onChange={(e) => setMetaWabaId(e.target.value)} placeholder="Ex: 220712345678900" disabled={!metaCostAck} />
                            </div>
                          </div>
 
@@ -2304,7 +2407,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                            </div>
                          )}
 
-                         <Button onClick={handleTestMeta} disabled={metaTesting || isNew} className="w-full">
+                         <Button onClick={handleTestMeta} disabled={metaTesting || isNew || !metaCostAck} className="w-full">
                            {metaTesting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <ShieldCheck className="h-4 w-4 mr-2" />}
                            Testar e Conectar
                          </Button>
@@ -2323,7 +2426,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                      <div className="min-w-0">
                        <div className="flex items-center gap-2 flex-wrap">
                          <div className="font-medium text-foreground">Instagram Direct</div>
-                         <Badge variant="outline" className="text-[10px] h-4 bg-indigo-500/10 text-indigo-500 border-0">Meta Graph API</Badge>
+                         <Badge variant="outline" className="text-[10px] h-4 bg-brand-500/10 text-brand-500 border-0">Meta Graph API</Badge>
                        </div>
                        <div className="text-xs text-muted-foreground mt-0.5">Responda DMs, automações em Stories e Posts no Instagram.</div>
                      </div>
@@ -2340,7 +2443,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                      <div className="min-w-0">
                        <div className="flex items-center gap-2 flex-wrap">
                          <div className="font-medium">Facebook Messenger</div>
-                         <Badge variant="outline" className="text-[10px] h-4 bg-indigo-500/10 text-indigo-500 border-0">Meta Graph API</Badge>
+                         <Badge variant="outline" className="text-[10px] h-4 bg-brand-500/10 text-brand-500 border-0">Meta Graph API</Badge>
                        </div>
                        <div className="text-xs text-muted-foreground mt-0.5">Conecte com sua página para atender inbox automaticamente.</div>
                      </div>
@@ -2350,8 +2453,8 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
 
                 <div className="flex items-center justify-between flex-wrap gap-3 p-4 border border-border rounded-lg bg-card mt-6">
                    <div className="flex items-center gap-4 min-w-0">
-                     <div className="h-10 w-10 bg-indigo-500/10 rounded-lg flex items-center justify-center shrink-0">
-                       <Smartphone className="h-5 w-5 text-indigo-500" />
+                     <div className="h-10 w-10 bg-brand-500/10 rounded-lg flex items-center justify-center shrink-0">
+                       <Smartphone className="h-5 w-5 text-brand-500" />
                      </div>
                      <div className="min-w-0">
                        <div className="font-medium">Chat Web (Widget)</div>

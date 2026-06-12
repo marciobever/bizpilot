@@ -1,5 +1,5 @@
 "use client";
-import { Target, Shield, Zap, LineChart, MessageSquare, Bot } from "lucide-react";
+import { Target, Shield, Zap, LineChart, MessageSquare, Bot, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
 
 const NICHES = [
@@ -26,12 +26,12 @@ export default function Niches() {
         {NICHES.map((n, i) => {
           const Icon = n.icon;
           return (
-            <motion.div 
+            <motion.div
               key={n.name}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: i * 0.1 }}
-              className="flex items-start gap-4 p-8 bg-card border border-border rounded-2xl transition-colors hover:border-indigo-500/50"
+              className="flex items-start gap-4 p-8 bg-card border border-border rounded-2xl transition-colors hover:border-brand-500/50"
             >
               <div className="h-14 w-14 rounded-full bg-secondary flex items-center justify-center shrink-0">
                  <Icon className="h-6 w-6 text-foreground" />
@@ -43,6 +43,24 @@ export default function Niches() {
             </motion.div>
           );
         })}
+
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: NICHES.length * 0.1 }}
+          className="md:col-span-2 flex items-start gap-4 p-8 bg-brand-500/5 border border-brand-500/30 rounded-2xl transition-colors hover:border-brand-500/60"
+        >
+          <div className="h-14 w-14 rounded-full bg-brand-500/10 flex items-center justify-center shrink-0">
+             <Sparkles className="h-6 w-6 text-brand-500" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold mb-2">Não encontrou o seu segmento?</h3>
+            <p className="text-muted-foreground text-sm leading-relaxed">
+              Sem problema. Na configuração do seu agente você descreve, em texto livre, como o seu negócio funciona,
+              o tom de voz desejado e as regras de atendimento — e a BizPilot monta um agente sob medida pra sua realidade.
+            </p>
+          </div>
+        </motion.div>
       </div>
     </div>
   )

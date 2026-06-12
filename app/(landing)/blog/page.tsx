@@ -9,7 +9,7 @@ export default function Blog() {
       title: "Como usar Webhooks para conectar sua IA ao CRM",
       excerpt: "Descubra como ferramentas (Tools) e Webhooks podem transformar um chatbot simples em um agente de vendas autônomo conectado ao seu RD Station ou HubSpot.",
       date: "24 de Maio, 2026",
-      author: "Equipe Synapse",
+      author: "Equipe BizPilot",
       category: "Técnico"
     },
     {
@@ -21,7 +21,7 @@ export default function Blog() {
     },
     {
       title: "Case de Sucesso: Redução de 80% do tempo de atendimento",
-      excerpt: "Veja como a Clínica XYZ conseguiu automatizar o agendamento de mais de 2.000 pacientes no mês utilizando a Synapse AI integrada via WhatsApp.",
+      excerpt: "Veja como a Clínica XYZ conseguiu automatizar o agendamento de mais de 2.000 pacientes no mês utilizando a BizPilot integrada via WhatsApp.",
       date: "03 de Abril, 2026",
       author: "Mariana Costa",
       category: "Cases"
@@ -50,15 +50,15 @@ export default function Blog() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
             key={post.title} 
-            className="flex flex-col bg-card border border-border rounded-2xl overflow-hidden hover:border-indigo-500/30 transition-colors group cursor-pointer"
+            className="flex flex-col bg-card border border-border rounded-2xl overflow-hidden hover:border-brand-500/30 transition-colors group cursor-pointer"
           >
             <div className="h-48 bg-secondary/50 flex items-center justify-center p-6 border-b border-border">
-              <span className="text-indigo-400 font-medium tracking-wider uppercase text-sm border border-indigo-500/20 bg-indigo-500/10 px-3 py-1 rounded-full">
+              <span className="text-brand-400 font-medium tracking-wider uppercase text-sm border border-brand-500/20 bg-brand-500/10 px-3 py-1 rounded-full">
                 {post.category}
               </span>
             </div>
             <div className="p-6 flex flex-col flex-1">
-              <h3 className="text-xl font-bold mb-3 group-hover:text-indigo-400 transition-colors">
+              <h3 className="text-xl font-bold mb-3 group-hover:text-brand-400 transition-colors">
                 {post.title}
               </h3>
               <p className="text-muted-foreground text-sm leading-relaxed mb-6 flex-1">
@@ -70,7 +70,7 @@ export default function Blog() {
                   <div className="flex items-center gap-1.5"><Calendar className="h-3 w-3" /> {post.date}</div>
                   <div className="flex items-center gap-1.5"><User className="h-3 w-3" /> {post.author}</div>
                 </div>
-                <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-indigo-400 transition-colors" />
+                <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-brand-400 transition-colors" />
               </div>
             </div>
           </motion.div>

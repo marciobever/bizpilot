@@ -8,7 +8,7 @@ export default function Features() {
       title: "IA Nativa, não Fluxos Rígidos.",
       description: "Diferente de chatbots antiquados de botãozinho, nossos agentes usam RAG e prompts sistêmicos. O cliente fala naturalmente e a IA resolve.",
       icon: Brain,
-      color: "text-indigo-500"
+      color: "text-brand-500"
     },
     {
       title: "Ações no Mundo Real",

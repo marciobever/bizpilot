@@ -14,6 +14,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   MessageSquare,
+  CreditCard,
+  ShieldCheck,
+  Lightbulb,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -26,6 +29,12 @@ type Section = {
   title: string;
   subtitle: string;
   content: React.ReactNode;
+};
+
+type FaqItem = {
+  id: string;
+  question: string;
+  answer: React.ReactNode;
 };
 
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
@@ -50,7 +59,7 @@ function Tip({ children, variant = "info" }: { children: React.ReactNode; varian
   return (
     <div className={cn(
       "flex gap-2 items-start p-3 rounded-lg border text-xs leading-relaxed",
-      variant === "info" ? "bg-indigo-500/5 border-indigo-500/20 text-indigo-300" : "bg-amber-500/5 border-amber-500/20 text-amber-300"
+      variant === "info" ? "bg-brand-500/5 border-brand-500/20 text-brand-300" : "bg-amber-500/5 border-amber-500/20 text-amber-300"
     )}>
       {variant === "info" ? <Sparkles className="h-3.5 w-3.5 shrink-0 mt-0.5" /> : <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />}
       <div>{children}</div>
@@ -62,13 +71,13 @@ const SECTIONS: Section[] = [
   {
     id: "overview",
     icon: Sparkles,
-    color: "text-indigo-500 bg-indigo-500/10",
+    color: "text-brand-500 bg-brand-500/10",
     title: "Visão geral: como tudo se conecta",
     subtitle: "Entenda o fluxo completo antes de configurar",
     content: (
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground leading-relaxed">
-          O Synapse AI funciona em 3 camadas que trabalham juntas para cada agente que você cria:
+          O BizPilot funciona em 3 camadas que trabalham juntas para cada agente que você cria:
         </p>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="p-3 border border-border rounded-lg bg-secondary/10">
@@ -96,6 +105,48 @@ const SECTIONS: Section[] = [
         <Tip>
           Recomendado seguir esta ordem: <strong>1) Criar o agente</strong> → <strong>2) Conectar o WhatsApp</strong> →
           <strong> 3) Adicionar conhecimento</strong> → <strong>4) Configurar ferramentas</strong> (opcional).
+        </Tip>
+      </div>
+    ),
+  },
+  {
+    id: "agent",
+    icon: Bot,
+    color: "text-purple-500 bg-purple-500/10",
+    title: "Configurar o Agente",
+    subtitle: "Identidade, personalidade, instruções, modelo de IA e voz",
+    content: (
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          A tela do agente é dividida em abas. Veja o que configurar em cada uma:
+        </p>
+        <Step n={1} title="Identidade">
+          Dê um nome claro (ex: "Recepção - Clínica X") e escolha o tipo (vendas, suporte, agendamento, etc.) — isso ajuda a organizar
+          quando você tiver vários agentes. Aqui também fica a foto/avatar do agente, exibido no WhatsApp.
+        </Step>
+        <Step n={2} title="Personalidade">
+          Escreva como o agente deve agir: tom de voz (formal, informal, simpático), o que ele pode e não pode fazer, e informações
+          gerais da empresa (horários, endereço, serviços). Quanto mais específico, melhor — mas detalhes que mudam com frequência
+          (preços, FAQs longas) devem ir na <strong>Base de Conhecimento</strong> em vez do prompt.
+        </Step>
+        <Step n={3} title="Configurações">
+          Escolha o modelo de IA (o padrão já é rápido e inteligente o suficiente para a maioria dos casos — não é necessário trocar)
+          e ative ou desative recursos como resposta em áudio.
+        </Step>
+        <Step n={4} title="Addons">
+          Ative integrações extras para o agente, como ferramentas (ações/webhooks) e outros módulos disponíveis no seu plano.
+        </Step>
+        <Step n={5} title="Personalizada">
+          Espaço livre para instruções específicas do seu negócio que não se encaixam nas outras abas — use com moderação,
+          priorizando a Base de Conhecimento para conteúdo extenso.
+        </Step>
+        <Step n={6} title="Salvar">
+          Clique em <strong>Salvar</strong>. Só depois disso as abas Canais, Conhecimento e Ferramentas ficam disponíveis (elas dependem
+          do agente já existir no banco).
+        </Step>
+        <Tip>
+          Se o seu segmento não aparece nos modelos prontos, use a opção "Não encontrou o seu segmento?" na página de Setores para
+          descrever em texto livre o que você espera do agente — nossa equipe ajuda a configurar a persona ideal.
         </Tip>
       </div>
     ),
@@ -138,7 +189,7 @@ const SECTIONS: Section[] = [
 
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <Badge variant="outline" className="text-indigo-500 border-indigo-500/30">Opção 2</Badge>
+            <Badge variant="outline" className="text-brand-500 border-brand-500/30">Opção 2</Badge>
             <span className="text-sm font-medium">Meta Oficial (WhatsApp Cloud API)</span>
           </div>
           <div className="space-y-3 pl-1">
@@ -159,35 +210,6 @@ const SECTIONS: Section[] = [
             A Meta só permite responder livremente dentro de uma janela de 24h após a última mensagem do cliente. Fora desse prazo, é necessário um <strong>template aprovado</strong> para iniciar a conversa.
           </Tip>
         </div>
-      </div>
-    ),
-  },
-  {
-    id: "agent",
-    icon: Bot,
-    color: "text-purple-500 bg-purple-500/10",
-    title: "Configurar o Agente",
-    subtitle: "Persona, instruções, modelo de IA e voz",
-    content: (
-      <div className="space-y-3">
-        <Step n={1} title="Nome e tipo do agente">
-          Dê um nome claro (ex: "Recepção - Clínica X") e escolha o tipo (vendas, suporte, agendamento, etc.) — isso ajuda a organizar quando você tiver vários agentes.
-        </Step>
-        <Step n={2} title="Persona / Instruções (Prompt)">
-          Na aba <strong>Comportamento</strong>, escreva como o agente deve agir: tom de voz, o que pode e não pode fazer, informações da empresa
-          (horários, endereço, serviços, preços). Quanto mais específico, melhor — mas detalhes que mudam com frequência (preços, FAQs longas)
-          devem ir na <strong>Base de Conhecimento</strong> em vez do prompt.
-        </Step>
-        <Step n={3} title="Modelo de IA">
-          O modelo padrão (<Code>gpt-5.4-mini</Code>) já é rápido e inteligente o suficiente para a maioria dos casos. Não é necessário trocar.
-        </Step>
-        <Step n={4} title="Voz / Resposta em áudio">
-          Ative <strong>"Responder em áudio"</strong> se quiser que o agente converta a resposta em áudio quando o cliente também mandar áudio
-          (resposta "no mesmo formato"). Se o cliente mandar texto, o agente sempre responde em texto.
-        </Step>
-        <Step n={5} title="Salvar">
-          Clique em <strong>Salvar</strong>. Só depois disso as abas Canais, Conhecimento e Ferramentas ficam disponíveis (elas dependem do agente já existir no banco).
-        </Step>
       </div>
     ),
   },
@@ -253,7 +275,7 @@ const SECTIONS: Section[] = [
           marcar um horário. Retorna os horários disponíveis para a data informada." A IA lê essa descrição para decidir se e quando chamar.
         </Step>
         <Step n={4} title="Método e URL">
-          Informe a URL do seu endpoint (Windmill, n8n, Zapier, sua própria API, etc.) e o método HTTP (geralmente <Code>POST</Code>).
+          Informe a URL do seu endpoint (n8n, Zapier, sua própria API, etc.) e o método HTTP (geralmente <Code>POST</Code>).
         </Step>
         <Step n={5} title="Headers (opcional)">
           Se o endpoint precisar de autenticação, adicione o header necessário, ex: <Code>Authorization: Bearer SEU_TOKEN</Code>.
@@ -335,24 +357,24 @@ const SECTIONS: Section[] = [
     id: "tags",
     icon: Tags,
     color: "text-teal-500 bg-teal-500/10",
-    title: "Tags e Variáveis (Windmill)",
+    title: "Tags e Variáveis (Automação Externa)",
     subtitle: "Para integrações avançadas com automações externas",
     content: (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground leading-relaxed">
-          Esta seção é opcional e voltada para quem já usa (ou vai usar) automações no Windmill para fluxos personalizados — por exemplo,
+          Esta seção é opcional e voltada para quem já usa (ou vai usar) automações externas para fluxos personalizados — por exemplo,
           disparar um fluxo diferente dependendo de uma tag definida na conversa.
         </p>
         <Step n={1} title="Quando usar">
           Use se você precisa que dados específicos da conversa (tags, identificadores, status) sejam enviados junto no payload JSON
-          para a sua automação no Windmill.
+          para a sua automação externa.
         </Step>
         <Step n={2} title="Como configurar">
           Na aba <strong>Tags e Variáveis</strong> do agente, defina os marcadores e os valores/variáveis correspondentes. Eles serão
           incluídos automaticamente no payload enviado ao seu fluxo.
         </Step>
         <Tip>
-          Se você não usa automações personalizadas no Windmill, pode ignorar esta aba — o agente funciona normalmente sem ela.
+          Se você não usa automações personalizadas, pode ignorar esta aba — o agente funciona normalmente sem ela.
         </Tip>
       </div>
     ),
@@ -377,7 +399,7 @@ const SECTIONS: Section[] = [
           <p className="text-sm font-medium flex items-center gap-2"><AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> O agente não sabe responder sobre algo do meu negócio</p>
           <ul className="text-xs text-muted-foreground mt-1.5 space-y-1 list-disc pl-5">
             <li>Adicione essa informação na <strong>Base de Conhecimento</strong> (aba Conhecimento).</li>
-            <li>Para regras de comportamento gerais, ajuste o prompt na aba Comportamento.</li>
+            <li>Para regras de comportamento gerais, ajuste o prompt na aba Personalidade.</li>
           </ul>
         </div>
         <div>
@@ -400,19 +422,225 @@ const SECTIONS: Section[] = [
             <li>Informações muito específicas e fixas (preços, regras) devem estar na Base de Conhecimento, não depender só da memória.</li>
           </ul>
         </div>
+        <div>
+          <p className="text-sm font-medium flex items-center gap-2"><AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> O QR Code não conecta ou cai sozinho</p>
+          <ul className="text-xs text-muted-foreground mt-1.5 space-y-1 list-disc pl-5">
+            <li>Gere um novo QR Code na aba Canais e escaneie novamente — QR Codes expiram após alguns minutos.</li>
+            <li>Evite usar o mesmo número de WhatsApp em outro celular ou no WhatsApp Web ao mesmo tempo, pois isso pode desconectar a sessão.</li>
+            <li>Mantenha o celular com bateria e internet estáveis — o WhatsApp precisa do celular "vivo" periodicamente mesmo usando a versão Web/API.</li>
+          </ul>
+        </div>
       </div>
     ),
   },
 ];
 
+const FAQ_ITEMS: FaqItem[] = [
+  {
+    id: "o-que-e",
+    question: "O que é o BizPilot e o que ele faz na prática?",
+    answer: (
+      <p>
+        O BizPilot cria <strong>funcionários virtuais de IA</strong> que atendem seus clientes pelo WhatsApp 24 horas por dia.
+        Cada agente pode tirar dúvidas, qualificar leads, agendar horários, enviar links de pagamento, consultar pedidos e
+        executar outras ações — tudo com base nas instruções, conhecimento e ferramentas que você configura.
+      </p>
+    ),
+  },
+  {
+    id: "preciso-programar",
+    question: "Preciso saber programar para usar?",
+    answer: (
+      <p>
+        Não para o uso básico. Criar o agente, escrever a personalidade, conectar o WhatsApp e adicionar a Base de Conhecimento
+        é tudo feito por formulários, sem código. Programação só é necessária se você quiser criar <strong>Ferramentas (webhooks)</strong>
+        personalizadas que conversem com seus próprios sistemas — e mesmo assim, ferramentas prontas (n8n, Zapier) ajudam
+        a reduzir essa necessidade.
+      </p>
+    ),
+  },
+  {
+    id: "quantos-agentes",
+    question: "Quantos agentes posso criar?",
+    answer: (
+      <p>
+        Depende do seu plano: o <strong>Básico</strong> permite 1 agente, o <strong>Profissional</strong> até 3 agentes, e o
+        <strong> Avançado</strong> permite agentes ilimitados, com múltiplos canais por agente. Você pode ver os detalhes e
+        fazer upgrade em <strong>Configurações → Plano</strong>.
+      </p>
+    ),
+  },
+  {
+    id: "numero-pessoal",
+    question: "Posso usar meu número de WhatsApp pessoal?",
+    answer: (
+      <p>
+        Sim. Usando a opção <strong>Evolution API (QR Code)</strong>, o agente se conecta ao seu WhatsApp normal (pessoal ou Business)
+        do mesmo jeito que o WhatsApp Web funciona — sem custo de mensageria. Se preferir um número dedicado, oferecemos aluguel de
+        números virtuais como add-on, ou você pode usar a <strong>Meta Oficial (Cloud API)</strong> com um número próprio.
+      </p>
+    ),
+  },
+  {
+    id: "desconectar",
+    question: "O que acontece se o WhatsApp desconectar?",
+    answer: (
+      <p>
+        O status do canal muda para offline na aba Canais e o agente para de responder até a conexão ser restabelecida. Para a opção
+        Evolution API, basta gerar um novo QR Code e escanear de novo. Nenhuma configuração do agente (personalidade, conhecimento,
+        ferramentas) é perdida — apenas a conexão com o WhatsApp precisa ser refeita.
+      </p>
+    ),
+  },
+  {
+    id: "mudar-plano",
+    question: "Como funciona a cobrança e posso mudar de plano?",
+    answer: (
+      <div className="flex items-start gap-2">
+        <CreditCard className="h-3.5 w-3.5 text-brand-400 shrink-0 mt-0.5" />
+        <p>
+          A assinatura é mensal e pode ser alterada a qualquer momento em <strong>Configurações → Plano</strong>, onde você também
+          encontra a comparação completa entre os planos Básico, Profissional e Avançado. Se você usar a <strong>Meta Oficial</strong>,
+          vale lembrar que a Meta cobra separadamente por conversas iniciadas fora da janela gratuita de 24h — esse custo é cobrado
+          direto na sua conta Meta Business, à parte da assinatura do BizPilot.
+        </p>
+      </div>
+    ),
+  },
+  {
+    id: "seguranca-dados",
+    question: "Meus dados e os dados dos meus clientes estão seguros?",
+    answer: (
+      <div className="flex items-start gap-2">
+        <ShieldCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+        <p>
+          Sim. Os dados da sua conta, agentes, conversas e base de conhecimento são armazenados de forma isolada por conta, com
+          controle de acesso (cada usuário só acessa os próprios dados). Credenciais sensíveis, como tokens da Meta, são tratadas
+          como informação confidencial e não são exibidas integralmente na interface após salvas.
+        </p>
+      </div>
+    ),
+  },
+  {
+    id: "multiplos-clientes",
+    question: "O agente consegue atender vários clientes ao mesmo tempo?",
+    answer: (
+      <p>
+        Sim. Cada conversa é tratada de forma independente — o agente mantém o contexto, histórico e memória separados por contato,
+        então pode conversar com dezenas de clientes simultaneamente sem misturar informações entre eles.
+      </p>
+    ),
+  },
+  {
+    id: "handoff",
+    question: "Posso assumir a conversa manualmente quando quiser?",
+    answer: (
+      <p>
+        Sim — esse recurso é chamado de <strong>Repasse (Handoff)</strong>. O agente pode ser configurado para identificar quando uma
+        situação precisa de um humano (ex: reclamação, negociação especial) e transferir a conversa para a sua equipe, ou você pode
+        assumir manualmente pelo painel quando quiser.
+      </p>
+    ),
+  },
+  {
+    id: "outros-idiomas",
+    question: "O agente funciona em outros idiomas além do português?",
+    answer: (
+      <p>
+        Sim. O modelo de IA usado entende e responde em diversos idiomas. Basta escrever a personalidade/instruções no idioma desejado
+        (ou instruir o agente a identificar e responder no idioma do cliente) e adicionar conteúdo de conhecimento no(s) idioma(s)
+        que seus clientes utilizam.
+      </p>
+    ),
+  },
+  {
+    id: "limite-mensagens",
+    question: "Existe limite de mensagens por mês?",
+    answer: (
+      <p>
+        As respostas em <strong>texto são ilimitadas</strong> em todos os planos. O que varia entre planos é o número de agentes,
+        canais simultâneos e recursos extras (como respostas em áudio e ferramentas/webhooks). Consulte a página de Preços para o
+        detalhamento completo de cada plano.
+      </p>
+    ),
+  },
+  {
+    id: "cancelar",
+    question: "Como cancelo minha assinatura?",
+    answer: (
+      <p>
+        Acesse <strong>Configurações → Plano</strong> e siga as instruções de cancelamento, ou entre em contato pelo nosso canal de
+        suporte na página de <strong>Contato</strong>. Seus agentes e dados continuam acessíveis durante o período já pago.
+      </p>
+    ),
+  },
+  {
+    id: "rag-explicacao",
+    question: "O que é exatamente a 'Base de Conhecimento (RAG)'?",
+    answer: (
+      <p>
+        RAG significa "Retrieval-Augmented Generation" — na prática, é uma forma de o agente "consultar" documentos específicos do
+        seu negócio (preços, FAQs, políticas) antes de responder, em vez de depender só do que está escrito no prompt principal.
+        Você adiciona textos ou links na aba Conhecimento do agente, e o sistema cuida do resto automaticamente.
+      </p>
+    ),
+  },
+  {
+    id: "integrar-sistemas",
+    question: "Posso integrar o agente com meu ERP, CRM ou sistema de pedidos?",
+    answer: (
+      <div className="flex items-start gap-2">
+        <Lightbulb className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+        <p>
+          Sim, através de <strong>Ferramentas (Webhooks)</strong>. Você cadastra um endpoint do seu sistema (ou de uma automação no
+          n8n, Zapier, etc.), descreve quando e como ele deve ser usado, e a IA decide sozinha quando chamar essa ferramenta
+          durante a conversa — por exemplo, para consultar estoque, criar um pedido ou verificar o status de uma entrega.
+        </p>
+      </div>
+    ),
+  },
+  {
+    id: "grava-conversas",
+    question: "O agente grava ou tem acesso ao histórico das conversas?",
+    answer: (
+      <p>
+        Sim, o histórico de cada conversa é salvo para que o agente tenha contexto e para que você possa acompanhar o atendimento pelo
+        painel. Além disso, fatos relevantes sobre cada cliente são guardados na <strong>Memória de Longo Prazo</strong> para
+        personalizar conversas futuras.
+      </p>
+    ),
+  },
+];
+
+type Category = {
+  id: string;
+  label: string;
+  icon: React.ElementType;
+  sectionIds: string[];
+};
+
+const CATEGORIES: Category[] = [
+  { id: "inicio", label: "Primeiros Passos", icon: Sparkles, sectionIds: ["overview", "agent"] },
+  { id: "canais", label: "Canais (WhatsApp)", icon: Smartphone, sectionIds: ["whatsapp"] },
+  { id: "inteligencia", label: "Inteligência do Agente", icon: Brain, sectionIds: ["knowledge", "tools", "memory", "audio"] },
+  { id: "avancado", label: "Avançado", icon: Tags, sectionIds: ["tags"] },
+  { id: "problemas", label: "Solução de Problemas", icon: Wrench, sectionIds: ["troubleshooting"] },
+  { id: "faq", label: "Perguntas Frequentes", icon: HelpCircle, sectionIds: [] },
+];
+
 export default function HelpPage() {
+  const [activeCategory, setActiveCategory] = useState<string>("inicio");
   const [open, setOpen] = useState<string | null>("overview");
+  const [openFaq, setOpenFaq] = useState<string | null>(null);
+
+  const category = CATEGORIES.find((c) => c.id === activeCategory) || CATEGORIES[0];
+  const visibleSections = SECTIONS.filter((s) => category.sectionIds.includes(s.id));
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <HelpCircle className="h-6 w-6 text-indigo-500" />
+          <HelpCircle className="h-6 w-6 text-brand-500" />
           Central de Ajuda
         </h2>
         <p className="text-muted-foreground">
@@ -420,40 +648,98 @@ export default function HelpPage() {
         </p>
       </div>
 
-      <div className="space-y-3">
-        {SECTIONS.map((section) => {
-          const Icon = section.icon;
-          const isOpen = open === section.id;
+      {/* Category tab bar */}
+      <div className="flex flex-wrap gap-2 border-b border-border pb-px">
+        {CATEGORIES.map((cat) => {
+          const Icon = cat.icon;
+          const isActive = activeCategory === cat.id;
           return (
-            <Card key={section.id} className="overflow-hidden">
-              <button
-                className="w-full text-left"
-                onClick={() => setOpen(isOpen ? null : section.id)}
-              >
-                <CardHeader className="flex-row items-center gap-4 cursor-pointer hover:bg-secondary/20 transition-colors py-4">
-                  <div className={cn("h-10 w-10 rounded-lg flex items-center justify-center shrink-0", section.color)}>
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <CardTitle className="text-base">{section.title}</CardTitle>
-                    <CardDescription>{section.subtitle}</CardDescription>
-                  </div>
-                  <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform shrink-0", isOpen && "rotate-180")} />
-                </CardHeader>
-              </button>
-              {isOpen && (
-                <CardContent className="pt-0 border-t border-border">
-                  <div className="pt-4">{section.content}</div>
-                </CardContent>
+            <button
+              key={cat.id}
+              onClick={() => setActiveCategory(cat.id)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-t-lg border-b-2 transition-colors",
+                isActive
+                  ? "border-brand-500 text-foreground bg-secondary/40"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:bg-secondary/20"
               )}
-            </Card>
+            >
+              <Icon className="h-4 w-4" />
+              {cat.label}
+            </button>
           );
         })}
       </div>
 
+      {/* Regular sections (accordion) */}
+      {activeCategory !== "faq" && (
+        <div className="space-y-3">
+          {visibleSections.map((section) => {
+            const Icon = section.icon;
+            const isOpen = open === section.id;
+            return (
+              <Card key={section.id} className="overflow-hidden">
+                <button
+                  className="w-full text-left"
+                  onClick={() => setOpen(isOpen ? null : section.id)}
+                >
+                  <CardHeader className="flex-row items-center gap-4 cursor-pointer hover:bg-secondary/20 transition-colors py-4">
+                    <div className={cn("h-10 w-10 rounded-lg flex items-center justify-center shrink-0", section.color)}>
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-base">{section.title}</CardTitle>
+                      <CardDescription>{section.subtitle}</CardDescription>
+                    </div>
+                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform shrink-0", isOpen && "rotate-180")} />
+                  </CardHeader>
+                </button>
+                {isOpen && (
+                  <CardContent className="pt-0 border-t border-border">
+                    <div className="pt-4">{section.content}</div>
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* FAQ */}
+      {activeCategory === "faq" && (
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Respostas rápidas para as perguntas mais comuns sobre o BizPilot. Clique em uma pergunta para ver a resposta.
+          </p>
+          {FAQ_ITEMS.map((item) => {
+            const isOpen = openFaq === item.id;
+            return (
+              <Card key={item.id} className="overflow-hidden">
+                <button
+                  className="w-full text-left"
+                  onClick={() => setOpenFaq(isOpen ? null : item.id)}
+                >
+                  <CardHeader className="flex-row items-center gap-3 cursor-pointer hover:bg-secondary/20 transition-colors py-3.5">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-sm font-medium">{item.question}</CardTitle>
+                    </div>
+                    <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform shrink-0", isOpen && "rotate-180")} />
+                  </CardHeader>
+                </button>
+                {isOpen && (
+                  <CardContent className="pt-0 border-t border-border">
+                    <div className="pt-3 text-sm text-muted-foreground leading-relaxed">{item.answer}</div>
+                  </CardContent>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
       <div className="flex items-center gap-2 text-xs text-muted-foreground justify-center pt-2">
         <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-        Ainda com dúvidas? Revise a configuração do agente passo a passo seguindo a ordem desta página.
+        Ainda com dúvidas? Revise a configuração do agente passo a passo seguindo a ordem desta página, ou confira o FAQ.
       </div>
     </div>
   );

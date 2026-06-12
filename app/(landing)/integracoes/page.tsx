@@ -1,22 +1,22 @@
 "use client";
-import { Webhook, Database, Workflow, Bot, Zap, MessageSquare } from "lucide-react";
+import { Webhook, CalendarDays, CreditCard, Bot, Zap, MessageSquare } from "lucide-react";
 import Link from 'next/link';
 import { motion } from "motion/react";
 
 export default function Integrations() {
   const integrations = [
     {
-      name: "Windmill",
-      category: "Workflows & Lógica",
-      desc: "Conecte os agentes a scripts serverless rápidos no Windmill.",
-      icon: Workflow,
-      color: "text-amber-500"
+      name: "Google Calendar",
+      category: "Agendamentos",
+      desc: "Conecte sua agenda para o agente verificar horários livres e marcar compromissos com os leads.",
+      icon: CalendarDays,
+      color: "text-violet-500"
     },
     {
-      name: "Supabase",
-      category: "Banco de Dados",
-      desc: "Consultas diretas nas views para o agente responder baseado em estoque/leads.",
-      icon: Database,
+      name: "Pagamentos (Pix, Mercado Pago, Asaas)",
+      category: "Faturamento",
+      desc: "Gere links e QR Codes de pagamento automaticamente durante a conversa.",
+      icon: CreditCard,
       color: "text-emerald-500"
     },
     {
@@ -34,11 +34,11 @@ export default function Integrations() {
       color: "text-blue-500"
     },
     {
-      name: "Stripe",
-      category: "Faturamento",
-      desc: "Gere links de pagamento (Checkout) através da intenção via chat.",
+      name: "Cal.com / Calendly",
+      category: "Agendamentos",
+      desc: "Alternativas de agenda para quem não usa o Google Calendar.",
       icon: Zap,
-      color: "text-indigo-500"
+      color: "text-brand-500"
     },
     {
       name: "n8n (n8n.io)",
@@ -74,7 +74,7 @@ export default function Integrations() {
                viewport={{ once: true }}
                transition={{ duration: 0.4, delay: i * 0.1 }}
                key={feat.name}
-               className="p-6 rounded-2xl bg-card border border-border flex flex-col gap-4 hover:border-indigo-500/30 transition-colors"
+               className="p-6 rounded-2xl bg-card border border-border flex flex-col gap-4 hover:border-brand-500/30 transition-colors"
              >
                <div className="flex items-center gap-4">
                  <div className="h-12 w-12 rounded-lg bg-secondary/80 border border-border flex items-center justify-center shrink-0">
@@ -88,7 +88,7 @@ export default function Integrations() {
                <p className="text-sm text-muted-foreground leading-relaxed flex-1">
                  {feat.desc}
                </p>
-               <Link href="/app" className="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors">
+               <Link href="/app" className="text-sm font-medium text-brand-400 hover:text-brand-300 transition-colors">
                  Ver Instruções &rarr;
                </Link>
              </motion.div>

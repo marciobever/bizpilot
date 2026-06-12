@@ -242,9 +242,9 @@ export default function Conversations() {
             <button
               key={c.id}
               onClick={() => setActiveId(c.id)}
-              className={`w-full text-left p-4 border-b border-border transition-colors hover:bg-secondary/40 flex gap-3 ${activeId === c.id ? 'bg-secondary/40 border-l-2 border-l-indigo-500' : 'border-l-2 border-l-transparent'}`}
+              className={`w-full text-left p-4 border-b border-border transition-colors hover:bg-secondary/40 flex gap-3 ${activeId === c.id ? 'bg-secondary/40 border-l-2 border-l-brand-500' : 'border-l-2 border-l-transparent'}`}
             >
-              <Avatar fallback={(c.lead?.name || "??").substring(0, 2).toUpperCase()} className="h-10 w-10 shrink-0 bg-gradient-to-br from-indigo-500 to-purple-500 text-white border-0" />
+              <Avatar fallback={(c.lead?.name || "??").substring(0, 2).toUpperCase()} className="h-10 w-10 shrink-0 bg-gradient-to-br from-brand-500 to-purple-500 text-white border-0" />
               <div className="flex-1 min-w-0 overflow-hidden">
                 <div className="flex justify-between items-baseline mb-1">
                   <div className="font-medium text-sm truncate">{c.lead?.name || c.lead?.phone || 'Desconhecido'}</div>
@@ -283,7 +283,7 @@ export default function Conversations() {
             {/* Chat Header */}
             <div className={`h-16 border-b border-border flex items-center justify-between px-6 shrink-0 ${activeConv.status === 'paused' ? 'bg-yellow-500/10' : ''}`}>
               <div className="flex items-center gap-3">
-                 <Avatar fallback={(activeConv.lead?.name || "??").substring(0, 2).toUpperCase()} className="bg-gradient-to-br from-indigo-500 to-purple-500 text-white border-0" />
+                 <Avatar fallback={(activeConv.lead?.name || "??").substring(0, 2).toUpperCase()} className="bg-gradient-to-br from-brand-500 to-purple-500 text-white border-0" />
                  <div>
                    <div className="font-medium text-sm flex items-center gap-2">
                      {activeConv.lead?.name || 'Desconhecido'} {activeConv.lead?.phone ? `(${activeConv.lead?.phone})` : ''}
@@ -348,11 +348,11 @@ export default function Conversations() {
                            {isAgent && <Bot className="h-3 w-3" />}
                            {isHuman && <User className="h-3 w-3" />}
                          </div>
-                         <div className={`p-3 rounded-2xl rounded-tr-sm text-sm text-white ${isHuman ? 'bg-emerald-600' : 'bg-indigo-600'}`}>
+                         <div className={`p-3 rounded-2xl rounded-tr-sm text-sm text-white ${isHuman ? 'bg-emerald-600' : 'bg-brand-600'}`}>
                            {msg.content}
                          </div>
                        </div>
-                       <Avatar fallback={isHuman ? "H" : "A"} className={`h-8 w-8 text-white border-0 ${isHuman ? 'bg-emerald-500' : 'bg-gradient-to-br from-indigo-500 to-purple-500'}`} />
+                       <Avatar fallback={isHuman ? "H" : "A"} className={`h-8 w-8 text-white border-0 ${isHuman ? 'bg-emerald-500' : 'bg-gradient-to-br from-brand-500 to-purple-500'}`} />
                      </div>
                    );
                 }

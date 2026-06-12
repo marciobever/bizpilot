@@ -54,6 +54,26 @@ async function createWooviLink(apiKey: string, description: string, amount: numb
   return (data.charge?.paymentLinkUrl || data.paymentLinkUrl) as string;
 }
 
+async function createStripeLink(apiKey: string, description: string, amount: number, origin: string) {
+  const body = new URLSearchParams({
+    mode: 'payment',
+    'line_items[0][price_data][currency]': 'brl',
+    'line_items[0][price_data][product_data][name]': description.slice(0, 250),
+    'line_items[0][price_data][unit_amount]': String(Math.round(amount * 100)), // reais -> centavos
+    'line_items[0][quantity]': '1',
+    success_url: `${origin}/?pagamento=sucesso`,
+    cancel_url: `${origin}/?pagamento=cancelado`,
+  });
+  const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error?.message || 'Erro ao criar sessão de pagamento no Stripe.');
+  return data.url as string;
+}
+
 // POST /api/payments/create-link
 // Chamado pelo Windmill (tool `gerar_link_pagamento`) quando o agente decide
 // gerar uma cobrança para o lead durante a conversa.
@@ -109,6 +129,7 @@ export async function POST(req: NextRequest) {
     if (provider === 'mercadopago') url = await createMercadoPagoLink(apiKey, description, numericAmount);
     else if (provider === 'asaas') url = await createAsaasLink(apiKey, description, numericAmount);
     else if (provider === 'woovi') url = await createWooviLink(apiKey, description, numericAmount);
+    else if (provider === 'stripe') url = await createStripeLink(apiKey, description, numericAmount, req.nextUrl.origin);
     else return NextResponse.json({ error: 'Provedor não suportado.' }, { status: 400 });
 
     if (!url) return NextResponse.json({ error: 'Provedor não retornou um link de pagamento.' }, { status: 502 });

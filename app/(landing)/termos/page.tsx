@@ -15,26 +15,26 @@ export default function Terms() {
       </div>
       <div className="prose prose-invert max-w-none text-muted-foreground space-y-6">
         <p>
-          Bem-vindo aos Termos de Uso da Synapse AI. Leia atentamente estas condições antes de utilizar
+          Bem-vindo aos Termos de Uso da BizPilot. Leia atentamente estas condições antes de utilizar
           nossa plataforma e serviços.
         </p>
         <h2 className="text-2xl font-semibold text-foreground mt-8 mb-4">1. Aceitação dos Termos</h2>
         <p>
-          Ao acessar e utilizar os serviços da Synapse AI, você concorda em cumprir e ser regido por
+          Ao acessar e utilizar os serviços da BizPilot, você concorda em cumprir e ser regido por
           estes Termos de Uso. Se você não concorda com qualquer parte destes termos, você não terá permissão
           para acessar o serviço.
         </p>
         
         <h2 className="text-2xl font-semibold text-foreground mt-8 mb-4">2. Uso do Serviço</h2>
         <p>
-          A Synapse AI fornece uma plataforma de criação e orquestração de Agentes Virtuais de Inteligência
+          A BizPilot fornece uma plataforma de criação e orquestração de Agentes Virtuais de Inteligência
           Artificial. O usuário é o único responsável por configurar limites, bases de conhecimento (RAG)
           e permissões concedidas aos agentes criados.
         </p>
 
         <h2 className="text-2xl font-semibold text-foreground mt-8 mb-4">3. Limites de Responsabilidade</h2>
         <p>
-          Em nenhuma circunstância a Synapse AI será responsável por danos diretos, indiretos, incidentais
+          Em nenhuma circunstância a BizPilot será responsável por danos diretos, indiretos, incidentais
           ou consequenciais resultantes de respostas geradas pelos agentes de Inteligência Artificial,
           especialmente (mas não limitado a) alucinações de IA, ofertas de descontos indevidas ou acordos verbais.
         </p>
