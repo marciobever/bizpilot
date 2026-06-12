@@ -11,6 +11,8 @@ function formatForWhatsApp(text: string): string {
     .replace(/\*\*\*(.+?)\*\*\*/gs, '*$1*')    // ***x*** → *x*
     .replace(/\*\*(.+?)\*\*/gs, '*$1*')         // **x** → *x*
     .replace(/^#{1,6}\s+(.+)$/gm, '*$1*')       // # Título → *Título*
+    .replace(/^[ \t]*[•●▪○]\s*/gm, '- ')        // bullets estranhos → "- "
+    .replace(/\n{3,}/g, '\n\n')                 // colapsa 3+ quebras de linha em 2
     .trim();
 }
 
@@ -275,6 +277,43 @@ async function sendEvolution(
   return res.json().catch(() => null);
 }
 
+// ─── Reações (emoji em resposta à mensagem do cliente) ───────────────────────
+// Best-effort: falha aqui nunca deve impedir o envio da mensagem principal.
+
+async function sendReactionEvolution(
+  EVOLUTION_API_URL: string, EVOLUTION_API_KEY: string, instanceName: string,
+  remoteJid: string, messageId: string, emoji: string
+): Promise<void> {
+  try {
+    await fetch(`${EVOLUTION_API_URL}/message/sendReaction/${instanceName}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY },
+      body: JSON.stringify({
+        key: { remoteJid, fromMe: false, id: messageId },
+        reaction: emoji,
+      }),
+    });
+  } catch { /* reação é best-effort */ }
+}
+
+async function sendReactionMeta(
+  phoneNumberId: string, accessToken: string, recipient: string, messageId: string, emoji: string
+): Promise<void> {
+  try {
+    await fetch(`https://graph.facebook.com/v21.0/${phoneNumberId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        recipient_type: "individual",
+        to: recipient,
+        type: "reaction",
+        reaction: { message_id: messageId, emoji },
+      }),
+    });
+  } catch { /* reação é best-effort */ }
+}
+
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export async function main(
@@ -286,7 +325,7 @@ export async function main(
     return { success: false, reason: ai_data?.reason || "Mensagem ignorada pelo fluxo." };
   }
 
-  const { remoteJid, message, instanceName, audioBase64, imageUrl: dataImageUrl } = ai_data;
+  const { remoteJid, message, instanceName, audioBase64, imageUrl: dataImageUrl, messageId, reaction } = ai_data;
   const channel = ai_data.channel || { provider: "evolution" };
 
   if (!message || typeof message !== "string") {
@@ -308,6 +347,7 @@ export async function main(
       return { success: false, reason: "Credenciais da Meta ausentes no canal do agente." };
     }
     const recipient = String(remoteJid).replace("@s.whatsapp.net", "").replace(/\D/g, "");
+    if (reaction && messageId) await sendReactionMeta(phoneNumberId, accessToken, recipient, messageId, reaction);
     const result = await sendMeta(phoneNumberId, accessToken, recipient, textBody, buttons, list, imageUrl || null);
     return {
       success: true, deliveredTo: recipient, provider: "meta",
@@ -321,6 +361,8 @@ export async function main(
   if (!remoteJid || !instanceName) {
     return { success: false, reason: "remoteJid ou instanceName ausente." };
   }
+
+  if (reaction && messageId) await sendReactionEvolution(EVOLUTION_API_URL, EVOLUTION_API_KEY, instanceName, remoteJid, messageId, reaction);
 
   const result = await sendEvolution(
     EVOLUTION_API_URL, EVOLUTION_API_KEY, instanceName,

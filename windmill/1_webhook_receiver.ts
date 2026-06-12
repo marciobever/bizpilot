@@ -324,6 +324,7 @@ export async function main(payload: any) {
     incomingMessage,
     messageType,
     wasAudio,
+    messageId,
     provider: payload.provider || "evolution",
     metaPhoneNumberId: payload.metaPhoneNumberId || null,
   };

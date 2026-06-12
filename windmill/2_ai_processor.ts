@@ -8,8 +8,31 @@ import { createClient } from '@supabase/supabase-js';
 const stripInteractiveMarkers = (t: string) =>
   t.replace(/\[\[BOTOES:[^\]]*\]\]/g, '').replace(/\[\[LISTA:[^\]]*\]\]/g, '').replace(/\[\[IMAGEM:[^\]]*\]\]/g, '').trim();
 
+const MESES_PT = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+// Reescreve datas, horas e telefones em forma falada para o TTS soar natural
+// (sem isso, o modelo de voz lê "14:30" e "(11) 1234-5678" de forma robótica).
+function normalizeForSpeech(t: string): string {
+  return t
+    // Datas DD/MM/AAAA ou DD/MM -> "DD de mês [de AAAA]"
+    .replace(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\b/g, (_m, d, mo, y) => {
+      const month = MESES_PT[Number(mo) - 1];
+      if (!month) return _m;
+      return y ? `${Number(d)} de ${month} de ${y}` : `${Number(d)} de ${month}`;
+    })
+    // Horas HH:MM -> "X horas" ou "X horas e Y minutos"
+    .replace(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g, (_m, h, min) => {
+      const hour = Number(h);
+      return min === '00' ? `${hour} horas` : `${hour} horas e ${Number(min)} minutos`;
+    })
+    // Telefones (XX) XXXXX-XXXX ou (XX) XXXX-XXXX -> dígitos espaçados, mais fácil de ouvir
+    .replace(/\((\d{2})\)\s*(\d{4,5})-?(\d{4})/g, (_m, ddd, p1, p2) =>
+      `${ddd.split('').join(' ')}, ${p1.split('').join(' ')}, ${p2.split('').join(' ')}`)
+    .trim();
+}
+
 const buildTtsText = (t: string) =>
-  stripInteractiveMarkers(t).replace(/[*_~`#]/g, '').trim();
+  normalizeForSpeech(stripInteractiveMarkers(t).replace(/[*_~`#]/g, '')).trim();
 
 // ─── Tools: construção e execução ─────────────────────────────────────────────
 
@@ -27,6 +50,36 @@ function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boole
           motivo: { type: 'string', description: 'Breve motivo da transferência, para o atendente humano entender o contexto rapidamente.' },
         },
         required: ['motivo'],
+      },
+    },
+  });
+
+  tools.push({
+    type: 'function',
+    function: {
+      name: 'reagir_mensagem',
+      description: 'Reage com um emoji à última mensagem do cliente, para humanizar a conversa (ex: 👀 ao receber um pedido, ❤️ a um agradecimento, 👍 a uma confirmação). Use com moderação, só em momentos oportunos.',
+      parameters: {
+        type: 'object',
+        properties: {
+          emoji: { type: 'string', description: 'Um único emoji para reagir à mensagem do cliente.' },
+        },
+        required: ['emoji'],
+      },
+    },
+  });
+
+  tools.push({
+    type: 'function',
+    function: {
+      name: 'refletir',
+      description: 'Use para pensar em voz alta antes ou depois de uma operação importante (ex: agendar, cancelar, salvar um dado, escalar). Não busca novas informações nem altera nada — apenas registra seu raciocínio para garantir que o próximo passo faz sentido.',
+      parameters: {
+        type: 'object',
+        properties: {
+          pensamento: { type: 'string', description: 'Seu raciocínio sobre a situação atual e o próximo passo.' },
+        },
+        required: ['pensamento'],
       },
     },
   });
@@ -410,7 +463,7 @@ async function transferToHuman(
 
 async function executeTool(
   toolCall: any, config: any, agentId: string, supabase: any, openaiKey: string, appBaseUrl: string,
-  leadId: string, conversationId: string, sideEffects: { imageUrl?: string }, userId: string,
+  leadId: string, conversationId: string, sideEffects: { imageUrl?: string; reaction?: string }, userId: string,
   channelInfo: any, instanceName: string, leadName: string, leadPhone: string
 ): Promise<string> {
   const name: string = toolCall.function.name;
@@ -451,6 +504,16 @@ async function executeTool(
 
   if (name === 'transferir_atendimento') {
     return transferToHuman(args, config, channelInfo, instanceName, conversationId, leadName, leadPhone, supabase);
+  }
+
+  if (name === 'reagir_mensagem') {
+    const emoji = String(args.emoji || '').trim();
+    if (emoji) sideEffects.reaction = emoji;
+    return emoji ? `Reação ${emoji} registrada.` : 'Nenhum emoji informado.';
+  }
+
+  if (name === 'refletir') {
+    return 'Reflexão registrada.';
   }
 
   const tool = (config.tools || []).find((t: any) => t.name === name);
@@ -536,7 +599,7 @@ export async function main(
   }
 
   const supabase = createClient(finalSupabaseUrl, finalSupabaseRoleKey);
-  const { instanceName, incomingMessage, senderName, remoteJid, provider, metaPhoneNumberId, messageType, wasAudio } = webhook_data;
+  const { instanceName, incomingMessage, senderName, remoteJid, provider, metaPhoneNumberId, messageType, wasAudio, messageId } = webhook_data;
   const isMeta = provider === 'meta';
 
   // ── Resolução do agente ───────────────────────────────────────────────────
@@ -735,6 +798,10 @@ Se a base de conhecimento trouxer um trecho "(foto: URL)" associado ao item que 
 === ATENDIMENTO HUMANO ===
 Se o cliente pedir para falar com um atendente/humano/pessoa, ou a situação exigir escalar conforme as regras restritas acima, chame transferir_atendimento com um breve motivo. Depois disso, responda ao cliente em 1 frase curta avisando que um atendente vai continuar por ali.
 
+=== HUMANIZAÇÃO (REAÇÕES E REFLEXÃO) ===
+Use reagir_mensagem para reagir com um emoji em momentos oportunos (ex: 👀 ao receber um pedido/pergunta complexa, ❤️ a um agradecimento, 👍 a uma confirmação) — no máximo 1 vez por troca, sem exagerar.
+Use refletir antes ou depois de uma operação importante (agendar, cancelar, salvar dado, escalar) para checar se os dados estão corretos e o próximo passo faz sentido. Não use para perguntas simples.
+
 === MENUS CLICÁVEIS ===
 Botões (até 3): [[BOTOES: Opção 1 | Opção 2 | Opção 3]]
 Lista (4+): [[LISTA: Título || Seção | Opção 1 | Opção 2]]${hasDataRecords ? `
@@ -755,7 +822,7 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
 
   const modelToUse = config.model || 'gpt-5.4-mini';
   let responseText = 'Desculpe, não consegui processar sua mensagem no momento.';
-  const sideEffects: { imageUrl?: string } = {};
+  const sideEffects: { imageUrl?: string; reaction?: string } = {};
 
   if (!modelToUse.includes('gemini') && finalOpenAiKey) {
     const tools = buildOpenAITools(config, hasKnowledge, hasPayments && !!appBaseUrl, hasCalendar && !!appBaseUrl, hasDataRecords);
@@ -841,7 +908,7 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
       .catch(() => {});
   }
 
-  return buildReturn(true, remoteJid, instanceName, responseText, audioBase64, wasAudio, channelInfo, agentData, config, lead, senderName, phoneNumber, conversation, isNewConversation, sideEffects.imageUrl);
+  return buildReturn(true, remoteJid, instanceName, responseText, audioBase64, wasAudio, channelInfo, agentData, config, lead, senderName, phoneNumber, conversation, isNewConversation, sideEffects.imageUrl, messageId, sideEffects.reaction);
 }
 
 // ─── Helpers de retorno ────────────────────────────────────────────────────────
@@ -868,10 +935,11 @@ function buildReturn(
   channel: any, agentData: any, config: any,
   lead: any, senderName: string, phoneNumber: string,
   conversation: any, isNewConversation: boolean,
-  imageUrl?: string | null
+  imageUrl?: string | null, messageId?: string | null, reaction?: string | null
 ) {
   return {
     send, remoteJid, instanceName, message, audioBase64, wasAudio, channel, imageUrl: imageUrl || null,
+    messageId: messageId || null, reaction: reaction || null,
     agent: {
       id: agentData.id, name: agentData.name, type: agentData.type,
       role: config.role || '', niche: config.niche || '', tone: config.tone || '',
