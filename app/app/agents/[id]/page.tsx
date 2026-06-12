@@ -1508,14 +1508,16 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
 
                 {/* Seletor de ponto de partida */}
                 {!showTemplates ? (
-                  <div className="flex gap-2 p-3 rounded-lg bg-secondary/30 border border-border">
-                    <Info className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs text-muted-foreground">
-                        <strong className="text-foreground">Não sabe por onde começar?</strong> Use um template pronto para o seu nicho e personalize depois. Ou escreva do zero se preferir controle total.
-                      </p>
+                  <div className="flex flex-col sm:flex-row gap-3 p-3 rounded-lg bg-secondary/30 border border-border">
+                    <div className="flex gap-2">
+                      <Info className="h-4 w-4 text-indigo-400 shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-muted-foreground">
+                          <strong className="text-foreground">Não sabe por onde começar?</strong> Use um template pronto para o seu nicho e personalize depois. Ou escreva do zero se preferir controle total.
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex gap-2 shrink-0">
+                    <div className="flex flex-wrap gap-2 shrink-0">
                       <Button variant="outline" size="sm" onClick={() => setShowTemplates(true)} className="text-xs h-7 whitespace-nowrap">
                         Ver Templates
                       </Button>
@@ -2182,13 +2184,13 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                      {/* Painel Evolution */}
                      {whatsappProvider === "evolution" && (
                        <div className="pt-2 border-t border-border">
-                         <div className="flex items-center justify-between">
-                           <div className="flex items-center gap-3">
+                         <div className="flex items-center justify-between flex-wrap gap-3">
+                           <div className="flex items-center gap-3 min-w-0">
                              <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${waConnected ? "bg-emerald-500/10" : "bg-secondary"}`}>
                                <QrCode className={`h-4 w-4 ${waConnected ? "text-emerald-500" : "text-muted-foreground"}`} />
                              </div>
-                             <div>
-                               <div className="flex items-center gap-2">
+                             <div className="min-w-0">
+                               <div className="flex items-center gap-2 flex-wrap">
                                  <div className="font-medium text-sm">Conexão via QR Code</div>
                                  {waConnected ? (
                                    <Badge variant="outline" className="text-[10px] h-4 bg-muted text-emerald-500 border-0">Conectado</Badge>
@@ -2239,8 +2241,8 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                      {/* Painel Meta Oficial */}
                      {whatsappProvider === "meta" && (
                        <div className="pt-2 border-t border-border space-y-5">
-                         <div className="flex items-center justify-between">
-                           <div className="flex items-center gap-2">
+                         <div className="flex items-center justify-between flex-wrap gap-2">
+                           <div className="flex items-center gap-2 flex-wrap">
                              <ShieldCheck className="h-4 w-4 text-indigo-500" />
                              <span className="font-medium text-sm">WhatsApp Cloud API</span>
                              {metaConnected ? (
@@ -2312,46 +2314,46 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                    </div>
                 </div>
                 
-                <div className="flex items-center justify-between p-4 border border-border bg-card rounded-lg relative overflow-hidden">
+                <div className="flex items-center justify-between gap-3 p-4 border border-border bg-card rounded-lg relative overflow-hidden">
                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-pink-500 rounded-l-lg" />
-                   <div className="flex items-center gap-4 ml-2">
+                   <div className="flex items-center gap-4 ml-2 min-w-0">
                      <div className="h-10 w-10 bg-pink-500/10 rounded-lg flex items-center justify-center shrink-0">
                        <MessageSquare className="h-5 w-5 text-pink-500" />
                      </div>
-                     <div>
-                       <div className="flex items-center gap-2">
+                     <div className="min-w-0">
+                       <div className="flex items-center gap-2 flex-wrap">
                          <div className="font-medium text-foreground">Instagram Direct</div>
                          <Badge variant="outline" className="text-[10px] h-4 bg-indigo-500/10 text-indigo-500 border-0">Meta Graph API</Badge>
                        </div>
                        <div className="text-xs text-muted-foreground mt-0.5">Responda DMs, automações em Stories e Posts no Instagram.</div>
                      </div>
                    </div>
-                   <Button variant="outline" size="sm" className="hidden sm:inline-flex">Conectar Instagram</Button>
+                   <Button variant="outline" size="sm" className="hidden sm:inline-flex shrink-0">Conectar Instagram</Button>
                 </div>
 
-                <div className="flex items-center justify-between p-4 border border-border bg-card rounded-lg relative overflow-hidden">
+                <div className="flex items-center justify-between gap-3 p-4 border border-border bg-card rounded-lg relative overflow-hidden">
                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-l-lg" />
-                   <div className="flex items-center gap-4 ml-2">
+                   <div className="flex items-center gap-4 ml-2 min-w-0">
                      <div className="h-10 w-10 bg-blue-500/10 rounded-lg flex items-center justify-center shrink-0">
                        <MessageSquare className="h-5 w-5 text-blue-500" />
                      </div>
-                     <div>
-                       <div className="flex items-center gap-2">
+                     <div className="min-w-0">
+                       <div className="flex items-center gap-2 flex-wrap">
                          <div className="font-medium">Facebook Messenger</div>
                          <Badge variant="outline" className="text-[10px] h-4 bg-indigo-500/10 text-indigo-500 border-0">Meta Graph API</Badge>
                        </div>
                        <div className="text-xs text-muted-foreground mt-0.5">Conecte com sua página para atender inbox automaticamente.</div>
                      </div>
                    </div>
-                   <Button variant="outline" size="sm" className="hidden sm:inline-flex">Conectar Página</Button>
+                   <Button variant="outline" size="sm" className="hidden sm:inline-flex shrink-0">Conectar Página</Button>
                 </div>
 
-                <div className="flex items-center justify-between p-4 border border-border rounded-lg bg-card mt-6">
-                   <div className="flex items-center gap-4">
+                <div className="flex items-center justify-between flex-wrap gap-3 p-4 border border-border rounded-lg bg-card mt-6">
+                   <div className="flex items-center gap-4 min-w-0">
                      <div className="h-10 w-10 bg-indigo-500/10 rounded-lg flex items-center justify-center shrink-0">
                        <Smartphone className="h-5 w-5 text-indigo-500" />
                      </div>
-                     <div>
+                     <div className="min-w-0">
                        <div className="font-medium">Chat Web (Widget)</div>
                        <div className="text-xs text-muted-foreground mt-0.5">Incorpore este agente diretamente no seu site.</div>
                      </div>
