@@ -11,7 +11,9 @@ import {
   Sparkles,
   HelpCircle,
   Sun,
-  Moon
+  Moon,
+  Menu,
+  X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/Button";
@@ -21,7 +23,7 @@ import { supabase } from "@/lib/supabase";
 
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const SIDEBAR_ITEMS = [
   { icon: BarChart, label: "Visão Geral", path: "/app" },
@@ -38,12 +40,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const navigate = useRouter();
   const { user, loading } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
       navigate.push("/auth/login");
     }
   }, [user, loading, navigate]);
+
+  // Fecha a sidebar mobile ao navegar para outra página.
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -56,13 +64,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen bg-background text-foreground overflow-hidden">
+      {/* Overlay (mobile) */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 border-r border-border bg-card flex flex-col">
-        <div className="h-16 flex items-center px-6 border-b border-border">
+      <aside className={cn(
+        "w-64 border-r border-border bg-card flex flex-col shrink-0",
+        "fixed inset-y-0 left-0 z-40 transition-transform duration-200 md:static md:translate-x-0",
+        sidebarOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="h-16 flex items-center justify-between px-6 border-b border-border">
           <Link href="/" className="flex items-center gap-2 text-lg font-bold tracking-tight">
             <Sparkles className="h-5 w-5 text-indigo-500" />
             <span>Synapse<span className="text-muted-foreground font-normal">AI</span></span>
           </Link>
+          <button className="md:hidden text-muted-foreground" onClick={() => setSidebarOpen(false)}>
+            <X className="h-5 w-5" />
+          </button>
         </div>
 
         <div className="flex-1 overflow-auto py-4 px-3 flex flex-col gap-1">
@@ -115,12 +138,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto flex flex-col">
-        <header className="h-16 border-b border-border flex items-center px-8 bg-card/50 backdrop-blur-sm sticky top-0 z-10 shrink-0">
+      <main className="flex-1 overflow-auto flex flex-col min-w-0">
+        <header className="h-16 border-b border-border flex items-center px-4 md:px-8 bg-card/50 backdrop-blur-sm sticky top-0 z-10 shrink-0">
+          <button className="md:hidden mr-3 text-muted-foreground" onClick={() => setSidebarOpen(true)}>
+            <Menu className="h-5 w-5" />
+          </button>
           <div className="flex-1" />
-          <div className="text-sm text-muted-foreground mr-4">Status: <span className="text-emerald-500 font-medium">Sistemas Operacionais</span></div>
+          <div className="text-sm text-muted-foreground mr-4 hidden sm:block">Status: <span className="text-emerald-500 font-medium">Sistemas Operacionais</span></div>
         </header>
-        <div className="p-8 max-w-7xl mx-auto w-full flex-1">
+        <div className="p-4 md:p-8 max-w-7xl mx-auto w-full flex-1">
           {children}
         </div>
       </main>
