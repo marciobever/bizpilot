@@ -229,12 +229,12 @@ export default function Leads() {
       </div>
 
       <div className="flex-1 overflow-hidden">
-        <div className="grid grid-cols-5 gap-3 h-full pb-4">
+        <div className="flex md:grid md:grid-cols-5 gap-3 h-full pb-4 overflow-x-auto">
           {STATUS_MAP.map((col) => {
             const columnLeads = filteredLeads.filter(l => l.status === col.id || (!l.status && col.id === 'novo'));
 
             return (
-              <div key={col.id} className="min-w-0 flex flex-col bg-secondary/20 rounded-xl border border-border overflow-hidden">
+              <div key={col.id} className="w-[80vw] shrink-0 md:w-auto md:min-w-0 flex flex-col bg-secondary/20 rounded-xl border border-border overflow-hidden">
                 <div className="p-3 border-b border-border bg-card flex items-center justify-between shrink-0">
                   <div className="flex items-center gap-2">
                     <div className={`w-2 h-2 rounded-full ${col.color}`} />
