@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Send, Loader2, Wand2, Check, Bot, SkipForward, Sparkles } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Wand2, Check, Bot, SkipForward, Sparkles, Pencil, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -45,7 +45,7 @@ const TYPE_BY_SECTOR: Record<string, string> = {
   custom: "personalizado",
 };
 
-const STAGES = ["sector", "functions", "name", "niche", "tone", "description", "review"] as const;
+const STAGES = ["sector", "functions", "name", "niche", "tone", "greeting", "review"] as const;
 type Stage = typeof STAGES[number];
 
 type ChatMsg = { id: string; role: "bot" | "user"; text: string };
@@ -69,25 +69,28 @@ export default function AgentWizard() {
   const [customPurpose, setCustomPurpose] = useState("");
   const [role, setRole] = useState("");
   const [tone, setTone] = useState("");
-  const [description, setDescription] = useState("");
   const [greeting, setGreeting] = useState("");
   const [systemPrompt, setSystemPrompt] = useState("");
-  const [generating, setGenerating] = useState(false);
-  const [generateError, setGenerateError] = useState("");
   const [creating, setCreating] = useState(false);
+
+  // ── Saudação (geração de 3 opções) ─────────────────────────────────────────
+  const [greetingOptions, setGreetingOptions] = useState<string[]>([]);
+  const [loadingGreetings, setLoadingGreetings] = useState(false);
+  const [greetingError, setGreetingError] = useState("");
+  const [writingOwn, setWritingOwn] = useState(false);
+  const [draftGreeting, setDraftGreeting] = useState("");
 
   // ── Inputs em edição (não confirmados ainda) ───────────────────────────────
   const [customMode, setCustomMode] = useState(false);
   const [draftPurpose, setDraftPurpose] = useState("");
   const [draftName, setDraftName] = useState("");
   const [draftNiche, setDraftNiche] = useState("");
-  const [draftDescription, setDraftDescription] = useState("");
 
   const isCustom = selectedSector?.id === "custom";
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, botTyping, stage, customMode]);
+  }, [messages, botTyping, stage, customMode, writingOwn]);
 
   const pushUser = (text: string) => {
     setMessages((m) => [...m, { id: `u-${Date.now()}`, role: "user", text }]);
@@ -100,6 +103,12 @@ export default function AgentWizard() {
       setBotTyping(false);
     }, delay);
   };
+
+  // Rótulos das funções escolhidas.
+  const functionLabels = () =>
+    (selectedSector?.functions || [])
+      .filter((f) => selectedFunctions.includes(f.id))
+      .map((f) => f.label);
 
   // ── Avanços de etapa ────────────────────────────────────────────────────────
 
@@ -119,9 +128,7 @@ export default function AgentWizard() {
 
   const confirmFunctions = () => {
     if (!selectedSector) return;
-    const labels = selectedSector.functions
-      .filter((f) => selectedFunctions.includes(f.id))
-      .map((f) => f.label);
+    const labels = functionLabels();
     pushUser(labels.length ? labels.join(", ") : "Atendimento geral");
     pushBot("Perfeito! Como você quer chamar o seu agente? É o nome que os clientes vão ver.");
     setStage("name");
@@ -171,79 +178,72 @@ export default function AgentWizard() {
   const selectTone = (t: string) => {
     setTone(t);
     pushUser(t);
-    if (isCustom) {
-      pushBot(`Show! Quer adicionar mais algum detalhe (produtos, valores, processos)? Se já estiver tudo na sua descrição inicial, é só tocar em "Gerar com IA".`);
-    } else {
-      pushBot(`Última etapa antes de eu escrever o texto: me conta um pouco sobre o seu negócio, produtos/serviços e como ${agentName} deve agir. Vou usar isso para escrever a saudação e as instruções iniciais dele.`);
-    }
-    setStage("description");
+    setStage("greeting");
+    generateGreetings(t);
   };
 
-  // Rótulos das funções escolhidas, para alimentar a geração de IA.
-  const functionLabels = () =>
-    (selectedSector?.functions || [])
-      .filter((f) => selectedFunctions.includes(f.id))
-      .map((f) => f.label);
+  // Resumo do que o agente faz, para alimentar a geração das saudações.
+  const buildBrief = () => {
+    if (isCustom) return customPurpose;
+    const fns = functionLabels();
+    return `${selectedSector?.intro || ""}${fns.length ? ` O agente realiza: ${fns.join(", ")}.` : ""}`.trim();
+  };
 
-  const runGeneration = async (genDescription: string) => {
-    if (!genDescription.trim() || !selectedSector) return;
-    setGenerating(true);
-    setGenerateError("");
+  const generateGreetings = async (toneArg?: string) => {
+    if (!selectedSector) return;
+    // Instruções do agente são montadas de forma determinística (setor+funções),
+    // sem precisar de descrição livre — ficam editáveis na revisão.
+    setSystemPrompt(isCustom ? buildCustomPrompt() : composeSystemPrompt(selectedSector, selectedFunctions, agentName, role, niche));
+    setGreetingOptions([]);
+    setWritingOwn(false);
+    setGreetingError("");
+    setLoadingGreetings(true);
     setBotTyping(true);
     try {
-      const fns = functionLabels();
-      const context = { agentName, role, niche, tone };
-      const fullDescription = fns.length
-        ? `${genDescription}\n\nFunções que o agente deve realizar: ${fns.join(", ")}.`
-        : genDescription;
-      const [greetingRes, instructionsRes] = await Promise.all([
-        fetch("/api/agents/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ field: "greeting", description: fullDescription, context }),
-        }),
-        fetch("/api/agents/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ field: "instructions", description: fullDescription, context }),
-        }),
-      ]);
-      const greetingData = await greetingRes.json();
-      const instructionsData = await instructionsRes.json();
-      if (!greetingRes.ok) throw new Error(greetingData.error || "Erro ao gerar saudação.");
-      if (!instructionsRes.ok) throw new Error(instructionsData.error || "Erro ao gerar instruções.");
-      setGreeting(greetingData.text);
-      setSystemPrompt(instructionsData.text);
-      setMessages((m) => [...m, { id: `b-${Date.now()}`, role: "bot", text: `Pronto! Escrevi a saudação e as instruções iniciais do ${agentName}. Dá uma olhada abaixo, ajuste se quiser, e clique em "Criar Agente" quando estiver tudo certo.` }]);
-      setStage("review");
+      const context = { agentName, role, niche, tone: toneArg || tone };
+      const res = await fetch("/api/agents/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field: "greetings", description: buildBrief() || "Atendimento ao cliente", context }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao gerar saudações.");
+      setGreetingOptions(data.options || []);
+      setMessages((m) => [...m, { id: `b-${Date.now()}`, role: "bot", text: `Escrevi 3 jeitos do ${agentName} se apresentar. Toca na que você mais gostou — ou escreve a sua.` }]);
     } catch (e: any) {
-      setGenerateError(e.message || "Erro ao gerar conteúdo com IA. Tente novamente.");
+      setGreetingError(e.message || "Erro ao gerar saudações.");
     } finally {
-      setGenerating(false);
+      setLoadingGreetings(false);
       setBotTyping(false);
     }
   };
 
-  const handleGenerate = async () => {
-    if (!selectedSector) return;
-    const desc = draftDescription.trim();
-    // No "Outro" a descrição extra é opcional (o propósito já foi dado).
-    if (!desc && !isCustom) return;
-    if (desc) { setDescription(desc); pushUser(desc); setDraftDescription(""); }
-    const genDescription = isCustom
-      ? (desc ? `O agente deve: ${customPurpose}.\n\nDetalhes adicionais: ${desc}` : customPurpose)
-      : desc;
-    await runGeneration(genDescription);
-  };
-
-  const skipGeneration = () => {
-    pushUser("Pular — montar com o texto padrão");
-    const label = isCustom ? "o seu caso" : `o setor "${selectedSector?.label}"`;
-    setMessages((m) => [...m, { id: `b-${Date.now()}`, role: "bot", text: `Sem problemas! Vou montar as instruções iniciais a partir d${isCustom ? "o" : "e"} ${label}. Você pode revisar e ajustar tudo abaixo antes de criar.` }]);
+  const pickGreeting = (opt: string) => {
+    setGreeting(opt);
+    pushUser(opt);
+    pushBot(`Boa! Saudação escolhida. Confere tudo abaixo e clique em "Criar Agente" quando estiver pronto.`);
     setStage("review");
   };
 
-  // Monta um prompt base para o caso "Outro" quando o usuário não usa a IA.
+  const confirmOwnGreeting = () => {
+    if (!draftGreeting.trim()) return;
+    const g = draftGreeting.trim();
+    setGreeting(g);
+    pushUser(g);
+    setDraftGreeting("");
+    setWritingOwn(false);
+    pushBot(`Perfeito! Confere tudo abaixo e clique em "Criar Agente" quando estiver pronto.`);
+    setStage("review");
+  };
+
+  const skipGreeting = () => {
+    setGreeting("");
+    pushUser("Sem saudação fixa");
+    pushBot(`Tudo bem! O agente vai se apresentar naturalmente. Confere o resto abaixo e crie quando quiser.`);
+    setStage("review");
+  };
+
+  // Monta um prompt base para o caso "Outro".
   const buildCustomPrompt = () =>
     `Você é ${agentName}, ${role} de ${niche || "nossa empresa"}.
 
@@ -493,26 +493,69 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
               </div>
             )}
 
-            {stage === "description" && (
-              <div className="space-y-2">
-                <Textarea
-                  autoFocus
-                  placeholder="Ex: Vendemos roupas femininas, principalmente vestidos e conjuntos. O agente deve entender o que a cliente procura, sugerir produtos do catálogo e agendar a retirada na loja."
-                  value={draftDescription}
-                  onChange={(e) => setDraftDescription(e.target.value)}
-                  className="min-h-[90px]"
-                  disabled={generating}
-                />
-                {generateError && <p className="text-xs text-red-400">{generateError}</p>}
-                <div className="flex items-center gap-2">
-                  <Button onClick={handleGenerate} disabled={generating || (!draftDescription.trim() && !isCustom)} className="gap-2">
-                    {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                    Gerar com IA
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={skipGeneration} disabled={generating} className="gap-1.5 text-muted-foreground">
-                    <SkipForward className="h-3.5 w-3.5" /> Pular
-                  </Button>
-                </div>
+            {stage === "greeting" && (
+              <div className="space-y-3">
+                {greetingError && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-red-400">{greetingError}</p>
+                    <div className="flex items-center gap-2">
+                      <Button onClick={() => generateGreetings()} disabled={loadingGreetings} className="gap-2">
+                        <RefreshCw className="h-4 w-4" /> Tentar de novo
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => { setGreetingError(""); setWritingOwn(true); }} className="gap-1.5">
+                        <Pencil className="h-3.5 w-3.5" /> Escrever a minha
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {!greetingError && !writingOwn && (
+                  <>
+                    <div className="space-y-2">
+                      {greetingOptions.map((opt, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => pickGreeting(opt)}
+                          className="block w-full text-left p-3 rounded-lg border border-border bg-card hover:border-brand-500 hover:bg-brand-500/5 transition-all text-sm whitespace-pre-wrap leading-relaxed"
+                        >
+                          {opt}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button variant="outline" size="sm" onClick={() => setWritingOwn(true)} className="gap-1.5">
+                        <Pencil className="h-3.5 w-3.5" /> Escrever a minha
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => generateGreetings()} disabled={loadingGreetings} className="gap-1.5 text-muted-foreground">
+                        <RefreshCw className="h-3.5 w-3.5" /> Gerar outras
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={skipGreeting} className="gap-1.5 text-muted-foreground">
+                        <SkipForward className="h-3.5 w-3.5" /> Pular
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+                {!greetingError && writingOwn && (
+                  <div className="space-y-2">
+                    <Textarea
+                      autoFocus
+                      placeholder="Escreva a saudação que o agente vai usar para iniciar as conversas..."
+                      value={draftGreeting}
+                      onChange={(e) => setDraftGreeting(e.target.value)}
+                      className="min-h-[90px]"
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button onClick={confirmOwnGreeting} disabled={!draftGreeting.trim()} className="gap-2">
+                        <Check className="h-4 w-4" /> Usar esta saudação
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setWritingOwn(false)} className="text-muted-foreground">
+                        Voltar às opções
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
