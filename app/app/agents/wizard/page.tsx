@@ -10,28 +10,31 @@ import { Textarea } from "@/components/ui/Textarea";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
-import { PROMPT_TEMPLATES, interpolateTemplate, type PromptTemplate } from "@/lib/agentTemplates";
+import {
+  SECTORS, composeSystemPrompt, aggregateLimitations, sectorHasDataRecords, type Sector,
+} from "@/lib/agentTemplates";
 
 const TONE_OPTIONS = ["Profissional e Direto", "Amigável e Empático", "Descontraído (Usa Emojis)", "Técnico e Especialista"];
 
-// Opção "nenhuma das anteriores": o usuário descreve o caso e a IA monta tudo.
-const CUSTOM_TEMPLATE: PromptTemplate = {
+// Setor "Outro": o usuário descreve o caso e a IA monta tudo. Sem chips de função.
+const CUSTOM_SECTOR: Sector = {
   id: "custom",
   label: "Outro / Descrever meu caso",
   emoji: "✨",
   description: "Nenhuma opção encaixa? Descreva em uma frase o que seu agente vai fazer.",
   tone: "Amigável e Empático",
   role: "Atendente Virtual",
-  systemPrompt: `Você é {agentName}, {role} de {niche}.`,
-  limitations: [
+  intro: "",
+  baseLimitations: [
     "Se o cliente pedir para falar com um humano, acionar o atendimento humano imediatamente",
     "Não inventar informações, preços ou prazos dos quais você não tenha certeza",
     "Manter o foco no atendimento do negócio",
   ],
+  functions: [],
 };
 
-// type salvo no banco (exibido na lista de agentes) por template.
-const TYPE_BY_TEMPLATE: Record<string, string> = {
+// type salvo no banco (exibido na lista de agentes) por setor.
+const TYPE_BY_SECTOR: Record<string, string> = {
   vendas: "vendas",
   suporte: "suporte",
   recepcao: "agendamentos",
@@ -42,7 +45,7 @@ const TYPE_BY_TEMPLATE: Record<string, string> = {
   custom: "personalizado",
 };
 
-const STAGES = ["template", "name", "niche", "tone", "description", "review"] as const;
+const STAGES = ["sector", "functions", "name", "niche", "tone", "description", "review"] as const;
 type Stage = typeof STAGES[number];
 
 type ChatMsg = { id: string; role: "bot" | "user"; text: string };
@@ -52,16 +55,17 @@ export default function AgentWizard() {
   const navigate = useRouter();
 
   const [messages, setMessages] = useState<ChatMsg[]>([
-    { id: "intro", role: "bot", text: "Oi! 👋 Sou o assistente de criação de agentes do BizPilot. Em poucos minutos a gente monta o seu robô de atendimento.\n\nPra começar: o que o seu agente vai fazer no dia a dia? Escolha a opção que mais combina com o seu negócio — ou, se nenhuma encaixar, toque em \"Outro\" e descreva o seu caso." },
+    { id: "intro", role: "bot", text: "Oi! 👋 Sou o assistente de criação de agentes do BizPilot. Em poucos minutos a gente monta o seu robô de atendimento.\n\nPra começar: qual é o setor do seu negócio? Escolha a opção que mais combina — ou, se nenhuma encaixar, toque em \"Outro\" e descreva o seu caso." },
   ]);
-  const [stage, setStage] = useState<Stage>("template");
+  const [stage, setStage] = useState<Stage>("sector");
   const [botTyping, setBotTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // ── Dados coletados ───────────────────────────────────────────────────────
   const [agentName, setAgentName] = useState("");
   const [niche, setNiche] = useState("");
-  const [selectedTemplate, setSelectedTemplate] = useState<PromptTemplate | null>(null);
+  const [selectedSector, setSelectedSector] = useState<Sector | null>(null);
+  const [selectedFunctions, setSelectedFunctions] = useState<string[]>([]);
   const [customPurpose, setCustomPurpose] = useState("");
   const [role, setRole] = useState("");
   const [tone, setTone] = useState("");
@@ -78,6 +82,8 @@ export default function AgentWizard() {
   const [draftName, setDraftName] = useState("");
   const [draftNiche, setDraftNiche] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
+
+  const isCustom = selectedSector?.id === "custom";
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -97,12 +103,27 @@ export default function AgentWizard() {
 
   // ── Avanços de etapa ────────────────────────────────────────────────────────
 
-  const selectTemplate = (tpl: PromptTemplate) => {
-    setSelectedTemplate(tpl);
-    setRole(tpl.role);
-    setTone(tpl.tone);
-    pushUser(`${tpl.emoji} ${tpl.label}`);
-    pushBot("Boa escolha! Como você quer chamar o seu agente? É o nome que os clientes vão ver.");
+  const selectSector = (sector: Sector) => {
+    setSelectedSector(sector);
+    setRole(sector.role);
+    setTone(sector.tone);
+    setSelectedFunctions([]);
+    pushUser(`${sector.emoji} ${sector.label}`);
+    pushBot(`Boa escolha! O que esse agente deve fazer no dia a dia? Marque tudo que se aplica — pode escolher várias funções.`);
+    setStage("functions");
+  };
+
+  const toggleFunction = (id: string) => {
+    setSelectedFunctions((prev) => prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]);
+  };
+
+  const confirmFunctions = () => {
+    if (!selectedSector) return;
+    const labels = selectedSector.functions
+      .filter((f) => selectedFunctions.includes(f.id))
+      .map((f) => f.label);
+    pushUser(labels.length ? labels.join(", ") : "Atendimento geral");
+    pushBot("Perfeito! Como você quer chamar o seu agente? É o nome que os clientes vão ver.");
     setStage("name");
   };
 
@@ -110,9 +131,10 @@ export default function AgentWizard() {
     if (!draftPurpose.trim()) return;
     const p = draftPurpose.trim();
     setCustomPurpose(p);
-    setSelectedTemplate(CUSTOM_TEMPLATE);
-    setRole(CUSTOM_TEMPLATE.role);
-    setTone(CUSTOM_TEMPLATE.tone);
+    setSelectedSector(CUSTOM_SECTOR);
+    setRole(CUSTOM_SECTOR.role);
+    setTone(CUSTOM_SECTOR.tone);
+    setSelectedFunctions([]);
     pushUser(`✨ ${p}`);
     setDraftPurpose("");
     setCustomMode(false);
@@ -126,8 +148,14 @@ export default function AgentWizard() {
     setAgentName(name);
     pushUser(name);
     setDraftName("");
-    pushBot(`Prazer, ${name}! Agora me conta: qual é a empresa ou o nicho que o ${name} vai representar?`);
-    setStage("niche");
+    // No "Outro" o usuário já descreveu empresa + atuação, então pula o nicho.
+    if (isCustom) {
+      pushBot(`Prazer, ${name}! E como ${name} deve se comunicar com os clientes?`);
+      setStage("tone");
+    } else {
+      pushBot(`Prazer, ${name}! Agora me conta: qual é a empresa ou a marca que ${name} vai representar?`);
+      setStage("niche");
+    }
   };
 
   const submitNiche = () => {
@@ -136,42 +164,48 @@ export default function AgentWizard() {
     setNiche(n);
     pushUser(n);
     setDraftNiche("");
-    pushBot(`Perfeito. E como o ${agentName} deve se comunicar com os clientes?`);
+    pushBot(`Perfeito. E como ${agentName} deve se comunicar com os clientes?`);
     setStage("tone");
   };
 
   const selectTone = (t: string) => {
     setTone(t);
     pushUser(t);
-    pushBot(`Última etapa antes de eu escrever o texto: me conta um pouco sobre o seu negócio, produtos/serviços e como o ${agentName} deve agir. Vou usar isso para escrever a saudação e as instruções iniciais dele.`);
+    if (isCustom) {
+      pushBot(`Show! Quer adicionar mais algum detalhe (produtos, valores, processos)? Se já estiver tudo na sua descrição inicial, é só tocar em "Gerar com IA".`);
+    } else {
+      pushBot(`Última etapa antes de eu escrever o texto: me conta um pouco sobre o seu negócio, produtos/serviços e como ${agentName} deve agir. Vou usar isso para escrever a saudação e as instruções iniciais dele.`);
+    }
     setStage("description");
   };
 
-  const handleGenerate = async () => {
-    if (!draftDescription.trim() || !selectedTemplate) return;
-    const desc = draftDescription.trim();
-    setDescription(desc);
-    pushUser(desc);
-    setDraftDescription("");
+  // Rótulos das funções escolhidas, para alimentar a geração de IA.
+  const functionLabels = () =>
+    (selectedSector?.functions || [])
+      .filter((f) => selectedFunctions.includes(f.id))
+      .map((f) => f.label);
+
+  const runGeneration = async (genDescription: string) => {
+    if (!genDescription.trim() || !selectedSector) return;
     setGenerating(true);
     setGenerateError("");
     setBotTyping(true);
     try {
+      const fns = functionLabels();
       const context = { agentName, role, niche, tone };
-      // Para o caso "Outro", o que o usuário descreveu como propósito é a base do bot.
-      const genDescription = selectedTemplate.id === "custom" && customPurpose
-        ? `O agente deve: ${customPurpose}.\n\nSobre o negócio: ${desc}`
-        : desc;
+      const fullDescription = fns.length
+        ? `${genDescription}\n\nFunções que o agente deve realizar: ${fns.join(", ")}.`
+        : genDescription;
       const [greetingRes, instructionsRes] = await Promise.all([
         fetch("/api/agents/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ field: "greeting", description: genDescription, context }),
+          body: JSON.stringify({ field: "greeting", description: fullDescription, context }),
         }),
         fetch("/api/agents/generate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ field: "instructions", description: genDescription, context }),
+          body: JSON.stringify({ field: "instructions", description: fullDescription, context }),
         }),
       ]);
       const greetingData = await greetingRes.json();
@@ -190,10 +224,22 @@ export default function AgentWizard() {
     }
   };
 
+  const handleGenerate = async () => {
+    if (!selectedSector) return;
+    const desc = draftDescription.trim();
+    // No "Outro" a descrição extra é opcional (o propósito já foi dado).
+    if (!desc && !isCustom) return;
+    if (desc) { setDescription(desc); pushUser(desc); setDraftDescription(""); }
+    const genDescription = isCustom
+      ? (desc ? `O agente deve: ${customPurpose}.\n\nDetalhes adicionais: ${desc}` : customPurpose)
+      : desc;
+    await runGeneration(genDescription);
+  };
+
   const skipGeneration = () => {
     pushUser("Pular — montar com o texto padrão");
-    const label = selectedTemplate?.id === "custom" ? "o seu caso" : `o template "${selectedTemplate?.label}"`;
-    setMessages((m) => [...m, { id: `b-${Date.now()}`, role: "bot", text: `Sem problemas! Vou montar as instruções iniciais a partir d${selectedTemplate?.id === "custom" ? "o" : "e"} ${label}. Você pode revisar e ajustar tudo abaixo antes de criar.` }]);
+    const label = isCustom ? "o seu caso" : `o setor "${selectedSector?.label}"`;
+    setMessages((m) => [...m, { id: `b-${Date.now()}`, role: "bot", text: `Sem problemas! Vou montar as instruções iniciais a partir d${isCustom ? "o" : "e"} ${label}. Você pode revisar e ajustar tudo abaixo antes de criar.` }]);
     setStage("review");
   };
 
@@ -212,12 +258,14 @@ ${customPurpose || "Atender os clientes com excelência, tirando dúvidas e ajud
 Use a ferramenta buscar_conhecimento para consultar informações do negócio cadastradas na Base de Conhecimento (aba "Arquivos RAG"). Não invente informações que não estiverem lá.`;
 
   const handleCreate = async () => {
-    if (!user || !selectedTemplate) return;
+    if (!user || !selectedSector) return;
     setCreating(true);
 
     const finalPrompt = systemPrompt.trim()
-      || (selectedTemplate.id === "custom" ? buildCustomPrompt() : interpolateTemplate(selectedTemplate, agentName, role, niche));
-    const agentType = TYPE_BY_TEMPLATE[selectedTemplate.id] || "atendimento";
+      || (isCustom ? buildCustomPrompt() : composeSystemPrompt(selectedSector, selectedFunctions, agentName, role, niche));
+    const agentType = TYPE_BY_SECTOR[selectedSector.id] || "atendimento";
+    const limitations = isCustom ? selectedSector.baseLimitations : aggregateLimitations(selectedSector, selectedFunctions);
+    const dataRecords = isCustom ? false : sectorHasDataRecords(selectedSector, selectedFunctions);
 
     const configData = {
       model: "gpt-5.4-mini",
@@ -225,12 +273,14 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
       niche,
       tone,
       greeting,
+      sector: selectedSector.id,
+      functions: isCustom ? [] : selectedFunctions,
       typingSpeed: "40",
       voice_enabled: false,
       voice_voice: "alloy",
-      limitations: selectedTemplate.limitations,
+      limitations,
       ignoreGroups: true,
-      dataRecordsEnabled: !!selectedTemplate.enableDataRecords,
+      dataRecordsEnabled: dataRecords,
       handoffPhone: "",
       blocklist: [],
       tags: [],
@@ -321,18 +371,18 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
         {/* Painel interativo da etapa atual */}
         {!botTyping && (
           <div className="pt-2">
-            {stage === "template" && !customMode && (
+            {stage === "sector" && !customMode && (
               <div className="grid sm:grid-cols-2 gap-2">
-                {PROMPT_TEMPLATES.map((tpl) => (
+                {SECTORS.map((sector) => (
                   <button
-                    key={tpl.id}
+                    key={sector.id}
                     type="button"
-                    onClick={() => selectTemplate(tpl)}
+                    onClick={() => selectSector(sector)}
                     className="text-left p-3 rounded-lg border border-border bg-card hover:border-brand-500 hover:bg-brand-500/5 transition-all group"
                   >
-                    <div className="text-lg mb-1">{tpl.emoji}</div>
-                    <div className="font-medium text-sm group-hover:text-brand-300 transition-colors">{tpl.label}</div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{tpl.description}</div>
+                    <div className="text-lg mb-1">{sector.emoji}</div>
+                    <div className="font-medium text-sm group-hover:text-brand-300 transition-colors">{sector.label}</div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{sector.description}</div>
                   </button>
                 ))}
                 <button
@@ -340,14 +390,14 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
                   onClick={() => setCustomMode(true)}
                   className="text-left p-3 rounded-lg border border-dashed border-brand-500/50 bg-brand-500/5 hover:border-brand-500 hover:bg-brand-500/10 transition-all group sm:col-span-2"
                 >
-                  <div className="text-lg mb-1">{CUSTOM_TEMPLATE.emoji}</div>
-                  <div className="font-medium text-sm group-hover:text-brand-300 transition-colors">{CUSTOM_TEMPLATE.label}</div>
-                  <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{CUSTOM_TEMPLATE.description}</div>
+                  <div className="text-lg mb-1">{CUSTOM_SECTOR.emoji}</div>
+                  <div className="font-medium text-sm group-hover:text-brand-300 transition-colors">{CUSTOM_SECTOR.label}</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{CUSTOM_SECTOR.description}</div>
                 </button>
               </div>
             )}
 
-            {stage === "template" && customMode && (
+            {stage === "sector" && customMode && (
               <div className="space-y-2">
                 <Textarea
                   autoFocus
@@ -365,6 +415,36 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
                     Voltar às opções
                   </Button>
                 </div>
+              </div>
+            )}
+
+            {stage === "functions" && selectedSector && (
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {selectedSector.functions.map((fn) => {
+                    const active = selectedFunctions.includes(fn.id);
+                    return (
+                      <button
+                        key={fn.id}
+                        type="button"
+                        onClick={() => toggleFunction(fn.id)}
+                        className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-2 rounded-full border text-sm transition-all",
+                          active
+                            ? "border-brand-500 bg-brand-500/10 text-brand-300"
+                            : "border-border bg-card hover:border-brand-500/50 hover:bg-brand-500/5"
+                        )}
+                      >
+                        {active ? <Check className="h-3.5 w-3.5" /> : <span>{fn.emoji}</span>}
+                        {fn.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <Button onClick={confirmFunctions} className="gap-2">
+                  Continuar
+                  <Send className="h-4 w-4" />
+                </Button>
               </div>
             )}
 
@@ -387,7 +467,7 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
               <div className="flex gap-2">
                 <Input
                   autoFocus
-                  placeholder="Ex: Loja de roupas Bella Moda"
+                  placeholder="Ex: Castro Imóveis"
                   value={draftNiche}
                   onChange={(e) => setDraftNiche(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") submitNiche(); }}
@@ -425,7 +505,7 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
                 />
                 {generateError && <p className="text-xs text-red-400">{generateError}</p>}
                 <div className="flex items-center gap-2">
-                  <Button onClick={handleGenerate} disabled={generating || !draftDescription.trim()} className="gap-2">
+                  <Button onClick={handleGenerate} disabled={generating || (!draftDescription.trim() && !isCustom)} className="gap-2">
                     {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
                     Gerar com IA
                   </Button>
@@ -436,7 +516,7 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
               </div>
             )}
 
-            {stage === "review" && selectedTemplate && (
+            {stage === "review" && selectedSector && (
               <div className="space-y-4 rounded-xl border border-border bg-secondary/20 p-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="wizard-greeting">Saudação Inicial</Label>
@@ -459,10 +539,13 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
                 </div>
                 <div className="rounded-lg border border-border bg-card p-3 space-y-1.5 text-xs">
                   <div className="flex justify-between"><span className="text-muted-foreground">Nome</span><span className="font-medium">{agentName}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Empresa / Nicho</span><span className="font-medium">{niche}</span></div>
+                  {niche && <div className="flex justify-between"><span className="text-muted-foreground">Empresa / Marca</span><span className="font-medium">{niche}</span></div>}
                   <div className="flex justify-between"><span className="text-muted-foreground">Cargo</span><span className="font-medium">{role}</span></div>
                   <div className="flex justify-between"><span className="text-muted-foreground">Tom de voz</span><span className="font-medium">{tone}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">Tipo de atendimento</span><span className="font-medium">{selectedTemplate.emoji} {selectedTemplate.label}</span></div>
+                  <div className="flex justify-between"><span className="text-muted-foreground">Setor</span><span className="font-medium">{selectedSector.emoji} {selectedSector.label}</span></div>
+                  {!isCustom && functionLabels().length > 0 && (
+                    <div className="flex justify-between gap-3"><span className="text-muted-foreground shrink-0">Funções</span><span className="font-medium text-right">{functionLabels().join(", ")}</span></div>
+                  )}
                 </div>
                 <p className="text-xs text-muted-foreground">Depois de criar, você vai direto para a tela de conexão do WhatsApp.</p>
                 <Button onClick={handleCreate} disabled={creating} className="w-full gap-2 bg-brand-500 hover:bg-brand-600 text-white">
