@@ -1,7 +1,12 @@
 // Windmill Script 1: Webhook Receiver (Evolution API + Meta)
 // Runtime: Bun
 // Recebe webhook, transcreve áudio (OpenAI Whisper), faz OCR de imagens/documentos
-// (OpenAI Vision/Responses) e enfileira texto (debounce 8s anti-encavalamento).
+// (OpenAI Vision/Responses) e enfileira texto (debounce anti-encavalamento).
+
+// Janela de debounce (ms): tempo de espera por mensagens encavaladas do mesmo
+// contato antes de processar. Menor = resposta mais rápida e workers liberados
+// antes; maior = agrupa melhor quem digita em blocos. Ajuste aqui.
+const DEBOUNCE_MS = 4000;
 
 // ─── Helpers de mídia (OCR / leitura de imagens e documentos) ────────────────
 
@@ -276,7 +281,7 @@ export async function main(payload: any) {
     return { process: false, reason: `Tipo não suportado (campos: ${Object.keys(msg).join(", ") || "nenhum"}).` };
   }
 
-  // ─── Fila de mensagens: apenas texto (debounce 8s, anti-encavalamento) ────────
+  // ─── Fila de mensagens: apenas texto (debounce, anti-encavalamento) ────────
   // Áudio vai direto: já tem latência de transcrição e usuários raramente encavalham áudios.
 
   if (!wasAudio && messageId && SUPABASE_URL && SUPABASE_SERVICE_KEY) {
@@ -298,7 +303,7 @@ export async function main(payload: any) {
       });
 
       // Janela de debounce: aguarda mensagens subsequentes do mesmo contato.
-      await new Promise((r) => setTimeout(r, 8000));
+      await new Promise((r) => setTimeout(r, DEBOUNCE_MS));
 
       // Escopo da fila: (remote_jid + instance_name). O mesmo número pode falar
       // com vários agentes (instâncias) ao mesmo tempo; cada par tem sua própria
