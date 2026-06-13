@@ -6,7 +6,7 @@
 // Janela de debounce (ms): tempo de espera por mensagens encavaladas do mesmo
 // contato antes de processar. Menor = resposta mais rápida e workers liberados
 // antes; maior = agrupa melhor quem digita em blocos. Ajuste aqui.
-const DEBOUNCE_MS = 4000;
+const DEBOUNCE_MS = 5000;
 
 // ─── Helpers de mídia (OCR / leitura de imagens e documentos) ────────────────
 
