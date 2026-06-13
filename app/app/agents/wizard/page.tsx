@@ -209,7 +209,7 @@ export default function AgentWizard() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao gerar saudações.");
       setGreetingOptions(data.options || []);
-      setMessages((m) => [...m, { id: `b-${Date.now()}`, role: "bot", text: `Escrevi 3 jeitos do ${agentName} se apresentar. Toca na que você mais gostou — ou escreve a sua.` }]);
+      setMessages((m) => [...m, { id: `b-${Date.now()}`, role: "bot", text: `Escrevi 3 jeitos de ${agentName} se apresentar. Toca na que você mais gostou — ou escreve a sua.` }]);
     } catch (e: any) {
       setGreetingError(e.message || "Erro ao gerar saudações.");
     } finally {

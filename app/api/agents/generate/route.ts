@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const GREETING_RULES = `Estrutura ideal de cada saudação (2 a 4 linhas curtas, fáceis de ler no celular):
 1. Boas-vindas calorosas citando o nome da empresa/negócio (quando houver um claro).
-2. Apresentação breve do agente: nome + no que ele ajuda.
+2. Apresentação breve do agente, deixando claro que é um(a) assistente/atendimento VIRTUAL (para o cliente saber que está falando com um assistente, não com uma pessoa): nome + que é virtual + no que ajuda. Combine o gênero das palavras com o nome do agente (ex.: nome feminino → "assistente virtual" / "consultora"; nome masculino → "consultor"). Não diga que é uma IA, robô ou modelo de linguagem — apenas "assistente virtual".
 3. Uma pergunta de encerramento que conduza o cliente ao próximo passo, oferecendo de 2 a 3 opções concretas baseadas no que o negócio realmente faz (ex.: "comprar, alugar ou agendar uma visita?", "qual produto você procura?").
 
 Regras:
