@@ -177,10 +177,14 @@ export async function main(payload: any) {
     messageType = "interactive_reply";
 
   } else if (msg.audioMessage || msg.pttMessage) {
-    // Áudio: transcreve imediatamente via Evolution API + Whisper (sem fila)
+    // Áudio: transcreve imediatamente via Whisper (sem fila).
+    // Evolution: baixa via getBase64FromMediaMessage. Meta: o webhook da Cloud API
+    // já entrega o áudio em base64 (msg.audioMessage.base64).
     wasAudio = true;
-    if (messageId) {
-      try {
+    try {
+      let b64: string | null = msg.audioMessage?.base64 || null;
+      let mimetype = msg.audioMessage?.mimetype || "audio/mp4";
+      if (!b64 && messageId) {
         const mediaRes = await fetch(
           `${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${instanceName}`,
           {
@@ -191,27 +195,28 @@ export async function main(payload: any) {
         );
         if (mediaRes.ok) {
           const media = await mediaRes.json();
-          const b64 = media?.base64 || media?.data?.base64;
-          if (b64) {
-            const buf = Buffer.from(b64, "base64");
-            const blob = new Blob([buf], { type: "audio/mp4" });
-            const form = new FormData();
-            form.append("file", blob, "audio.mp4");
-            form.append("model", "whisper-1");
-            form.append("language", "pt");
-            const wRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-              method: "POST",
-              headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
-              body: form,
-            });
-            if (wRes.ok) {
-              const { text } = await wRes.json();
-              if (text?.trim()) { incomingMessage = text.trim(); messageType = "audio_transcribed"; }
-            }
-          }
+          b64 = media?.base64 || media?.data?.base64 || null;
+          mimetype = "audio/mp4";
         }
-      } catch (e) { console.error("Transcrição falhou:", e); }
-    }
+      }
+      if (b64) {
+        const buf = Buffer.from(b64, "base64");
+        const blob = new Blob([buf], { type: mimetype });
+        const form = new FormData();
+        form.append("file", blob, mimetype.includes("ogg") ? "audio.ogg" : "audio.mp4");
+        form.append("model", "whisper-1");
+        form.append("language", "pt");
+        const wRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+          body: form,
+        });
+        if (wRes.ok) {
+          const { text } = await wRes.json();
+          if (text?.trim()) { incomingMessage = text.trim(); messageType = "audio_transcribed"; }
+        }
+      }
+    } catch (e) { console.error("Transcrição falhou:", e); }
     if (!incomingMessage) {
       incomingMessage = "[Áudio recebido — transcrição indisponível. Peça para digitar.]";
       messageType = "audio";
@@ -221,8 +226,9 @@ export async function main(payload: any) {
     const caption = msg.imageMessage.caption || "";
     incomingMessage = caption || "[Cliente enviou uma imagem]";
     messageType = "image";
-    if (messageId && OPENAI_API_KEY) {
-      const base64 = await downloadMedia(messageId, EVOLUTION_API_URL, EVOLUTION_API_KEY, instanceName);
+    if (OPENAI_API_KEY) {
+      // Meta: base64 já vem no payload. Evolution: precisa baixar via API.
+      const base64 = msg.imageMessage.base64 || (messageId ? await downloadMedia(messageId, EVOLUTION_API_URL, EVOLUTION_API_KEY, instanceName) : null);
       if (base64) {
         const analysis = await analyzeImage(base64, msg.imageMessage.mimetype, caption, OPENAI_API_KEY);
         if (analysis) {
@@ -241,8 +247,9 @@ export async function main(payload: any) {
     const mimetype = msg.documentMessage.mimetype || "";
     incomingMessage = caption || `[Cliente enviou um documento: ${fileName}]`;
     messageType = "document";
-    if (messageId && OPENAI_API_KEY) {
-      const base64 = await downloadMedia(messageId, EVOLUTION_API_URL, EVOLUTION_API_KEY, instanceName);
+    if (OPENAI_API_KEY) {
+      // Meta: base64 já vem no payload. Evolution: precisa baixar via API.
+      const base64 = msg.documentMessage.base64 || (messageId ? await downloadMedia(messageId, EVOLUTION_API_URL, EVOLUTION_API_KEY, instanceName) : null);
       if (base64) {
         let analysis = "";
         if (mimetype.startsWith("image/")) analysis = await analyzeImage(base64, mimetype, caption, OPENAI_API_KEY);
@@ -290,11 +297,16 @@ export async function main(payload: any) {
         }),
       });
 
-      // Janela de debounce: aguarda mensagens subsequentes do mesmo contato
+      // Janela de debounce: aguarda mensagens subsequentes do mesmo contato.
       await new Promise((r) => setTimeout(r, 8000));
 
+      // Escopo da fila: (remote_jid + instance_name). O mesmo número pode falar
+      // com vários agentes (instâncias) ao mesmo tempo; cada par tem sua própria
+      // janela de debounce, senão as mensagens de agentes diferentes se misturam.
+      const scope = `remote_jid=eq.${encodeURIComponent(remoteJid)}&instance_name=eq.${encodeURIComponent(instanceName)}`;
+
       const qRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/message_queue?remote_jid=eq.${encodeURIComponent(remoteJid)}&order=id.asc&select=message_id,message`,
+        `${SUPABASE_URL}/rest/v1/message_queue?${scope}&order=id.asc&select=message_id,message`,
         { headers: h }
       );
       const queue: { message_id: string; message: string }[] = await qRes.json().catch(() => []);
@@ -307,7 +319,7 @@ export async function main(payload: any) {
       // Concatena todas as mensagens pendentes e limpa a fila
       incomingMessage = queue.map((q) => q.message).join("\n");
       await fetch(
-        `${SUPABASE_URL}/rest/v1/message_queue?remote_jid=eq.${encodeURIComponent(remoteJid)}`,
+        `${SUPABASE_URL}/rest/v1/message_queue?${scope}`,
         { method: "DELETE", headers: h }
       );
     } catch (e) {

@@ -3,6 +3,48 @@
 // Suporta: agentic loop (function calling), memória longa, RAG (base de conhecimento).
 import { createClient } from '@supabase/supabase-js';
 
+// ─── Registro de uso/custo de IA (usage_logs) ─────────────────────────────────
+// Preços em USD por 1M de tokens (input/output). Para tts-1, "input" representa
+// USD por 1M de caracteres (cobrança da OpenAI é por caractere, não por token).
+const MODEL_PRICING: Record<string, { input: number; output: number }> = {
+  'gpt-5.4-mini': { input: 0.25, output: 2.00 },
+  'gpt-4o-mini': { input: 0.15, output: 0.60 },
+  'gpt-4o': { input: 2.50, output: 10.00 },
+  'text-embedding-3-small': { input: 0.02, output: 0 },
+  'gemini-2.5-flash': { input: 0.075, output: 0.30 },
+  'tts-1': { input: 15.00, output: 0 },
+};
+
+function estimateCostUsd(model: string, promptTokens: number, completionTokens: number): number {
+  const pricing = MODEL_PRICING[model];
+  if (!pricing) return 0;
+  return (promptTokens / 1_000_000) * pricing.input + (completionTokens / 1_000_000) * pricing.output;
+}
+
+async function logUsage(supabase: any, params: {
+  userId: string; agentId: string; conversationId?: string | null;
+  provider: 'openai' | 'gemini'; model: string; endpoint: string;
+  promptTokens?: number; completionTokens?: number; totalTokens?: number;
+}) {
+  try {
+    const promptTokens = params.promptTokens || 0;
+    const completionTokens = params.completionTokens || 0;
+    const totalTokens = params.totalTokens ?? (promptTokens + completionTokens);
+    await supabase.from('usage_logs').insert({
+      user_id: params.userId,
+      agent_id: params.agentId,
+      conversation_id: params.conversationId || null,
+      provider: params.provider,
+      model: params.model,
+      endpoint: params.endpoint,
+      prompt_tokens: promptTokens,
+      completion_tokens: completionTokens,
+      total_tokens: totalTokens,
+      cost_usd: estimateCostUsd(params.model, promptTokens, completionTokens),
+    });
+  } catch { /* nunca deve quebrar o fluxo de resposta */ }
+}
+
 // ─── Helpers de formatação ────────────────────────────────────────────────────
 
 const stripInteractiveMarkers = (t: string) =>
@@ -36,7 +78,7 @@ const buildTtsText = (t: string) =>
 
 // ─── Tools: construção e execução ─────────────────────────────────────────────
 
-function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boolean, hasCalendar: boolean, hasDataRecords: boolean): any[] {
+function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boolean, hasCalendar: boolean, hasDataRecords: boolean, hasExternalDb: boolean, hasEmail: boolean, mediaFiles: { name: string; description: string; url: string }[]): any[] {
   const tools: any[] = [];
 
   tools.push({
@@ -207,6 +249,60 @@ function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boole
     });
   }
 
+  if (hasExternalDb) {
+    tools.push({
+      type: 'function',
+      function: {
+        name: 'consultar_dados_externos',
+        description: 'Consulta o banco de dados próprio do usuário (clientes, fornecedores, produtos, etc.) para encontrar um registro pelo nome/termo informado. Use quando o cliente perguntar sobre dados cadastrados no sistema dele.',
+        parameters: {
+          type: 'object',
+          properties: {
+            termo: { type: 'string', description: 'Termo de busca (ex: nome do cliente, código do produto, etc.)' },
+          },
+          required: ['termo'],
+        },
+      },
+    });
+  }
+
+  if (hasEmail) {
+    tools.push({
+      type: 'function',
+      function: {
+        name: 'enviar_email',
+        description: 'Envia um e-mail para o cliente. Use quando o cliente pedir para receber alguma informação por e-mail (ex: orçamento, contrato, comprovante, material) ou quando fizer sentido formalizar algo por escrito.',
+        parameters: {
+          type: 'object',
+          properties: {
+            destinatario: { type: 'string', description: 'E-mail do destinatário' },
+            assunto: { type: 'string', description: 'Assunto do e-mail' },
+            mensagem: { type: 'string', description: 'Corpo do e-mail em texto simples' },
+          },
+          required: ['destinatario', 'assunto', 'mensagem'],
+        },
+      },
+    });
+  }
+
+  if (mediaFiles.length > 0) {
+    const filesList = mediaFiles.map((f) => `"${f.name}"${f.description ? ` (${f.description})` : ''}`).join(', ');
+    tools.push({
+      type: 'function',
+      function: {
+        name: 'enviar_arquivo',
+        description: `Envia um arquivo/mídia para o cliente pelo WhatsApp (ex: catálogo, tabela de preços, contrato). Arquivos disponíveis: ${filesList}. Use exatamente um destes nomes no parâmetro "nome".`,
+        parameters: {
+          type: 'object',
+          properties: {
+            nome: { type: 'string', description: 'Nome exato do arquivo a enviar, conforme listado na descrição desta ferramenta.' },
+          },
+          required: ['nome'],
+        },
+      },
+    });
+  }
+
   for (const tool of config.tools || []) {
     const properties: Record<string, any> = {};
     const required: string[] = [];
@@ -249,7 +345,7 @@ async function callWebhookTool(tool: any, args: any): Promise<string> {
 }
 
 async function searchKnowledge(
-  query: string, agentId: string, supabase: any, openaiKey: string
+  query: string, agentId: string, supabase: any, openaiKey: string, userId: string, conversationId: string
 ): Promise<string> {
   try {
     const embedRes = await fetch('https://api.openai.com/v1/embeddings', {
@@ -258,7 +354,11 @@ async function searchKnowledge(
       body: JSON.stringify({ model: 'text-embedding-3-small', input: query }),
     });
     if (!embedRes.ok) return '';
-    const { data } = await embedRes.json();
+    const { data, usage } = await embedRes.json();
+    logUsage(supabase, {
+      userId, agentId, conversationId, provider: 'openai', model: 'text-embedding-3-small', endpoint: 'embedding',
+      promptTokens: usage?.total_tokens || 0, completionTokens: 0,
+    });
 
     const { data: chunks } = await supabase.rpc('search_knowledge', {
       query_embedding: data[0].embedding,
@@ -415,6 +515,51 @@ async function queryDataRecords(args: any, agentId: string, leadId: string, supa
   return JSON.stringify(data.map((r: any) => ({ ...r.data, data_registro: r.created_at })));
 }
 
+async function queryExternalDatabase(args: any, agentId: string, appBaseUrl: string): Promise<string> {
+  if (!args.termo) return 'termo é obrigatório.';
+  try {
+    const res = await fetch(`${appBaseUrl}/api/external-db/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId, termo: args.termo }),
+    });
+    const data = await res.json();
+    if (!res.ok) return `Erro ao consultar: ${data.error || res.status}`;
+    if (!data.results?.length) return 'Nenhum registro encontrado para esse termo.';
+    return JSON.stringify(data.results);
+  } catch (e: any) {
+    return `Não foi possível consultar o banco de dados: ${e.message}`;
+  }
+}
+
+function sendMediaFile(
+  args: any, mediaFiles: { name: string; description: string; url: string }[],
+  sideEffects: { fileUrl?: string; fileName?: string }
+): string {
+  const nome = String(args.nome || '').trim().toLowerCase();
+  const file = mediaFiles.find((f) => f.name.trim().toLowerCase() === nome);
+  if (!file) return `Arquivo "${args.nome}" não encontrado.`;
+  sideEffects.fileUrl = file.url;
+  sideEffects.fileName = file.name;
+  return `Arquivo "${file.name}" enviado ao cliente.`;
+}
+
+async function sendEmail(args: any, agentId: string, appBaseUrl: string): Promise<string> {
+  if (!args.destinatario || !args.assunto || !args.mensagem) return 'destinatario, assunto e mensagem são obrigatórios.';
+  try {
+    const res = await fetch(`${appBaseUrl}/api/email/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId, to: args.destinatario, subject: args.assunto, body: args.mensagem }),
+    });
+    const data = await res.json();
+    if (!res.ok) return `Erro ao enviar e-mail: ${data.error || res.status}`;
+    return `E-mail enviado com sucesso para ${args.destinatario}.`;
+  } catch (e: any) {
+    return `Não foi possível enviar o e-mail: ${e.message}`;
+  }
+}
+
 // Avisa um humano disponível (número configurado) que uma conversa precisa de atenção.
 async function notifyHandoff(
   config: any, channelInfo: any, instanceName: string, leadName: string, leadPhone: string, motivo: string
@@ -463,7 +608,7 @@ async function transferToHuman(
 
 async function executeTool(
   toolCall: any, config: any, agentId: string, supabase: any, openaiKey: string, appBaseUrl: string,
-  leadId: string, conversationId: string, sideEffects: { imageUrl?: string; reaction?: string }, userId: string,
+  leadId: string, conversationId: string, sideEffects: { imageUrl?: string; reaction?: string; fileUrl?: string; fileName?: string }, userId: string,
   channelInfo: any, instanceName: string, leadName: string, leadPhone: string
 ): Promise<string> {
   const name: string = toolCall.function.name;
@@ -471,7 +616,7 @@ async function executeTool(
   try { args = JSON.parse(toolCall.function.arguments || '{}'); } catch {}
 
   if (name === 'buscar_conhecimento') {
-    return searchKnowledge(args.query || '', agentId, supabase, openaiKey);
+    return searchKnowledge(args.query || '', agentId, supabase, openaiKey, userId, conversationId);
   }
 
   if (name === 'gerar_link_pagamento') {
@@ -502,6 +647,18 @@ async function executeTool(
     return queryDataRecords(args, agentId, leadId, supabase);
   }
 
+  if (name === 'consultar_dados_externos') {
+    return queryExternalDatabase(args, agentId, appBaseUrl);
+  }
+
+  if (name === 'enviar_email') {
+    return sendEmail(args, agentId, appBaseUrl);
+  }
+
+  if (name === 'enviar_arquivo') {
+    return sendMediaFile(args, config.mediaFiles || [], sideEffects);
+  }
+
   if (name === 'transferir_atendimento') {
     return transferToHuman(args, config, channelInfo, instanceName, conversationId, leadName, leadPhone, supabase);
   }
@@ -527,7 +684,7 @@ async function executeTool(
 async function extractAndSaveMemories(
   userMsg: string, botMsg: string,
   leadId: string, agentId: string, userId: string,
-  supabase: any, openaiKey: string
+  supabase: any, openaiKey: string, conversationId: string
 ) {
   try {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -546,7 +703,11 @@ async function extractAndSaveMemories(
       }),
     });
     if (!res.ok) return;
-    const { choices } = await res.json();
+    const { choices, usage } = await res.json();
+    logUsage(supabase, {
+      userId, agentId, conversationId, provider: 'openai', model: 'gpt-4o-mini', endpoint: 'memory_extraction',
+      promptTokens: usage?.prompt_tokens || 0, completionTokens: usage?.completion_tokens || 0, totalTokens: usage?.total_tokens,
+    });
     const { facts } = JSON.parse(choices[0].message.content);
     if (!facts?.length) return;
 
@@ -621,20 +782,14 @@ export async function main(
     }
   }
 
-  if (!agentData && !isMeta && instanceName) {
-    const clean = instanceName.toLowerCase().replace('agent_', '');
-    const { data: list } = await supabase.from('agents').select('*');
-    agentData = list?.find((a: any) =>
-      clean.includes(a.name.toLowerCase()) || a.name.toLowerCase().includes(clean)
-    );
+  // As instâncias Evolution são sempre nomeadas "agent_<uuid>" (veja a tela de
+  // conexão do WhatsApp), então o match por UUID acima já resolve o agente com
+  // precisão. Não há fallback por nome nem por "primeiro agente": num ambiente
+  // multi-tenant isso responderia como o agente de outro cliente e vazaria
+  // conversas entre contas.
+  if (!agentData) {
+    return { send: false, reason: `Agente não encontrado para a instância "${instanceName}".` };
   }
-
-  if (!agentData && !isMeta) {
-    const { data } = await supabase.from('agents').select('*').limit(1);
-    agentData = data?.[0] ?? null;
-  }
-
-  if (!agentData) return { send: false, reason: 'Agente não encontrado.' };
 
   const userId = agentData.user_id;
   const phoneNumber = remoteJid.replace('@s.whatsapp.net', '');
@@ -651,8 +806,10 @@ export async function main(
     lead = data;
   }
 
+  // Filtra por agent_id: um mesmo lead pode falar com vários agentes do usuário,
+  // e cada par (lead, agente) tem sua própria conversa e histórico isolado.
   let { data: conversation } = await supabase.from('conversations').select('*')
-    .eq('lead_id', lead.id).limit(1).maybeSingle();
+    .eq('lead_id', lead.id).eq('agent_id', agentData.id).limit(1).maybeSingle();
   let isNewConversation = false;
 
   if (!conversation) {
@@ -720,6 +877,23 @@ export async function main(
 
   const hasDataRecords = !!config.dataRecordsEnabled;
 
+  // ── Banco de dados externo do usuário (Supabase ou Firebase próprios) ────
+
+  const { data: externalDbIntegration } = await supabase.from('integrations')
+    .select('status').eq('user_id', userId).eq('provider', 'external_db').maybeSingle();
+  const hasExternalDb = externalDbIntegration?.status === 'connected';
+
+  // ── E-mail (Resend / SendGrid) ────────────────────────────────────────────
+
+  const { data: emailIntegration } = await supabase.from('integrations')
+    .select('status').eq('user_id', userId).eq('provider', 'email').maybeSingle();
+  const hasEmail = emailIntegration?.status === 'connected';
+
+  // ── Arquivos para envio (catálogos, tabelas de preço, contratos, etc.) ────
+
+  const mediaFiles: { name: string; description: string; url: string }[] = config.mediaFiles || [];
+  const hasMediaFiles = mediaFiles.length > 0;
+
   let appBaseUrl = process.env.APP_BASE_URL || '';
   if (!appBaseUrl) {
     try {
@@ -758,7 +932,12 @@ export async function main(
       await supabase.from('conversations').update({ last_message_at: new Date().toISOString() }).eq('id', conversation.id);
       return buildReturn(true, remoteJid, instanceName, greeting, audioGreeting, wasAudio, channelInfo, agentData, config, lead, senderName, phoneNumber, conversation, isNewConversation);
     }
-    greetingInstruction = `\nEsta é sua primeira interação. Se o usuário não fez pergunta direta, inicie com: "${greeting}"\n`;
+    greetingInstruction = `
+=== SAUDAÇÃO DE ABERTURA (OBRIGATÓRIO) ===
+Esta é a PRIMEIRA mensagem desta conversa. Comece sua resposta EXATAMENTE com esta saudação, sem reescrevê-la nem trocar nome/empresa:
+"${greeting}"
+Se o cliente já trouxe uma pergunta ou pedido, atenda em seguida, na mesma mensagem, logo após a saudação. Nunca invente outra apresentação a partir do seu cargo/nicho.
+`;
   }
 
   const limitationsInstruction = limitations.length > 0
@@ -822,10 +1001,10 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
 
   const modelToUse = config.model || 'gpt-5.4-mini';
   let responseText = 'Desculpe, não consegui processar sua mensagem no momento.';
-  const sideEffects: { imageUrl?: string; reaction?: string } = {};
+  const sideEffects: { imageUrl?: string; reaction?: string; fileUrl?: string; fileName?: string } = {};
 
   if (!modelToUse.includes('gemini') && finalOpenAiKey) {
-    const tools = buildOpenAITools(config, hasKnowledge, hasPayments && !!appBaseUrl, hasCalendar && !!appBaseUrl, hasDataRecords);
+    const tools = buildOpenAITools(config, hasKnowledge, hasPayments && !!appBaseUrl, hasCalendar && !!appBaseUrl, hasDataRecords, hasExternalDb && !!appBaseUrl, hasEmail && !!appBaseUrl, hasMediaFiles ? mediaFiles : []);
     const messages: any[] = [
       { role: 'system', content: aiSystemInstruction },
       ...cleanHistory.map((m: any) => ({
@@ -849,6 +1028,12 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
 
       const result = await res.json();
       if (!res.ok) { responseText = `[ERRO OPENAI]: ${JSON.stringify(result)}`; break; }
+
+      const usedModel = modelToUse === 'openai' ? 'gpt-4o-mini' : modelToUse;
+      logUsage(supabase, {
+        userId, agentId: agentData.id, conversationId: conversation.id, provider: 'openai', model: usedModel, endpoint: 'chat_completion',
+        promptTokens: result.usage?.prompt_tokens || 0, completionTokens: result.usage?.completion_tokens || 0, totalTokens: result.usage?.total_tokens,
+      });
 
       const choice = result.choices[0];
 
@@ -888,6 +1073,12 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
     const geminiResult = await geminiRes.json();
     responseText = geminiResult.candidates?.[0]?.content?.parts?.[0]?.text
       || `[ERRO GEMINI]: ${JSON.stringify(geminiResult)}`;
+    logUsage(supabase, {
+      userId, agentId: agentData.id, conversationId: conversation.id, provider: 'gemini', model: 'gemini-2.5-flash', endpoint: 'chat_completion',
+      promptTokens: geminiResult.usageMetadata?.promptTokenCount || 0,
+      completionTokens: geminiResult.usageMetadata?.candidatesTokenCount || 0,
+      totalTokens: geminiResult.usageMetadata?.totalTokenCount,
+    });
   } else {
     responseText = '[ERRO]: Nenhuma chave de IA configurada.';
   }
@@ -899,22 +1090,23 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
 
   // ── TTS (responder no mesmo canal: só gera áudio se usuário mandou áudio) ──
 
-  const { data: audioBase64 } = await generateTTS(responseText, config, finalOpenAiKey, wasAudio);
+  const { data: audioBase64 } = await generateTTS(responseText, config, finalOpenAiKey, wasAudio, supabase, userId, agentData.id, conversation.id);
 
   // ── Extração assíncrona de memória (fire and forget) ──────────────────────
 
   if (finalOpenAiKey) {
-    extractAndSaveMemories(incomingMessage, responseText, lead.id, agentData.id, userId, supabase, finalOpenAiKey)
+    extractAndSaveMemories(incomingMessage, responseText, lead.id, agentData.id, userId, supabase, finalOpenAiKey, conversation.id)
       .catch(() => {});
   }
 
-  return buildReturn(true, remoteJid, instanceName, responseText, audioBase64, wasAudio, channelInfo, agentData, config, lead, senderName, phoneNumber, conversation, isNewConversation, sideEffects.imageUrl, messageId, sideEffects.reaction);
+  return buildReturn(true, remoteJid, instanceName, responseText, audioBase64, wasAudio, channelInfo, agentData, config, lead, senderName, phoneNumber, conversation, isNewConversation, sideEffects.imageUrl, messageId, sideEffects.reaction, sideEffects.fileUrl, sideEffects.fileName);
 }
 
 // ─── Helpers de retorno ────────────────────────────────────────────────────────
 
 async function generateTTS(
-  text: string, config: any, openaiKey: string | undefined, wasAudio: boolean
+  text: string, config: any, openaiKey: string | undefined, wasAudio: boolean,
+  supabase: any, userId: string, agentId: string, conversationId: string
 ): Promise<{ data: string | null }> {
   if (!config.voice_enabled || !wasAudio || !openaiKey) return { data: null };
   try {
@@ -925,6 +1117,10 @@ async function generateTTS(
       body: JSON.stringify({ model: 'tts-1', voice: config.voice_voice || 'alloy', input: clean }),
     });
     if (!res.ok) return { data: null };
+    logUsage(supabase, {
+      userId, agentId, conversationId, provider: 'openai', model: 'tts-1', endpoint: 'tts',
+      promptTokens: clean.length, completionTokens: 0,
+    });
     return { data: Buffer.from(await res.arrayBuffer()).toString('base64') };
   } catch { return { data: null }; }
 }
@@ -935,11 +1131,14 @@ function buildReturn(
   channel: any, agentData: any, config: any,
   lead: any, senderName: string, phoneNumber: string,
   conversation: any, isNewConversation: boolean,
-  imageUrl?: string | null, messageId?: string | null, reaction?: string | null
+  imageUrl?: string | null, messageId?: string | null, reaction?: string | null,
+  fileUrl?: string | null, fileName?: string | null
 ) {
   return {
     send, remoteJid, instanceName, message, audioBase64, wasAudio, channel, imageUrl: imageUrl || null,
     messageId: messageId || null, reaction: reaction || null,
+    fileUrl: fileUrl || null, fileName: fileName || null,
+    typingSpeed: config?.typingSpeed ?? '40',
     agent: {
       id: agentData.id, name: agentData.name, type: agentData.type,
       role: config.role || '', niche: config.niche || '', tone: config.tone || '',

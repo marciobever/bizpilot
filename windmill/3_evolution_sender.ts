@@ -72,7 +72,9 @@ async function sendMeta(
   textBody: string,
   buttons: string[] | null,
   list: { title: string; sections: { title: string; rows: string[] }[] } | null,
-  imageUrl?: string | null
+  imageUrl?: string | null,
+  fileUrl?: string | null,
+  fileName?: string | null
 ): Promise<any> {
   const base = `https://graph.facebook.com/v21.0/${phoneNumberId}/messages`;
   const headers = {
@@ -82,7 +84,15 @@ async function sendMeta(
 
   let payload: any;
 
-  if (imageUrl) {
+  if (fileUrl) {
+    payload = {
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: recipient,
+      type: "document",
+      document: { link: fileUrl, filename: fileName || "arquivo", caption: textBody },
+    };
+  } else if (imageUrl) {
     payload = {
       messaging_product: "whatsapp",
       recipient_type: "individual",
@@ -146,9 +156,9 @@ async function sendMeta(
   const data = await res.json().catch(() => null);
   if (res.ok) return data;
 
-  // Se o envio da imagem (ex: QR Code do Pix) falhar, cai no fallback de texto.
-  if (imageUrl) {
-    console.error(`Meta API image error: ${JSON.stringify(data)}`);
+  // Se o envio da imagem/arquivo falhar, cai no fallback de texto.
+  if (imageUrl || fileUrl) {
+    console.error(`Meta API media error: ${JSON.stringify(data)}`);
     const textRes = await fetch(base, {
       method: "POST",
       headers,
@@ -180,9 +190,30 @@ async function sendEvolution(
   list: { title: string; sections: { title: string; rows: string[] }[] } | null,
   audioBase64: string | null,
   typingDelay: number,
-  imageUrl?: string | null
+  imageUrl?: string | null,
+  fileUrl?: string | null,
+  fileName?: string | null
 ): Promise<any> {
   const headers = { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY };
+
+  // Arquivo/documento (ex: catálogo, tabela de preços) tem prioridade máxima.
+  // Se o envio falhar, cai no fallback de texto simples abaixo.
+  if (fileUrl) {
+    const res = await fetch(`${EVOLUTION_API_URL}/message/sendMedia/${instanceName}`, {
+      method: "POST", headers,
+      body: JSON.stringify({
+        number: remoteJid,
+        mediatype: "document",
+        mimetype: "application/octet-stream",
+        fileName: fileName || "arquivo",
+        media: fileUrl,
+        caption: textBody,
+        delay: typingDelay,
+      }),
+    });
+    if (res.ok) return res.json().catch(() => null);
+    console.error(`Evolution document error: ${await res.text()}`);
+  }
 
   // Imagem (ex: QR Code do Pix) tem prioridade sobre os demais formatos.
   // Se o envio da mídia falhar, cai no fallback de texto simples abaixo
@@ -325,7 +356,7 @@ export async function main(
     return { success: false, reason: ai_data?.reason || "Mensagem ignorada pelo fluxo." };
   }
 
-  const { remoteJid, message, instanceName, audioBase64, imageUrl: dataImageUrl, messageId, reaction } = ai_data;
+  const { remoteJid, message, instanceName, audioBase64, imageUrl: dataImageUrl, fileUrl, fileName, messageId, reaction, typingSpeed } = ai_data;
   const channel = ai_data.channel || { provider: "evolution" };
 
   if (!message || typeof message !== "string") {
@@ -337,8 +368,11 @@ export async function main(
   // imageUrl do ai_data (ex: QR Code do Pix) tem prioridade sobre [[IMAGEM: ...]] do texto.
   const imageUrl = dataImageUrl || messageImageUrl;
 
-  const delayPerChar = 60;
-  const typingDelay = Math.min(Math.max(textBody.length * delayPerChar, 1000), 10000);
+  // "Tempo de Digitação" configurável (slider 0–100 na UI do agente).
+  // 0 = envio instantâneo; 40 ≈ 60ms/caractere (comportamento padrão anterior); 100 = mais lento.
+  const speed = Math.min(Math.max(Number(typingSpeed ?? 40) || 0, 0), 100);
+  const msPerChar = speed * 1.5;
+  const typingDelay = msPerChar === 0 ? 0 : Math.min(Math.max(textBody.length * msPerChar, 800), 10000);
 
   // ── Meta Oficial ────────────────────────────────────────────────────────────
   if (channel.provider === "meta") {
@@ -348,7 +382,7 @@ export async function main(
     }
     const recipient = String(remoteJid).replace("@s.whatsapp.net", "").replace(/\D/g, "");
     if (reaction && messageId) await sendReactionMeta(phoneNumberId, accessToken, recipient, messageId, reaction);
-    const result = await sendMeta(phoneNumberId, accessToken, recipient, textBody, buttons, list, imageUrl || null);
+    const result = await sendMeta(phoneNumberId, accessToken, recipient, textBody, buttons, list, imageUrl || null, fileUrl || null, fileName || null);
     return {
       success: true, deliveredTo: recipient, provider: "meta",
       interactive: !!(buttons || list), metaResponse: result,
@@ -366,7 +400,7 @@ export async function main(
 
   const result = await sendEvolution(
     EVOLUTION_API_URL, EVOLUTION_API_KEY, instanceName,
-    remoteJid, textBody, buttons, list, audioBase64 || null, typingDelay, imageUrl || null
+    remoteJid, textBody, buttons, list, audioBase64 || null, typingDelay, imageUrl || null, fileUrl || null, fileName || null
   );
 
   return {

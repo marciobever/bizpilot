@@ -9,6 +9,7 @@ import {
   Settings,
   LogOut,
   HelpCircle,
+  LifeBuoy,
   Sun,
   Moon,
   Menu,
@@ -34,6 +35,7 @@ const SIDEBAR_ITEMS = [
   { icon: Workflow, label: "Automações", path: "/app/automations" },
   { icon: Settings, label: "Configurações", path: "/app/settings" },
   { icon: HelpCircle, label: "Ajuda", path: "/app/help" },
+  { icon: LifeBuoy, label: "Suporte", path: "/app/suporte" },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -115,8 +117,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 href={item.path}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                  isActive 
-                    ? "bg-primary/10 text-primary" 
+                  isActive
+                    ? "bg-primary/10 text-primary"
                     : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
                 )}
               >
@@ -192,7 +194,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )}
           </div>
         </header>
-        <div className="p-4 md:p-8 max-w-7xl mx-auto w-full flex-1">
+        <div className="bento-grid-bg p-4 md:p-8 max-w-7xl mx-auto w-full flex-1">
           {children}
         </div>
       </main>

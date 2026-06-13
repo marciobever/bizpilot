@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { Plus, MoreHorizontal, MessageSquare, Settings2, Trash2, Bot, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Input } from "@/components/ui/Input";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import type { Agent } from "@/types/database";
@@ -13,12 +12,9 @@ export default function Agents() {
   const { user, loading: authLoading } = useAuth();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Modal State
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
-  const [newAgentName, setNewAgentName] = useState("");
-  const [newAgentType, setNewAgentType] = useState("vendas");
 
   useEffect(() => {
     if (user) {
@@ -45,35 +41,6 @@ export default function Agents() {
     }
   };
 
-  const handleCreateAgent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('agents')
-        .insert([
-          {
-            user_id: user.id,
-            name: newAgentName,
-            type: newAgentType,
-            status: 'offline'
-          }
-        ])
-        .select();
-
-      if (error) throw error;
-      
-      if (data) {
-        setAgents([data[0], ...agents]);
-        setShowCreateModal(false);
-        setNewAgentName("");
-      }
-    } catch (error) {
-      console.error('Erro ao criar agente:', error);
-    }
-  };
-
   const handleToggleStatus = async (agent: Agent) => {
     const newStatus = agent.status === 'online' ? 'offline' : 'online';
     try {
@@ -87,6 +54,14 @@ export default function Agents() {
 
   const handleDeleteAgent = async (id: string) => {
     try {
+      // Remove a instância Evolution junto com o agente (best-effort: a rota
+      // resolve o sufixo custom e ignora agentes Meta/sem instância). Se falhar,
+      // ainda apagamos o agente — só registramos para não deixar instância órfã.
+      try {
+        await fetch(`/api/evolution/instances/agent_${id}`, { method: 'DELETE' });
+      } catch (e) {
+        console.error('Falha ao remover instância Evolution do agente:', e);
+      }
       const { error } = await supabase.from('agents').delete().eq('id', id);
       if (error) throw error;
       setAgents(agents.filter(a => a.id !== id));
@@ -104,7 +79,7 @@ export default function Agents() {
           <p className="text-muted-foreground">Crie e gerencie sua equipe de inteligência artificial.</p>
         </div>
         <Button asChild className="bg-brand-500 hover:bg-brand-600 text-white gap-2">
-          <Link href="/app/agents/new">
+          <Link href="/app/agents/wizard">
             <Plus className="h-4 w-4" />
             Novo Agente
           </Link>
@@ -126,7 +101,7 @@ export default function Agents() {
               Você ainda não criou nenhuma inteligência artificial. Crie seu primeiro agente para começar a automatizar seu atendimento.
             </p>
             <Button asChild variant="outline">
-              <Link href="/app/agents/new">
+              <Link href="/app/agents/wizard">
                 <Plus className="mr-2 h-4 w-4" /> Criar Primeiro Agente
               </Link>
             </Button>
@@ -190,46 +165,6 @@ export default function Agents() {
           </div>
         )}
       </div>
-
-      {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-          <div className="bg-card w-full max-w-sm rounded-2xl border border-border shadow-2xl p-6">
-            <h3 className="text-lg font-bold mb-1">Novo Agente</h3>
-            <p className="text-sm text-muted-foreground mb-6">Qual será o nome do seu robô de atendimento?</p>
-            
-            <form onSubmit={handleCreateAgent} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Nome</label>
-                <Input 
-                  placeholder="Ex: Ana (Vendas)" 
-                  value={newAgentName}
-                  onChange={(e) => setNewAgentName(e.target.value)}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Tipo</label>
-                <select 
-                  className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  value={newAgentType}
-                  onChange={(e) => setNewAgentType(e.target.value)}
-                >
-                  <option value="vendas">Vendas</option>
-                  <option value="suporte">Suporte</option>
-                  <option value="triagem">Triagem</option>
-                </select>
-              </div>
-
-              <div className="pt-4 flex justify-end gap-3">
-                <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>Cancelar</Button>
-                <Button type="submit" className="bg-brand-500 hover:bg-brand-600 text-white" disabled={!newAgentName}>
-                  Confirmar
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">

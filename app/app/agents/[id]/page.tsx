@@ -12,262 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/Badge";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
-
-// ─── Templates de Prompt por nicho ───────────────────────────────────────────
-
-type PromptTemplate = {
-  id: string;
-  label: string;
-  emoji: string;
-  description: string;
-  systemPrompt: string;
-  limitations: string[];
-  tone: string;
-  role: string;
-  enableDataRecords?: boolean;
-};
-
-const PROMPT_TEMPLATES: PromptTemplate[] = [
-  {
-    id: "vendas",
-    label: "Vendas B2C / B2B",
-    emoji: "🎯",
-    description: "Qualifica leads, apresenta produtos e agenda reuniões.",
-    tone: "Profissional e Direto",
-    role: "Especialista em Vendas",
-    systemPrompt: `Você é {agentName}, {role} da empresa {niche}.
-
-=== SUA MISSÃO ===
-Seu único objetivo é transformar visitantes em clientes. Faça isso em 3 etapas:
-1. Entenda a dor: faça 1-2 perguntas para descobrir o que o cliente precisa.
-2. Apresente a solução: explique como o produto/serviço resolve esse problema específico.
-3. Proponha o próximo passo: sugira agendar uma demonstração, visita ou fechar o pedido.
-
-=== COMO SE COMUNICAR ===
-- Seja direto e objetivo. Não enrole.
-- Use o nome do cliente sempre que possível.
-- Fale os benefícios, não apenas as características.
-- Se o cliente objetar (preço, tempo, etc.), reconheça a objeção e reposicione o valor.
-
-=== SOBRE A EMPRESA ===
-Use a ferramenta buscar_conhecimento para consultar produtos, preços, diferenciais e condições de compra cadastrados na Base de Conhecimento (aba "Arquivos RAG"). Não invente informações que não estiverem lá.`,
-    limitations: [
-      "Nunca oferecer descontos não autorizados",
-      "Não inventar especificações ou prazos de entrega",
-      "Se o cliente pedir falar com humano, acionar imediatamente",
-      "Não discutir concorrentes de forma negativa",
-    ],
-  },
-  {
-    id: "suporte",
-    label: "Suporte ao Cliente",
-    emoji: "🛠️",
-    description: "Resolve dúvidas, problemas técnicos e pós-venda.",
-    tone: "Amigável e Empático",
-    role: "Analista de Suporte",
-    systemPrompt: `Você é {agentName}, {role} da empresa {niche}.
-
-=== SUA MISSÃO ===
-Resolver o problema do cliente de forma rápida e eficiente, garantindo que ele saia satisfeito.
-
-=== FLUXO DE ATENDIMENTO ===
-1. Saudação + identificação: pergunte o nome e o número do pedido/conta, se aplicável.
-2. Entenda o problema: ouça com atenção e repita para confirmar.
-3. Resolva ou escale: tente resolver com as informações disponíveis. Se não conseguir, acione um humano com o contexto completo do problema.
-
-=== COMO SE COMUNICAR ===
-- Seja empático: reconheça a frustração do cliente antes de resolver.
-- Use linguagem simples, sem jargões técnicos.
-- Atualize o cliente em cada etapa ("Vou verificar isso para você agora...").
-- Nunca culpe o cliente pelo problema.
-
-=== INFORMAÇÕES ÚTEIS ===
-Use a ferramenta buscar_conhecimento para consultar perguntas frequentes, processos de troca/reembolso e políticas da empresa cadastrados na Base de Conhecimento (aba "Arquivos RAG"). Não invente informações que não estiverem lá.`,
-    limitations: [
-      "Nunca prometer reembolso sem verificar a política da empresa",
-      "Não compartilhar dados de outros clientes",
-      "Escalar para humano se o problema não for resolvido em 3 tentativas",
-      "Não fazer diagnósticos técnicos além da capacidade do suporte de 1º nível",
-    ],
-  },
-  {
-    id: "recepcao",
-    label: "Recepcionista / Agendamentos",
-    emoji: "📅",
-    description: "Agenda consultas, reservas e gerencia disponibilidade.",
-    tone: "Amigável e Empático",
-    role: "Recepcionista Virtual",
-    systemPrompt: `Você é {agentName}, {role} de {niche}.
-
-=== SUA MISSÃO ===
-Coletar os dados do cliente e registrar a solicitação de agendamento. Você NÃO verifica disponibilidade em tempo real — informe isso claramente e diga que a equipe confirmará em breve por este mesmo canal.
-
-=== FLUXO DE AGENDAMENTO ===
-1. Boas-vindas — pergunte o serviço desejado.
-2. Colete (um dado por vez, de forma natural):
-   - Nome completo
-   - Telefone ou e-mail para contato
-   - Data e horário de preferência (peça 1ª e 2ª opção)
-3. Confirme os dados coletados e informe: "Vou passar sua solicitação para nossa equipe. Em breve você receberá a confirmação por aqui."
-4. Ofereça botões de confirmação: [[BOTOES: Confirmar dados ✅ | Corrigir algo ✏️]]
-
-=== REAGENDAMENTO E CANCELAMENTO ===
-- Siga o mesmo fluxo: colete os dados e informe que a equipe processará.
-- Ofereça: [[BOTOES: Reagendar | Cancelar | Falar com atendente]]
-
-=== SERVIÇOS E HORÁRIOS ===
-Use a ferramenta buscar_conhecimento para consultar horários de funcionamento, serviços oferecidos e valores cadastrados na Base de Conhecimento (aba "Arquivos RAG"). Não invente informações que não estiverem lá.`,
-    limitations: [
-      "NUNCA dizer que vai verificar disponibilidade e retornar — você não tem essa capacidade",
-      "Sempre informar que a equipe confirmará em breve pelo mesmo canal",
-      "Não fornecer informações médicas ou diagnósticos",
-      "Escalar para humano em caso de urgência ou emergência",
-    ],
-  },
-  {
-    id: "imobiliaria",
-    label: "Imobiliária / Aluguel",
-    emoji: "🏠",
-    description: "Qualifica compradores, apresenta imóveis e agenda visitas.",
-    tone: "Profissional e Direto",
-    role: "Consultor Imobiliário",
-    systemPrompt: `Você é {agentName}, {role} de {niche}.
-
-=== SUA MISSÃO ===
-Identificar o imóvel ideal para cada cliente e agendar visitas com o corretor.
-
-=== QUALIFICAÇÃO DO LEAD ===
-Colete estas informações (uma por vez, naturalmente):
-- Objetivo: compra ou locação?
-- Tipo: apartamento, casa, comercial?
-- Localização desejada: bairro ou região.
-- Metragem e número de quartos.
-- Faixa de preço/valor do aluguel.
-- Prazo para se mudar.
-- Forma de pagamento (para compra: à vista, financiamento?).
-
-=== APRESENTAÇÃO DE IMÓVEIS ===
-- Apresente no máximo 3 opções por vez, focando nos que melhor se encaixam no perfil.
-- Destaque os benefícios (localização, infraestrutura, valorização).
-- Termine sempre convidando para visita.
-
-=== SOBRE O PORTFÓLIO ===
-Use a ferramenta buscar_conhecimento para consultar os imóveis disponíveis, valores e diferenciais cadastrados na Base de Conhecimento (aba "Arquivos RAG"). Não invente imóveis, preços ou características que não estiverem lá.`,
-    limitations: [
-      "Não garantir aprovação de financiamento ou crédito",
-      "Não citar valores de outros imóveis da concorrência",
-      "Não agendar visita sem confirmar disponibilidade do corretor",
-      "Não fornecer certidões, laudos ou documentação técnica pelo chat",
-    ],
-  },
-  {
-    id: "clinica",
-    label: "Clínica / Saúde",
-    emoji: "🏥",
-    description: "Agendamentos, dúvidas e triagem para serviços de saúde.",
-    tone: "Amigável e Empático",
-    role: "Assistente de Atendimento",
-    systemPrompt: `Você é {agentName}, {role} de {niche}.
-
-=== SUA MISSÃO ===
-Acolher os pacientes, tirar dúvidas sobre serviços e realizar agendamentos com cuidado e empatia.
-
-=== FLUXO DE ATENDIMENTO ===
-1. Receba o paciente com cordialidade e pergunte como pode ajudar.
-2. Para agendamentos: colete nome, data de nascimento, convênio (se houver) e queixa principal.
-3. Para dúvidas sobre procedimentos: responda com base nas informações da clínica.
-4. Para urgências: oriente a ligar diretamente ou ir ao pronto-atendimento.
-
-=== COMO SE COMUNICAR ===
-- Use linguagem simples e acolhedora. Muitos pacientes estão ansiosos.
-- Confirme sempre os dados coletados.
-- Seja sensível a situações delicadas.
-
-=== SOBRE A CLÍNICA ===
-Use a ferramenta buscar_conhecimento para consultar especialidades, convênios aceitos, horários e endereço cadastrados na Base de Conhecimento (aba "Arquivos RAG"). Não invente informações que não estiverem lá.`,
-    limitations: [
-      "NUNCA dar diagnósticos médicos ou receitar medicamentos",
-      "Não recomendar tratamentos específicos",
-      "Em caso de emergência médica, instruir o paciente a ligar para o SAMU (192) ou ir ao pronto-socorro",
-      "Não compartilhar dados de outros pacientes (LGPD)",
-      "Não confirmar horário sem checar disponibilidade",
-    ],
-  },
-  {
-    id: "ecommerce",
-    label: "E-commerce / Loja Virtual",
-    emoji: "🛍️",
-    description: "Rastreia pedidos, esclarece dúvidas de produtos e processa trocas.",
-    tone: "Amigável e Empático",
-    role: "Atendente de Loja",
-    systemPrompt: `Você é {agentName}, {role} de {niche}.
-
-=== SUA MISSÃO ===
-Garantir que cada cliente tenha uma experiência de compra perfeita, do pedido à entrega.
-
-=== PRINCIPAIS ATENDIMENTOS ===
-
-**Rastreamento de pedido:**
-Pergunte o número do pedido ou CPF cadastrado e informe o status atualizado.
-
-**Dúvidas sobre produto:**
-Responda com base nas especificações, disponibilidade e prazo de entrega.
-
-**Troca e devolução:**
-Explique a política e colete: número do pedido, motivo e foto do produto (se defeito).
-
-**Pagamento:**
-Esclareça sobre formas de pagamento, parcelamento e confirmação de pagamento.
-
-=== COMO SE COMUNICAR ===
-- Seja ágil: o cliente quer respostas rápidas.
-- Sempre confirme o número do pedido antes de dar qualquer informação.
-- Termine com "Posso ajudar com mais alguma coisa?"
-
-=== POLÍTICAS DA LOJA ===
-Use a ferramenta buscar_conhecimento para consultar prazos de entrega, política de troca, formas de pagamento e link de rastreamento cadastrados na Base de Conhecimento (aba "Arquivos RAG"). Não invente informações que não estiverem lá.`,
-    limitations: [
-      "Não processar reembolso sem verificar a política (prazo e condições)",
-      "Não confirmar estoque sem checar o sistema",
-      "Não dar prazo de entrega diferente do informado pelo sistema",
-      "Escalar para humano casos de fraude ou chargeback",
-    ],
-  },
-  {
-    id: "financeiro",
-    label: "Auxiliar Financeiro Pessoal",
-    emoji: "💰",
-    description: "Registra gastos e receitas que o usuário for informando e gera resumos sob demanda.",
-    tone: "Amigável e Empático",
-    role: "Assistente Financeiro",
-    systemPrompt: `Você é {agentName}, {role} de {niche}.
-
-=== SUA MISSÃO ===
-Ajudar o usuário a controlar suas finanças pessoais, registrando os lançamentos que ele for informando ao longo das conversas e respondendo perguntas sobre seus gastos e receitas.
-
-=== REGISTRO DE LANÇAMENTOS ===
-Sempre que o usuário mencionar um gasto ou recebimento (ex: "gastei 50 reais no mercado", "recebi 2000 de salário hoje"), use a ferramenta salvar_dado com categoria "transacao" e os campos: valor (negativo para gasto, positivo para receita), descricao, tipo ("despesa" ou "receita") e categoria_gasto (ex: "alimentação", "transporte", "lazer", "salário").
-- Confirme rapidamente o que foi registrado, em 1 frase.
-- Se faltar alguma informação importante (valor), pergunte antes de registrar.
-
-=== CONSULTAS E RESUMOS ===
-Quando o usuário pedir um resumo, saldo ou total (ex: "quanto gastei esse mês?", "qual meu saldo?"), use consultar_dados com categoria "transacao" e o período pedido, e calcule a resposta com base nos registros retornados. Apresente o resumo de forma clara, com total de receitas, total de despesas e saldo.
-
-=== COMO SE COMUNICAR ===
-- Seja direto e prático, sem julgar os hábitos do usuário.
-- Use valores em R$ sempre formatados (ex: R$ 1.234,56).
-
-=== SOBRE O CONTEXTO ===
-(Adicione aqui particularidades do usuário/negócio, se houver: categorias de gasto comuns, metas, etc.)`,
-    limitations: [
-      "Nunca dar conselhos de investimento ou recomendações financeiras formais",
-      "Nunca inventar valores ou registros que o usuário não informou",
-      "Sempre confirmar o valor antes de registrar um lançamento",
-      "Não excluir ou alterar registros — apenas adicionar novos lançamentos",
-    ],
-    enableDataRecords: true,
-  },
-];
+import { PROMPT_TEMPLATES, interpolateTemplate, type PromptTemplate } from "@/lib/agentTemplates";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -336,6 +81,14 @@ export default function AgentConfig() {
   const [toolHeaderKey, setToolHeaderKey] = useState("");
   const [toolHeaderVal, setToolHeaderVal] = useState("");
 
+  // ── Arquivos para envio (catálogos, tabelas de preço, contratos, etc.) ────
+  type MediaFile = { id: string; name: string; description: string; url: string };
+  const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
+  const [mediaFileForm, setMediaFileForm] = useState<Partial<MediaFile>>({});
+  const [showMediaFileForm, setShowMediaFileForm] = useState(false);
+  const [uploadingMediaFile, setUploadingMediaFile] = useState(false);
+  const [mediaUploadError, setMediaUploadError] = useState("");
+
   // ── Knowledge Base ────────────────────────────────────────────────────────
   type KnowledgeEntry = { id: string; title: string; source_type: string; source_url?: string; chunk_count: number; created_at: string };
   const [knowledgeEntries, setKnowledgeEntries] = useState<KnowledgeEntry[]>([]);
@@ -395,10 +148,10 @@ export default function AgentConfig() {
   }, []);
 
   useEffect(() => {
-    if (agentName && !customInstanceName) {
+    if (agentName && !showInstanceModal) {
       setCustomInstanceName(agentName.toLowerCase().replace(/[^a-z0-9]/g, ''));
     }
-  }, [agentName, customInstanceName]);
+  }, [agentName, showInstanceModal]);
 
   useEffect(() => {
     if (user && !isNew) {
@@ -520,6 +273,47 @@ export default function AgentConfig() {
   };
 
   const handleDeleteTool = (toolId: string) => setTools(prev => prev.filter(t => t.id !== toolId));
+
+  // ── Arquivos para envio ──────────────────────────────────────────────────
+
+  const handleAddMediaFile = () => {
+    if (!mediaFileForm.name?.trim() || !mediaFileForm.url?.trim()) {
+      alert('Nome e URL do arquivo são obrigatórios.'); return;
+    }
+    const newFile: MediaFile = {
+      id: crypto.randomUUID(),
+      name: mediaFileForm.name.trim(),
+      description: mediaFileForm.description?.trim() || '',
+      url: mediaFileForm.url.trim(),
+    };
+    setMediaFiles(prev => [...prev, newFile]);
+    setMediaFileForm({});
+    setShowMediaFileForm(false);
+  };
+
+  const handleDeleteMediaFile = (fileId: string) => setMediaFiles(prev => prev.filter(f => f.id !== fileId));
+
+  const handleUploadMediaFile = async (file: File) => {
+    if (!user) return;
+    setUploadingMediaFile(true);
+    setMediaUploadError("");
+    try {
+      const ext = file.name.includes('.') ? file.name.split('.').pop() : '';
+      const path = `${user.id}/${crypto.randomUUID()}${ext ? `.${ext}` : ''}`;
+      const { error } = await supabase.storage.from('agent-media').upload(path, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from('agent-media').getPublicUrl(path);
+      setMediaFileForm(p => ({
+        ...p,
+        url: data.publicUrl,
+        name: p.name?.trim() ? p.name : file.name.replace(/\.[^.]+$/, ''),
+      }));
+    } catch (e: any) {
+      setMediaUploadError(e.message || 'Erro ao enviar arquivo.');
+    } finally {
+      setUploadingMediaFile(false);
+    }
+  };
 
   const handleConnectWhatsapp = async (bypassModal = false) => {
     if (isNew) {
@@ -691,10 +485,7 @@ export default function AgentConfig() {
   };
 
   const applyTemplate = (tpl: PromptTemplate) => {
-    const interpolated = tpl.systemPrompt
-      .replace(/\{agentName\}/g, agentName || tpl.role)
-      .replace(/\{role\}/g, role || tpl.role)
-      .replace(/\{niche\}/g, niche || "nossa empresa");
+    const interpolated = interpolateTemplate(tpl, agentName, role, niche);
     setSystemPrompt(interpolated);
     setLimitations(tpl.limitations);
     if (!tone || tone === "Profissional e Direto") setTone(tpl.tone);
@@ -831,6 +622,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
             }
           }
           if (cfg.tools && Array.isArray(cfg.tools)) setTools(cfg.tools);
+          if (cfg.mediaFiles && Array.isArray(cfg.mediaFiles)) setMediaFiles(cfg.mediaFiles);
           if (cfg.whatsapp) {
             const wa = cfg.whatsapp;
             if (wa.provider === 'meta' || wa.provider === 'evolution') setWhatsappProvider(wa.provider);
@@ -894,6 +686,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
       tags: tags,
       variables: varsObject,
       tools: tools,
+      mediaFiles: mediaFiles,
       whatsapp: {
         provider: whatsappProvider,
         meta: {
@@ -913,7 +706,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
         .insert([{
           user_id: user.id,
           name: agentName,
-          type: 'vendas',
+          type: 'atendimento',
           system_prompt: systemPrompt,
           status: 'offline',
           config: configData
@@ -959,6 +752,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
       tags: tags,
       variables: varsObject,
       tools: tools,
+      mediaFiles: mediaFiles,
       whatsapp: {
         provider: whatsappProvider,
         meta: {
@@ -973,34 +767,18 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
     };
 
     try {
-      if (isNew) {
-        const { data, error } = await supabase
-          .from('agents')
-          .insert([{
-            user_id: user.id,
-            name: agentName,
-            type: 'vendas',
-            system_prompt: systemPrompt,
-            status: 'offline',
-            config: configData
-          }])
-          .select();
-        if (error) throw error;
-        if (data && data.length > 0) {
-          navigate.push(`/app/agents/${data[0].id}`);
-        }
-      } else {
-        const { error } = await supabase
-          .from('agents')
-          .update({
-            name: agentName,
-            system_prompt: systemPrompt,
-            config: configData
-          })
-          .eq('id', id);
-        if (error) throw error;
-        alert('Configurações salvas com sucesso!');
-      }
+      // handleSave só é chamado no modo edição (o modo isNew retorna cedo e usa
+      // handleCreateAndContinue), então aqui é sempre update de agente existente.
+      const { error } = await supabase
+        .from('agents')
+        .update({
+          name: agentName,
+          system_prompt: systemPrompt,
+          config: configData
+        })
+        .eq('id', id);
+      if (error) throw error;
+      alert('Configurações salvas com sucesso!');
     } catch (error) {
       console.error('Erro ao salvar agente:', error);
       alert('Erro ao salvar o agente.');
@@ -1125,21 +903,15 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
 
             {!waConnected && !checkingWa && (
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="wiz-inst-name">Nome da Instância</Label>
-                  <Input 
-                    id="wiz-inst-name"
-                    placeholder="Ex: whatsapp_suporte" 
-                    value={customInstanceName} 
-                    onChange={(e) => setCustomInstanceName(e.target.value)} 
-                  />
-                  <p className="text-xs text-muted-foreground">Digite um identificador único simples para sua conexão (ex: {agentName.toLowerCase()}_whats).</p>
+                <div className="p-3 bg-secondary/30 border border-border rounded-lg text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Identificador da instância:</span> agent_{id}_{customInstanceName}
+                  <p className="mt-1">Gerado automaticamente a partir do nome do agente e vinculado à sua conta — não é necessário escolher um nome.</p>
                 </div>
-                
-                <Button 
-                  className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 text-white" 
-                  onClick={() => handleConnectWhatsapp(true)} 
-                  disabled={waLoading || !customInstanceName.trim()}
+
+                <Button
+                  className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() => handleConnectWhatsapp(true)}
+                  disabled={waLoading}
                 >
                   {waLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
                   Gerar QR Code de Conexão
@@ -2012,6 +1784,103 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                   <p className="font-medium text-foreground">Como funciona</p>
                   <p>A IA decide quando chamar cada ferramenta com base na conversa. O resultado é incorporado na resposta automaticamente.</p>
                   <p>A URL recebe um JSON com os parâmetros via POST. Retorne um objeto JSON com os dados — a IA interpreta e responde ao usuário.</p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeTab === "addons" && !addonsLocked && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <CardTitle>Arquivos para Envio</CardTitle>
+                    <CardDescription>
+                      Cadastre arquivos (catálogos, tabelas de preço, contratos, cardápios, etc.) hospedados em uma URL pública. A IA envia o arquivo certo pelo WhatsApp quando o cliente pedir.
+                    </CardDescription>
+                  </div>
+                  <Button size="sm" className="gap-2 shrink-0" onClick={() => setShowMediaFileForm(v => !v)}>
+                    <Plus className="h-4 w-4" /> Novo Arquivo
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {showMediaFileForm && (
+                  <div className="border border-border rounded-lg p-4 space-y-3 bg-secondary/10">
+                    <h4 className="font-medium text-sm">Novo Arquivo</h4>
+
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Nome do arquivo</label>
+                      <Input placeholder="Catálogo de Produtos" value={mediaFileForm.name || ''}
+                        onChange={e => setMediaFileForm(p => ({ ...p, name: e.target.value }))} />
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Descrição (ajuda a IA a saber quando enviar)</label>
+                      <Input placeholder="Tabela com preços e fotos dos produtos" value={mediaFileForm.description || ''}
+                        onChange={e => setMediaFileForm(p => ({ ...p, description: e.target.value }))} />
+                    </div>
+
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Arquivo</label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="file"
+                          className="text-xs"
+                          disabled={uploadingMediaFile}
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUploadMediaFile(file);
+                          }}
+                        />
+                        {uploadingMediaFile && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />}
+                      </div>
+                      {mediaUploadError && <p className="text-xs text-destructive mt-1">{mediaUploadError}</p>}
+                      {mediaFileForm.url && !uploadingMediaFile && (
+                        <p className="text-xs text-emerald-500 mt-1 truncate">Arquivo enviado: {mediaFileForm.url}</p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">Ou, se preferir, cole o link direto de um arquivo já hospedado:</p>
+                      <Input className="mt-1" placeholder="https://meusite.com/catalogo.pdf" value={mediaFileForm.url || ''}
+                        onChange={e => setMediaFileForm(p => ({ ...p, url: e.target.value }))} />
+                    </div>
+
+                    <div className="flex gap-2 justify-end pt-1">
+                      <Button size="sm" variant="outline" onClick={() => { setShowMediaFileForm(false); setMediaFileForm({}); }}>Cancelar</Button>
+                      <Button size="sm" onClick={handleAddMediaFile}>Adicionar Arquivo</Button>
+                    </div>
+                  </div>
+                )}
+
+                {mediaFiles.length === 0 ? (
+                  <div className="text-center py-10 text-muted-foreground text-sm">
+                    <FileText className="h-8 w-8 mx-auto mb-3 opacity-30" />
+                    Nenhum arquivo configurado. A IA não poderá enviar arquivos ao cliente.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {mediaFiles.map(file => (
+                      <div key={file.id} className="flex items-start gap-3 p-3 border border-border bg-card rounded-lg">
+                        <div className="mt-0.5 text-brand-500 shrink-0">
+                          <FileText className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="font-semibold text-sm">{file.name}</span>
+                          {file.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{file.description}</p>}
+                          <p className="text-xs text-muted-foreground mt-0.5 truncate">{file.url}</p>
+                        </div>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0"
+                          onClick={() => handleDeleteMediaFile(file.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-2 p-3 bg-secondary/20 rounded-lg text-xs text-muted-foreground space-y-1">
+                  <p className="font-medium text-foreground">Como funciona</p>
+                  <p>Quando o cliente pedir um arquivo (ex: "manda o catálogo"), a IA escolhe o arquivo certo pelo nome/descrição e o envia automaticamente pelo WhatsApp.</p>
+                  <p>O link precisa ser público (acessível sem login) para que o WhatsApp consiga baixar o arquivo.</p>
                 </div>
               </CardContent>
             </Card>

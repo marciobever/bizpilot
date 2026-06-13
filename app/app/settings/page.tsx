@@ -106,6 +106,10 @@ export default function Settings() {
   // Plano
   const [plan, setPlan] = useState<string | null>(null);
   const [loadingPlan, setLoadingPlan] = useState(true);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [hasStripeCustomer, setHasStripeCustomer] = useState(false);
+  const [planActionLoading, setPlanActionLoading] = useState<string | null>(null);
+  const [planFeedback, setPlanFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   // Segurança
   const [newPassword, setNewPassword] = useState("");
@@ -122,12 +126,52 @@ export default function Settings() {
   useEffect(() => {
     const loadPlan = async () => {
       if (!user) return;
-      const { data } = await supabase.from("profiles").select("plan").eq("id", user.id).single();
+      const { data } = await supabase.from("profiles").select("plan, subscription_status, stripe_customer_id").eq("id", user.id).single();
       setPlan(data?.plan || "basico");
+      setSubscriptionStatus(data?.subscription_status || null);
+      setHasStripeCustomer(!!data?.stripe_customer_id);
       setLoadingPlan(false);
     };
     loadPlan();
   }, [user]);
+
+  const handleUpgrade = async (targetPlan: string) => {
+    if (!user) return;
+    setPlanFeedback(null);
+    setPlanActionLoading(targetPlan);
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: targetPlan, userId: user.id, email: user.email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao iniciar checkout.");
+      window.location.href = data.url;
+    } catch (e: any) {
+      setPlanFeedback({ type: "error", message: e.message });
+      setPlanActionLoading(null);
+    }
+  };
+
+  const handleManageSubscription = async () => {
+    if (!user) return;
+    setPlanFeedback(null);
+    setPlanActionLoading("portal");
+    try {
+      const res = await fetch("/api/stripe/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erro ao abrir portal de cobrança.");
+      window.location.href = data.url;
+    } catch (e: any) {
+      setPlanFeedback({ type: "error", message: e.message });
+      setPlanActionLoading(null);
+    }
+  };
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -316,7 +360,7 @@ export default function Settings() {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="text-lg font-bold text-foreground">{currentPlan.name}</h3>
-                        <Badge variant="success">Ativo</Badge>
+                        <Badge variant="success">{subscriptionStatus === "canceled" ? "Cancelado" : "Ativo"}</Badge>
                       </div>
                       <p className="text-muted-foreground text-sm">{currentPlan.price}</p>
                     </div>
@@ -334,16 +378,48 @@ export default function Settings() {
                   </ul>
                 </div>
               ) : null}
+
+              {planFeedback && <div className="mt-4"><FeedbackBanner type={planFeedback.type} message={planFeedback.message} /></div>}
             </CardContent>
-            <CardFooter>
+            <CardFooter className="justify-between gap-2 flex-wrap">
               <Button asChild variant="outline">
                 <Link href="/precos">
-                  Ver outros planos e fazer upgrade
+                  Ver detalhes dos planos
                   <ArrowUpRight className="h-4 w-4 ml-2" />
                 </Link>
               </Button>
+              {hasStripeCustomer && (
+                <Button variant="outline" onClick={handleManageSubscription} disabled={planActionLoading !== null}>
+                  {planActionLoading === "portal" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <CreditCard className="h-4 w-4 mr-2" />}
+                  Gerenciar assinatura
+                </Button>
+              )}
             </CardFooter>
           </Card>
+
+          {/* Upgrade rápido para outros planos */}
+          {!loadingPlan && plan && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Fazer upgrade</CardTitle>
+                <CardDescription>Mude de plano diretamente por aqui — o pagamento é processado pelo Stripe.</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3 sm:grid-cols-2">
+                {Object.entries(PLAN_INFO).filter(([id]) => id !== plan).map(([id, info]) => (
+                  <div key={id} className={cn("rounded-xl border-2 p-4 flex flex-col justify-between gap-3", info.color)}>
+                    <div>
+                      <h4 className="font-semibold text-foreground">{info.name}</h4>
+                      <p className="text-muted-foreground text-sm">{info.price}</p>
+                    </div>
+                    <Button size="sm" onClick={() => handleUpgrade(id)} disabled={planActionLoading !== null}>
+                      {planActionLoading === id ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                      Mudar para {info.name}
+                    </Button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 

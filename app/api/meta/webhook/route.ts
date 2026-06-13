@@ -1,5 +1,51 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '../utils';
+import { getServiceSupabase, getMetaConfig, graphUrl } from '../utils';
+
+// Busca o access token salvo na config do agente cujo canal Meta usa este phone_number_id.
+async function resolveAccessToken(phoneNumberId: string | undefined): Promise<string | null> {
+  if (!phoneNumberId) return null;
+  try {
+    const supabase = getServiceSupabase();
+    const { data: agent } = await supabase
+      .from('agents')
+      .select('config')
+      .eq('config->whatsapp->meta->>phoneNumberId', phoneNumberId)
+      .limit(1)
+      .maybeSingle();
+    return getMetaConfig(agent?.config).accessToken || null;
+  } catch (e) {
+    console.error('[META WEBHOOK] Erro ao resolver access token:', e);
+    return null;
+  }
+}
+
+// Baixa uma mídia (imagem, áudio, documento) recebida via WhatsApp Cloud API.
+// A Meta entrega apenas um "media id" — é preciso resolver a URL temporária
+// e então baixar o conteúdo, ambos autenticados com o access token do agente.
+async function downloadMetaMedia(mediaId: string, accessToken: string): Promise<{ base64: string; mimetype: string } | null> {
+  try {
+    const metaRes = await fetch(graphUrl(mediaId), {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!metaRes.ok) {
+      console.error(`[META WEBHOOK] Falha ao resolver mídia ${mediaId}: ${await metaRes.text()}`);
+      return null;
+    }
+    const { url, mime_type } = await metaRes.json();
+    if (!url) return null;
+
+    const fileRes = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+    if (!fileRes.ok) {
+      console.error(`[META WEBHOOK] Falha ao baixar mídia ${mediaId}: ${fileRes.status}`);
+      return null;
+    }
+    const buf = Buffer.from(await fileRes.arrayBuffer());
+    return { base64: buf.toString('base64'), mimetype: mime_type || 'application/octet-stream' };
+  } catch (e: any) {
+    console.error(`[META WEBHOOK] Erro ao baixar mídia ${mediaId}:`, e.message);
+    return null;
+  }
+}
 
 // ============================================================================
 // Webhook do WhatsApp Cloud API (Meta Oficial)
@@ -63,11 +109,47 @@ export async function POST(req: Request) {
         const contactName = value?.contacts?.[0]?.profile?.name || 'Usuário';
 
         for (const msg of messages) {
-          // Só tratamos texto por enquanto (texto livre e respostas).
-          const incomingMessage =
-            msg?.text?.body || msg?.button?.text || msg?.interactive?.list_reply?.title || '';
           const from = msg?.from; // número do remetente, só dígitos
-          if (!incomingMessage || !from) continue;
+          if (!from) continue;
+
+          const msgType = msg?.type;
+          let message: any = null;
+
+          if (msgType === 'text' || msg?.text?.body) {
+            message = { conversation: msg.text.body };
+          } else if (msg?.button?.text) {
+            message = { conversation: msg.button.text };
+          } else if (msg?.interactive?.list_reply?.title) {
+            message = { conversation: msg.interactive.list_reply.title };
+          } else if (msg?.interactive?.button_reply?.title) {
+            message = { conversation: msg.interactive.button_reply.title };
+          } else if (msgType === 'audio' && msg?.audio?.id) {
+            const accessToken = await resolveAccessToken(phoneNumberId);
+            const media = accessToken ? await downloadMetaMedia(msg.audio.id, accessToken) : null;
+            message = media
+              ? { audioMessage: { base64: media.base64, mimetype: media.mimetype } }
+              : { conversation: '[Áudio recebido — transcrição indisponível. Peça para digitar.]' };
+          } else if (msgType === 'image' && msg?.image?.id) {
+            const accessToken = await resolveAccessToken(phoneNumberId);
+            const media = accessToken ? await downloadMetaMedia(msg.image.id, accessToken) : null;
+            message = media
+              ? { imageMessage: { caption: msg.image.caption || '', mimetype: media.mimetype, base64: media.base64 } }
+              : { conversation: '[Cliente enviou uma imagem]' };
+          } else if (msgType === 'document' && msg?.document?.id) {
+            const accessToken = await resolveAccessToken(phoneNumberId);
+            const media = accessToken ? await downloadMetaMedia(msg.document.id, accessToken) : null;
+            message = media
+              ? { documentMessage: { caption: msg.document.caption || '', fileName: msg.document.filename || 'arquivo', mimetype: media.mimetype, base64: media.base64 } }
+              : { conversation: `[Cliente enviou um documento: ${msg.document.filename || 'arquivo'}]` };
+          } else if (msgType === 'video') {
+            message = { conversation: msg.video?.caption || '[Cliente enviou um vídeo]' };
+          } else if (msgType === 'sticker') {
+            message = { conversation: '[Cliente enviou um sticker]' };
+          } else if (msgType === 'location' && msg?.location) {
+            message = { conversation: `[Cliente compartilhou localização: ${msg.location.latitude}, ${msg.location.longitude}]` };
+          }
+
+          if (!message) continue;
 
           // Normaliza para o formato que o 1_webhook_receiver (Evolution) espera,
           // adicionando os campos extras que identificam o canal Meta.
@@ -79,7 +161,7 @@ export async function POST(req: Request) {
             data: {
               key: { remoteJid: `${from}@s.whatsapp.net`, fromMe: false },
               pushName: contactName,
-              message: { conversation: incomingMessage },
+              message,
             },
           };
 

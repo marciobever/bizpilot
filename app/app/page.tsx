@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Bot, MessageSquare, TrendingUp, Clock, Loader2 } from "lucide-react";
+import { Bot, MessageSquare, TrendingUp, Clock, Loader2, Sparkles, ArrowRight } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
@@ -152,6 +153,28 @@ export default function DashboardMetrics() {
         </div>
       </div>
 
+      {/* CTA: criar primeiro agente */}
+      {agents.length === 0 && (
+        <Card className="border-brand-500/30 bg-brand-500/5">
+          <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="h-10 w-10 rounded-full bg-brand-500/10 flex items-center justify-center shrink-0">
+                <Sparkles className="h-5 w-5 text-brand-500" />
+              </div>
+              <div>
+                <h3 className="font-semibold">Crie seu primeiro agente de IA</h3>
+                <p className="text-sm text-muted-foreground mt-0.5">Um passo a passo guiado te ajuda a configurar tudo e conectar o WhatsApp em poucos minutos.</p>
+              </div>
+            </div>
+            <Button asChild className="bg-brand-500 hover:bg-brand-600 text-white gap-2 shrink-0">
+              <Link href="/app/agents/wizard">
+                Criar meu primeiro agente <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -245,7 +268,7 @@ export default function DashboardMetrics() {
           <CardContent>
             {agents.length === 0 ? (
               <div className="text-center py-6 text-sm text-muted-foreground">
-                Nenhum agente criado ainda. <Link href="/app/agents" className="text-primary underline">Criar agente</Link>
+                Nenhum agente criado ainda. <Link href="/app/agents/wizard" className="text-primary underline">Criar agente</Link>
               </div>
             ) : (
               <div className="space-y-5">

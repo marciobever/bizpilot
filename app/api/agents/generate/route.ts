@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 const SYSTEM_PROMPTS: Record<string, string> = {
-  greeting: `Você é um especialista em copywriting para atendimento via WhatsApp. Sua tarefa é escrever UMA mensagem de saudação curta (1 a 3 frases) que um agente de IA usará para iniciar conversas com clientes.
+  greeting: `Você é um especialista em copywriting para atendimento via WhatsApp. Sua tarefa é escrever a mensagem de saudação que um agente de IA usará para INICIAR conversas com clientes — é a primeira impressão do negócio, então precisa ser acolhedora e dar direção.
+
+Estrutura ideal (2 a 4 linhas curtas, fáceis de ler no celular):
+1. Boas-vindas calorosas citando o nome da empresa/negócio (quando houver um claro).
+2. Apresentação breve do agente: nome + no que ele ajuda.
+3. Uma pergunta de encerramento que conduza o cliente ao próximo passo, oferecendo de 2 a 3 opções concretas baseadas no que o negócio realmente faz (ex.: "comprar, alugar ou outra dúvida?", "qual produto você procura?", "quer agendar ou tirar uma dúvida?").
 
 Regras:
-- Escreva em português do Brasil, em tom natural e humano (nunca robótico).
-- Use o nome do agente, cargo/função e empresa/nicho fornecidos, quando fizer sentido.
-- Respeite o tom de voz indicado.
-- Não use markdown, aspas ou explicações. Responda APENAS com o texto da saudação, pronto para uso.`,
+- Português do Brasil, tom natural e humano. NUNCA termine com o clichê genérico "Como posso te ajudar hoje?" — sempre ofereça opções concretas.
+- Respeite o tom de voz indicado. Use no máximo 1 emoji, e só se o tom permitir (evite emojis em tons "Profissional e Direto" ou "Técnico e Especialista").
+- Baseie o contexto e as opções no que o usuário descreveu sobre o negócio, não apenas no nicho cru. Se o nicho informado parecer incompleto ou estranho, priorize a descrição.
+- Não invente nome de empresa: se não houver um claro, faça as boas-vindas sem citar nome.
+- Não use markdown, asteriscos, aspas, nem explicações. Responda APENAS com o texto da saudação, pronto para uso.`,
   instructions: `Você é um especialista em criar prompts de sistema (instruções) para agentes de IA de atendimento via WhatsApp.
 
 Sua tarefa é gerar um prompt de instruções completo, em português do Brasil, organizado em seções com "===", cobrindo:

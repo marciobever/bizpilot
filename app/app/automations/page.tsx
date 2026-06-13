@@ -4,7 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { MessageCircle, Webhook, Link as LinkIcon, Database, CheckCircle2, X, Loader2, AlertCircle, CalendarDays } from "lucide-react";
+import { MessageCircle, Webhook, Link as LinkIcon, Database, CheckCircle2, X, Loader2, AlertCircle, CalendarDays, Mail } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { useAuth } from "@/lib/auth";
@@ -64,6 +64,24 @@ const INTEGRATIONS_META = [
     category: "Produtividade",
     color: "text-violet-500",
     bgClass: "bg-violet-500/10 border-violet-500/20"
+  },
+  {
+    id: "external_db",
+    name: "Banco de Dados Externo",
+    description: "Conecte seu próprio Supabase ou Firebase para o agente consultar seus clientes, fornecedores ou produtos.",
+    icon: Database,
+    category: "Seus Dados",
+    color: "text-cyan-500",
+    bgClass: "bg-cyan-500/10 border-cyan-500/20"
+  },
+  {
+    id: "email",
+    name: "E-mail",
+    description: "Permita que o agente envie e-mails (orçamentos, comprovantes, materiais) para os leads durante a conversa.",
+    icon: Mail,
+    category: "Comunicação",
+    color: "text-amber-500",
+    bgClass: "bg-amber-500/10 border-amber-500/20"
   }
 ];
 
@@ -111,6 +129,24 @@ const CALENDAR_PROVIDERS: { value: string; label: string }[] = [
   { value: "google", label: "Google Calendar" },
 ];
 
+const EXTERNAL_DB_PROVIDERS: { value: string; label: string }[] = [
+  { value: "supabase", label: "Supabase" },
+  { value: "firebase", label: "Firebase (Firestore)" },
+];
+
+const EMAIL_PROVIDERS: { value: string; label: string; help: string }[] = [
+  {
+    value: "resend",
+    label: "Resend",
+    help: "Painel da Resend → API Keys → Create API Key.",
+  },
+  {
+    value: "sendgrid",
+    label: "SendGrid",
+    help: "Painel do SendGrid → Settings → API Keys → Create API Key.",
+  },
+];
+
 function Integrations() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
@@ -142,6 +178,18 @@ function Integrations() {
   });
   const [calendarMsg, setCalendarMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [appOrigin, setAppOrigin] = useState("");
+
+  // Banco de Dados Externo (Supabase ou Firebase do próprio usuário)
+  const [externalDbForm, setExternalDbForm] = useState({
+    provider: "supabase",
+    projectUrl: "", apiKey: "", table: "", searchColumn: "",
+    projectId: "", collection: "", searchField: "",
+  });
+  const [externalDbMsg, setExternalDbMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  // E-mail (Resend / SendGrid)
+  const [emailForm, setEmailForm] = useState({ provider: "resend", apiKey: "", fromEmail: "", fromName: "" });
+  const [emailMsg, setEmailMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     if (user) fetchIntegrations();
@@ -198,6 +246,8 @@ function Integrations() {
     setActiveModal(id);
     setPaymentsMsg(null);
     setCalendarMsg(null);
+    setExternalDbMsg(null);
+    setEmailMsg(null);
     if (id === 'webhook') {
       const cfg = statusMap.webhook?.config || {};
       setWebhookForm({ url: cfg.url || "", secret: cfg.secret || "", events: cfg.events || [] });
@@ -224,6 +274,26 @@ function Integrations() {
         clientId: cfg.clientId || "",
         clientSecret: cfg.clientSecret ? "••••••••••••" : "",
         reminderHours: String(cfg.reminderHours ?? 2),
+      });
+    } else if (id === 'external_db') {
+      const cfg = statusMap.external_db?.config || {};
+      setExternalDbForm({
+        provider: cfg.provider || "supabase",
+        projectUrl: cfg.projectUrl || "",
+        apiKey: cfg.apiKey ? "••••••••••••" : "",
+        table: cfg.table || "",
+        searchColumn: cfg.searchColumn || "",
+        projectId: cfg.projectId || "",
+        collection: cfg.collection || "",
+        searchField: cfg.searchField || "",
+      });
+    } else if (id === 'email') {
+      const cfg = statusMap.email?.config || {};
+      setEmailForm({
+        provider: cfg.provider || "resend",
+        apiKey: cfg.apiKey ? "••••••••••••" : "",
+        fromEmail: cfg.fromEmail || "",
+        fromName: cfg.fromName || "",
       });
     }
   };
@@ -354,6 +424,64 @@ function Integrations() {
           });
           window.location.href = `/api/calendar/google/auth?userId=${user.id}`;
         }
+      } else if (id === 'external_db') {
+        const provider = externalDbForm.provider;
+        const existing = statusMap.external_db?.config || {};
+        setExternalDbMsg(null);
+
+        const apiKeyInput = externalDbForm.apiKey.trim();
+        const finalApiKey = apiKeyInput.startsWith('•') ? existing.apiKey : apiKeyInput;
+
+        let config: any;
+        if (provider === 'supabase') {
+          const projectUrl = externalDbForm.projectUrl.trim();
+          const table = externalDbForm.table.trim();
+          const searchColumn = externalDbForm.searchColumn.trim();
+          if (!projectUrl || !finalApiKey || !table || !searchColumn) {
+            setExternalDbMsg({ ok: false, text: 'Informe a URL do projeto, a chave de API, a tabela e a coluna de busca.' });
+            return;
+          }
+          config = { provider, projectUrl, apiKey: finalApiKey, table, searchColumn };
+        } else {
+          const projectId = externalDbForm.projectId.trim();
+          const collection = externalDbForm.collection.trim();
+          const searchField = externalDbForm.searchField.trim();
+          if (!projectId || !finalApiKey || !collection || !searchField) {
+            setExternalDbMsg({ ok: false, text: 'Informe o ID do projeto, a chave de API, a coleção e o campo de busca.' });
+            return;
+          }
+          config = { provider, projectId, apiKey: finalApiKey, collection, searchField };
+        }
+
+        const res = await fetch('/api/external-db/test', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(config),
+        });
+        const data = await res.json();
+        if (!data.success) { setExternalDbMsg({ ok: false, text: data.error || 'Credenciais inválidas.' }); return; }
+
+        await upsertIntegration('external_db', 'Banco de Dados Externo', 'connected', config);
+        setActiveModal(null);
+      } else if (id === 'email') {
+        const provider = emailForm.provider;
+        const existing = statusMap.email?.config || {};
+        setEmailMsg(null);
+
+        const fromEmail = emailForm.fromEmail.trim();
+        const fromName = emailForm.fromName.trim();
+        if (!fromEmail) { setEmailMsg({ ok: false, text: 'Informe o e-mail de remetente.' }); return; }
+
+        const keyInput = emailForm.apiKey.trim();
+        const finalApiKey = keyInput.startsWith('•') ? existing.apiKey : keyInput;
+        if (!finalApiKey) { setEmailMsg({ ok: false, text: 'Informe a chave de API.' }); return; }
+
+        const res = await fetch('/api/email/test', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ provider, apiKey: finalApiKey }),
+        });
+        const data = await res.json();
+        if (!data.success) { setEmailMsg({ ok: false, text: data.error || 'Credencial inválida.' }); return; }
+
+        await upsertIntegration('email', 'E-mail', 'connected', { provider, apiKey: finalApiKey, fromEmail, fromName });
+        setActiveModal(null);
       }
     } finally {
       setSavingIntegration(false);
@@ -439,8 +567,18 @@ function Integrations() {
                     <CalendarDays className="h-5 w-5 text-violet-500" />
                   </div>
                 )}
+                {activeModal === 'external_db' && (
+                  <div className="h-10 w-10 bg-cyan-500/10 rounded-lg flex items-center justify-center border border-cyan-500/20">
+                    <Database className="h-5 w-5 text-cyan-500" />
+                  </div>
+                )}
+                {activeModal === 'email' && (
+                  <div className="h-10 w-10 bg-amber-500/10 rounded-lg flex items-center justify-center border border-amber-500/20">
+                    <Mail className="h-5 w-5 text-amber-500" />
+                  </div>
+                )}
                 {/* Fallback Icon for others like webhook/payments */}
-                {!['instagram', 'facebook', 'calendar'].includes(activeModal) && (
+                {!['instagram', 'facebook', 'calendar', 'external_db', 'email'].includes(activeModal) && (
                   <div className="h-10 w-10 bg-secondary rounded-lg flex items-center justify-center border border-border">
                     <Webhook className="h-5 w-5 text-foreground" />
                   </div>
@@ -716,6 +854,164 @@ function Integrations() {
                     </div>
                   )}
                 </>
+              ) : activeModal === 'external_db' ? (
+                <>
+                  <div className="p-4 bg-secondary border border-border rounded-lg text-sm mb-2">
+                    Conecte o seu próprio banco de dados (Supabase ou Firebase) para que o agente ganhe a ferramenta <code>consultar_dados_externos</code>, podendo buscar informações já cadastradas no seu sistema (clientes, fornecedores, produtos, etc.) durante a conversa. Isso não afeta os dados do seu painel BizPilot.
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="externalDbProvider">Provedor</Label>
+                    <select
+                      id="externalDbProvider"
+                      value={externalDbForm.provider}
+                      onChange={(e) => setExternalDbForm(prev => ({ ...prev, provider: e.target.value }))}
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      {EXTERNAL_DB_PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                    </select>
+                  </div>
+
+                  {externalDbForm.provider === 'supabase' ? (
+                    <>
+                      <div className="p-3 bg-secondary/50 border border-border rounded-lg text-xs text-muted-foreground space-y-1.5">
+                        <p>1. No seu projeto Supabase, acesse Configurações do Projeto → API.</p>
+                        <p>2. Copie a "Project URL" e a chave "anon public" (ou uma chave com permissão somente leitura na tabela).</p>
+                        <p>3. Informe o nome da tabela e a coluna que o agente vai usar para buscar (ex: nome, codigo).</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="externalDbProjectUrl">URL do Projeto</Label>
+                        <Input
+                          id="externalDbProjectUrl" placeholder="https://xxxxxxxx.supabase.co"
+                          value={externalDbForm.projectUrl}
+                          onChange={(e) => setExternalDbForm(prev => ({ ...prev, projectUrl: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="externalDbApiKey">Chave de API (anon ou service)</Label>
+                        <Input
+                          id="externalDbApiKey" type="password"
+                          value={externalDbForm.apiKey}
+                          onChange={(e) => setExternalDbForm(prev => ({ ...prev, apiKey: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="externalDbTable">Tabela</Label>
+                        <Input
+                          id="externalDbTable" placeholder="Ex: clientes"
+                          value={externalDbForm.table}
+                          onChange={(e) => setExternalDbForm(prev => ({ ...prev, table: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="externalDbSearchColumn">Coluna de busca</Label>
+                        <Input
+                          id="externalDbSearchColumn" placeholder="Ex: nome"
+                          value={externalDbForm.searchColumn}
+                          onChange={(e) => setExternalDbForm(prev => ({ ...prev, searchColumn: e.target.value }))}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="p-3 bg-secondary/50 border border-border rounded-lg text-xs text-muted-foreground space-y-1.5">
+                        <p>1. No Console do Firebase, acesse Configurações do projeto e copie o "ID do projeto".</p>
+                        <p>2. Gere uma chave Web API em Configurações do projeto → Geral, ou em APIs e Serviços → Credenciais no Google Cloud Console.</p>
+                        <p>3. Garanta que as regras de segurança do Firestore permitam leitura para a coleção informada.</p>
+                        <p>4. Informe o nome da coleção e o campo que o agente vai usar para buscar (ex: nome, codigo).</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="externalDbProjectId">ID do Projeto</Label>
+                        <Input
+                          id="externalDbProjectId" placeholder="meu-projeto-firebase"
+                          value={externalDbForm.projectId}
+                          onChange={(e) => setExternalDbForm(prev => ({ ...prev, projectId: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="externalDbFirebaseApiKey">Chave de API (Web API Key)</Label>
+                        <Input
+                          id="externalDbFirebaseApiKey" type="password"
+                          value={externalDbForm.apiKey}
+                          onChange={(e) => setExternalDbForm(prev => ({ ...prev, apiKey: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="externalDbCollection">Coleção</Label>
+                        <Input
+                          id="externalDbCollection" placeholder="Ex: clientes"
+                          value={externalDbForm.collection}
+                          onChange={(e) => setExternalDbForm(prev => ({ ...prev, collection: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="externalDbSearchField">Campo de busca</Label>
+                        <Input
+                          id="externalDbSearchField" placeholder="Ex: nome"
+                          value={externalDbForm.searchField}
+                          onChange={(e) => setExternalDbForm(prev => ({ ...prev, searchField: e.target.value }))}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {externalDbMsg && (
+                    <div className={`flex items-start gap-2 text-sm p-3 rounded-lg ${externalDbMsg.ok ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                      <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /> {externalDbMsg.text}
+                    </div>
+                  )}
+                </>
+              ) : activeModal === 'email' ? (
+                <>
+                  <div className="p-4 bg-secondary border border-border rounded-lg text-sm mb-2">
+                    Conecte um provedor de e-mail. Com isso, seus agentes ganham automaticamente a ferramenta <code>enviar_email</code> para enviar e-mails (orçamentos, comprovantes, materiais) para os leads durante a conversa.
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="emailProvider">Provedor</Label>
+                    <select
+                      id="emailProvider"
+                      value={emailForm.provider}
+                      onChange={(e) => setEmailForm(prev => ({ ...prev, provider: e.target.value }))}
+                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    >
+                      {EMAIL_PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="emailApiKey">Chave de API</Label>
+                    <Input
+                      id="emailApiKey" type="password"
+                      value={emailForm.apiKey}
+                      onChange={(e) => setEmailForm(prev => ({ ...prev, apiKey: e.target.value }))}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {EMAIL_PROVIDERS.find(p => p.value === emailForm.provider)?.help}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="emailFromEmail">E-mail de remetente</Label>
+                    <Input
+                      id="emailFromEmail" type="email" placeholder="contato@seudominio.com"
+                      value={emailForm.fromEmail}
+                      onChange={(e) => setEmailForm(prev => ({ ...prev, fromEmail: e.target.value }))}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Precisa ser um e-mail/domínio verificado no painel do provedor escolhido.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="emailFromName">Nome de remetente (opcional)</Label>
+                    <Input
+                      id="emailFromName" placeholder="Ex: Salão da Maria"
+                      value={emailForm.fromName}
+                      onChange={(e) => setEmailForm(prev => ({ ...prev, fromName: e.target.value }))}
+                    />
+                  </div>
+                  {emailMsg && (
+                    <div className={`flex items-start gap-2 text-sm p-3 rounded-lg ${emailMsg.ok ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                      <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /> {emailMsg.text}
+                    </div>
+                  )}
+                </>
               ) : (
                 <div className="p-4 bg-secondary border border-border rounded-lg text-sm">
                   Configurações detalhadas para este módulo serão liberadas em breve. Você pode ativar o módulo agora para reservar seu acesso antecipado.
@@ -723,7 +1019,7 @@ function Integrations() {
               )}
 
               <div className="pt-4 flex justify-between gap-3">
-                {['webhook', 'payments', 'instagram', 'facebook', 'calendar'].includes(activeModal) && getStatus(activeModal) === 'connected' ? (
+                {['webhook', 'payments', 'instagram', 'facebook', 'calendar', 'external_db', 'email'].includes(activeModal) && getStatus(activeModal) === 'connected' ? (
                   <Button type="button" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={() => handleDisconnectIntegration(activeModal)}>
                     Desconectar
                   </Button>
