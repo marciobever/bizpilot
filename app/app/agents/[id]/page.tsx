@@ -488,12 +488,16 @@ export default function AgentConfig() {
   };
 
   const applyTemplate = (tpl: PromptTemplate) => {
-    const interpolated = interpolateTemplate(tpl, agentName, role, niche);
+    // Aplicar um template é adotar a persona dele como ponto de partida: cargo,
+    // tom, prompt e limites passam a ser os do template. A empresa (niche) é do
+    // usuário, então é preservada. A saudação antiga é limpa para não insistir
+    // num cargo que não existe mais.
+    const interpolated = interpolateTemplate(tpl, agentName, tpl.role, niche);
     setSystemPrompt(interpolated);
     setLimitations(tpl.limitations);
-    if (!tone || tone === "Profissional e Direto") setTone(tpl.tone);
-    if (!role) setRole(tpl.role);
-    if (tpl.enableDataRecords) setDataRecordsEnabled(true);
+    setRole(tpl.role);
+    setTone(tpl.tone);
+    setDataRecordsEnabled(!!tpl.enableDataRecords);
     setGreeting("");
     setShowTemplates(false);
   };
@@ -1385,124 +1389,125 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
           )}
 
           {activeTab === "instructions" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Instruções e Limites</CardTitle>
-                <CardDescription>O núcleo do agente. Defina o que ele deve e não deve fazer — quanto mais detalhado, melhor ele vai se comportar.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-
-                {/* Toolbar de chips */}
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => { setShowTemplates(v => !v); setShowInstructionsAI(false); }}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${showTemplates ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border bg-card hover:border-brand-500/40"}`}>
-                    <Puzzle className="h-3.5 w-3.5" /> Templates
-                  </button>
-                  <button type="button" onClick={() => { setShowInstructionsAI(v => !v); setShowTemplates(false); }}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${showInstructionsAI ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border bg-card hover:border-brand-500/40"}`}>
-                    <Wand2 className="h-3.5 w-3.5" /> Gerar com IA
-                  </button>
-                  <button type="button" onClick={handleAutoComplete}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-card text-xs transition-colors hover:border-brand-500/40">
-                    <Zap className="h-3.5 w-3.5" /> Auto-completar
-                  </button>
-                </div>
-
-                {/* Painel: templates */}
-                {showTemplates && (
-                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 rounded-lg border border-border bg-secondary/20 p-3">
-                    {PROMPT_TEMPLATES.map((tpl) => (
-                      <button
-                        key={tpl.id}
-                        type="button"
-                        onClick={() => { applyTemplate(tpl); setShowTemplates(false); }}
-                        className="text-left p-3 rounded-lg border border-border bg-card hover:border-brand-500 hover:bg-brand-500/5 transition-all group"
-                      >
-                        <div className="text-lg mb-1">{tpl.emoji}</div>
-                        <div className="font-medium text-sm group-hover:text-brand-300 transition-colors">{tpl.label}</div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{tpl.description}</div>
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => { setSystemPrompt(""); setShowTemplates(false); }}
-                      className="text-left p-3 rounded-lg border border-dashed border-border bg-background hover:border-muted-foreground/40 transition-all"
-                    >
-                      <div className="text-lg mb-1">✏️</div>
-                      <div className="font-medium text-sm">Escrever do zero</div>
-                      <div className="text-[11px] text-muted-foreground mt-0.5">Prompt em branco, controle total.</div>
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Instruções do Agente</CardTitle>
+                  <CardDescription>O núcleo do comportamento — o que o agente deve e não deve fazer. Quanto mais específico, melhor.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Toolbar de chips */}
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => { setShowTemplates(v => !v); setShowInstructionsAI(false); }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${showTemplates ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border bg-card hover:border-brand-500/40"}`}>
+                      <Puzzle className="h-3.5 w-3.5" /> Templates
+                    </button>
+                    <button type="button" onClick={() => { setShowInstructionsAI(v => !v); setShowTemplates(false); }}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${showInstructionsAI ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border bg-card hover:border-brand-500/40"}`}>
+                      <Wand2 className="h-3.5 w-3.5" /> Gerar com IA
+                    </button>
+                    <button type="button" onClick={handleAutoComplete}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-card text-xs transition-colors hover:border-brand-500/40">
+                      <Zap className="h-3.5 w-3.5" /> Auto-completar
                     </button>
                   </div>
-                )}
 
-                {/* Painel: gerar com IA */}
-                {showInstructionsAI && (
-                  <div className="flex flex-col sm:flex-row gap-2 rounded-lg border border-border bg-secondary/20 p-3">
+                  {showTemplates && (
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 rounded-lg border border-border bg-secondary/20 p-3">
+                      {PROMPT_TEMPLATES.map((tpl) => (
+                        <button
+                          key={tpl.id}
+                          type="button"
+                          onClick={() => { applyTemplate(tpl); setShowTemplates(false); }}
+                          className="text-left p-3 rounded-lg border border-border bg-card hover:border-brand-500 hover:bg-brand-500/5 transition-all group"
+                        >
+                          <div className="text-lg mb-1">{tpl.emoji}</div>
+                          <div className="font-medium text-sm group-hover:text-brand-300 transition-colors">{tpl.label}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{tpl.description}</div>
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => { setSystemPrompt(""); setShowTemplates(false); }}
+                        className="text-left p-3 rounded-lg border border-dashed border-border bg-background hover:border-muted-foreground/40 transition-all"
+                      >
+                        <div className="text-lg mb-1">✏️</div>
+                        <div className="font-medium text-sm">Escrever do zero</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">Prompt em branco, controle total.</div>
+                      </button>
+                    </div>
+                  )}
+
+                  {showInstructionsAI && (
+                    <div className="flex flex-col sm:flex-row gap-2 rounded-lg border border-border bg-secondary/20 p-3">
+                      <Textarea
+                        className="min-h-[60px] sm:min-h-0"
+                        placeholder="Descreva o que o bot faz (ex: tirar dúvidas sobre planos, agendar consultas)…"
+                        value={instructionsAIDescription}
+                        onChange={(e) => setInstructionsAIDescription(e.target.value)}
+                        disabled={instructionsAILoading}
+                      />
+                      <Button size="sm" className="shrink-0 gap-1.5" onClick={handleGenerateInstructions} disabled={instructionsAILoading || !instructionsAIDescription.trim()}>
+                        {instructionsAILoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Gerar
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="prompt">Prompt de Instruções</Label>
+                      <span className="text-xs text-muted-foreground">{systemPrompt.length} caracteres</span>
+                    </div>
                     <Textarea
-                      className="min-h-[60px] sm:min-h-0"
-                      placeholder="Descreva o que o bot faz (ex: tirar dúvidas sobre planos, agendar consultas)…"
-                      value={instructionsAIDescription}
-                      onChange={(e) => setInstructionsAIDescription(e.target.value)}
-                      disabled={instructionsAILoading}
+                      id="prompt"
+                      className="min-h-[280px] font-mono text-sm leading-relaxed"
+                      placeholder={`Você é {nome}, atendente de {empresa}.\n\n=== SUA MISSÃO ===\n...\n\n=== COMO SE COMUNICAR ===\n...\n\n=== O QUE NUNCA FAZER ===\n...`}
+                      value={systemPrompt}
+                      onChange={(e) => setSystemPrompt(e.target.value)}
                     />
-                    <Button size="sm" className="shrink-0 gap-1.5" onClick={handleGenerateInstructions} disabled={instructionsAILoading || !instructionsAIDescription.trim()}>
-                      {instructionsAILoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Gerar
-                    </Button>
+                    <div className="flex gap-2 p-3 rounded-lg bg-secondary/20 border border-border">
+                      <Info className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        <strong className="text-foreground">Dicas:</strong> seja específico sobre o que o bot DEVE e NÃO DEVE fazer; organize com seções <code className="bg-secondary px-1 py-0.5 rounded">===</code>. Quanto mais contexto, menos ele inventa.
+                      </p>
+                    </div>
                   </div>
-                )}
+                </CardContent>
+              </Card>
 
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="prompt">Prompt de Instruções</Label>
-                    <span className="text-[10px] text-muted-foreground">{systemPrompt.length} caracteres</span>
-                  </div>
-                  <Textarea
-                    id="prompt"
-                    className="min-h-[280px] font-mono text-sm leading-relaxed"
-                    placeholder={`Você é {nome}, atendente de {empresa}.\n\n=== SUA MISSÃO ===\n...\n\n=== COMO SE COMUNICAR ===\n...\n\n=== O QUE NUNCA FAZER ===\n...`}
-                    value={systemPrompt}
-                    onChange={(e) => setSystemPrompt(e.target.value)}
-                  />
-                  <div className="flex gap-3 p-2.5 rounded-lg bg-secondary/20 border border-border">
-                    <Info className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
-                    <p className="text-[10px] text-muted-foreground leading-relaxed">
-                      <strong className="text-foreground">Dicas de escrita:</strong> Seja específico sobre o que o bot DEVE e NÃO DEVE fazer. Inclua informações sobre sua empresa, produtos e processos. Use seções com <code className="bg-secondary px-0.5 rounded">===</code> para organizar. Quanto mais contexto, menos o bot vai inventar.
-                    </p>
-                  </div>
-                </div>
-                
-                <div className="space-y-4 pt-4 border-t border-border">
-                  <Label>Limites e Regras Estritas</Label>
-                  <p className="text-xs text-muted-foreground">Estes limites moldarão o prompt dinâmico e protegerão sua empresa de "alucinações" ou comportamentos erráticos.</p>
-
+              <Card>
+                <CardHeader>
+                  <CardTitle>Limites e Regras</CardTitle>
+                  <CardDescription>Regras estritas que protegem sua empresa de respostas fora do escopo ou "alucinações".</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
                   <div className="flex gap-2">
-                    <Input 
-                      placeholder="Ex: Nunca passar o CNPJ da empresa" 
-                      value={newLimitation} 
+                    <Input
+                      placeholder="Ex: Nunca passar o CNPJ da empresa"
+                      value={newLimitation}
                       onChange={(e) => setNewLimitation(e.target.value)}
                       onKeyDown={(e) => {
-                         if (e.key === 'Enter') {
-                            e.preventDefault();
-                            if (newLimitation.trim()) {
-                               setLimitations([...limitations, newLimitation.trim()]);
-                               setNewLimitation('');
-                            }
-                         }
-                      }}
-                    />
-                    <Button 
-                      variant="secondary"
-                      onClick={() => {
-                        if (newLimitation.trim()) {
-                          setLimitations([...limitations, newLimitation.trim()]);
-                          setNewLimitation('');
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (newLimitation.trim()) {
+                            setLimitations([...limitations, newLimitation.trim()]);
+                            setNewLimitation('');
+                          }
                         }
                       }}
-                    >Adicionar</Button>
+                    />
+                    <Button variant="secondary" className="shrink-0 gap-1.5" onClick={() => {
+                      if (newLimitation.trim()) {
+                        setLimitations([...limitations, newLimitation.trim()]);
+                        setNewLimitation('');
+                      }
+                    }}>
+                      <Plus className="h-4 w-4" /> Adicionar
+                    </Button>
                   </div>
-                  
+
                   {limitations.length > 0 ? (
-                    <div className="flex flex-wrap gap-2 mt-4">
+                    <div className="flex flex-wrap gap-2">
                       {limitations.map((limit, idx) => (
                         <Badge key={idx} variant="secondary" className="pl-2.5 pr-1.5 py-1.5 flex items-center gap-1.5 max-w-full font-normal">
                           <ShieldAlert className="h-3 w-3 text-brand-500 shrink-0" />
@@ -1514,11 +1519,11 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                       ))}
                     </div>
                   ) : (
-                    <div className="text-sm text-muted-foreground text-center py-4 border rounded-md border-dashed mt-4">Nenhuma regra definida ainda. Adicione regras para evitar comportamentos inesperados.</div>
+                    <div className="text-sm text-muted-foreground text-center py-4 border rounded-md border-dashed">Nenhuma regra definida ainda.</div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {activeTab === "knowledge" && (
