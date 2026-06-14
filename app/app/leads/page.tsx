@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, X, Trash2, MessageSquare, Phone, Mail, Loader2, Search, Users, Bot } from "lucide-react";
+import { Plus, X, Trash2, MessageSquare, Phone, Mail, Loader2, Search, Users, Bot, CheckCircle2, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -11,12 +11,15 @@ import { supabase } from "@/lib/supabase";
 import { Lead } from "@/types/database";
 
 const STATUS_MAP = [
-  { id: "novo", title: "Novo Lead", color: "bg-blue-500" },
-  { id: "em_atendimento", title: "Em Atendimento", color: "bg-amber-500" },
-  { id: "qualificado", title: "Qualificado", color: "bg-brand-500" },
-  { id: "convertido", title: "Convertido", color: "bg-emerald-500" },
-  { id: "perdido", title: "Perdido", color: "bg-red-500" }
+  { id: "novo", title: "Novo", color: "bg-blue-500", pill: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
+  { id: "em_atendimento", title: "Em Atendimento", color: "bg-amber-500", pill: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  { id: "qualificado", title: "Qualificado", color: "bg-brand-500", pill: "bg-brand-500/10 text-brand-600 dark:text-brand-400" },
+  { id: "convertido", title: "Convertido", color: "bg-emerald-500", pill: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  { id: "perdido", title: "Perdido", color: "bg-red-500", pill: "bg-red-500/10 text-red-600 dark:text-red-400" },
 ];
+
+// Template de colunas compartilhado entre cabeçalho e linhas (tabela alinhada).
+const GRID_COLS = "grid grid-cols-[minmax(0,2.4fr)_minmax(0,1.8fr)_130px_150px_64px_76px] gap-4 items-center";
 
 export default function Leads() {
   const { user, loading: authLoading } = useAuth();
@@ -266,7 +269,7 @@ export default function Leads() {
 
       {/* Filtro por bot de origem */}
       {agentChips.length > 1 && (
-        <div className="flex gap-1.5 overflow-x-auto pb-2 shrink-0">
+        <div className="flex gap-1.5 overflow-x-auto pb-3 shrink-0">
           <button type="button" onClick={() => setAgentFilter("all")} className={chipCls(agentFilter === "all")}>
             Todos <span className="opacity-60">{leads.length}</span>
           </button>
@@ -278,75 +281,103 @@ export default function Leads() {
         </div>
       )}
 
-      {/* Lista de leads */}
-      <div className="flex-1 overflow-y-auto pb-4 space-y-1.5">
-        {filteredLeads.map((lead) => {
-          const si = statusInfo(lead.status || 'novo');
-          const ags = leadAgents[lead.id] || [];
-          const primary = ags[0];
-          return (
-            <div
-              key={lead.id}
-              onClick={() => openLeadDetails(lead)}
-              className="group flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border bg-card hover:border-brand-500/40 hover:bg-secondary/30 cursor-pointer transition-colors"
-            >
-              <Avatar fallback={(lead.name || "??").substring(0, 2).toUpperCase()} className="h-9 w-9 shrink-0 bg-gradient-to-br from-brand-500 to-purple-500 text-white border-0 text-xs" />
+      {/* Tabela de leads */}
+      <div className="flex-1 overflow-auto rounded-xl border border-border bg-card">
+        <div className="min-w-[760px]">
+          <div className={`${GRID_COLS} sticky top-0 z-10 bg-secondary/50 backdrop-blur px-4 py-2.5 border-b border-border text-[11px] uppercase tracking-wide text-muted-foreground font-medium`}>
+            <span>Lead</span>
+            <span>Contato</span>
+            <span>Bot de origem</span>
+            <span>Status</span>
+            <span className="text-right">Score</span>
+            <span />
+          </div>
 
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-medium text-sm truncate">{lead.name || lead.phone || 'Sem nome'}</span>
+          {filteredLeads.map((lead) => {
+            const si = statusInfo(lead.status || 'novo');
+            const ags = leadAgents[lead.id] || [];
+            const primary = ags[0];
+            return (
+              <div
+                key={lead.id}
+                onClick={() => openLeadDetails(lead)}
+                className={`${GRID_COLS} group px-4 py-3 border-b border-border/50 last:border-0 hover:bg-secondary/30 cursor-pointer transition-colors`}
+              >
+                {/* Lead */}
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar fallback={(lead.name || "??").substring(0, 2).toUpperCase()} className="h-9 w-9 shrink-0 bg-gradient-to-br from-brand-500 to-purple-500 text-white border-0 text-xs" />
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm truncate">{lead.name || lead.phone || 'Sem nome'}</div>
+                    {lead.tags && lead.tags.length > 0 ? (
+                      <div className="flex items-center gap-1 mt-1 overflow-hidden">
+                        {lead.tags.slice(0, 2).map(t => (
+                          <Badge key={t} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary">{t}</Badge>
+                        ))}
+                        {lead.tags.length > 2 && <span className="text-[10px] text-muted-foreground">+{lead.tags.length - 2}</span>}
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-muted-foreground/70 mt-0.5">Sem tags</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Contato */}
+                <div className="min-w-0 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1.5 truncate"><Phone className="h-3 w-3 shrink-0" /><span className="truncate">{lead.phone || '—'}</span></div>
+                  <div className="flex items-center gap-1.5 truncate mt-1"><Mail className="h-3 w-3 shrink-0" /><span className="truncate">{lead.email || '—'}</span></div>
+                </div>
+
+                {/* Bot de origem */}
+                <div className="min-w-0">
                   {primary ? (
-                    <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-brand-500 shrink-0">
-                      <Bot className="h-3 w-3" />{primary.name}{ags.length > 1 && <span className="opacity-60">+{ags.length - 1}</span>}
+                    <span className="inline-flex items-center gap-1.5 text-xs text-foreground max-w-full">
+                      <Bot className="h-3.5 w-3.5 text-brand-500 shrink-0" />
+                      <span className="truncate">{primary.name}{ags.length > 1 && <span className="text-muted-foreground"> +{ags.length - 1}</span>}</span>
                     </span>
                   ) : (
-                    <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-muted-foreground shrink-0">
-                      <Bot className="h-3 w-3" />Manual
+                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/70">
+                      <Bot className="h-3.5 w-3.5 shrink-0" /> Manual
                     </span>
                   )}
                 </div>
-                <div className="text-[11px] text-muted-foreground truncate">
-                  {lead.phone || 'Sem telefone'}{lead.email ? ` · ${lead.email}` : ''}
+
+                {/* Status */}
+                <div>
+                  <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-1 rounded-full ${si.pill}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${si.color}`} />
+                    {si.title}
+                  </span>
+                </div>
+
+                {/* Score */}
+                <div className="text-right text-sm font-semibold">{lead.score || 0}</div>
+
+                {/* Ações (hover) */}
+                <div className="flex items-center justify-end gap-0.5">
+                  {lead.status !== 'convertido' && (
+                    <button title="Marcar como ganho" onClick={(e) => { e.stopPropagation(); updateLeadStatus(lead.id, 'convertido'); }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-emerald-500 hover:bg-emerald-500/10 rounded p-1">
+                      <CheckCircle2 className="h-4 w-4" />
+                    </button>
+                  )}
+                  {lead.status !== 'perdido' && lead.status !== 'convertido' && (
+                    <button title="Marcar como perdido" onClick={(e) => { e.stopPropagation(); updateLeadStatus(lead.id, 'perdido'); }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:bg-red-500/10 rounded p-1">
+                      <XCircle className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
+            );
+          })}
 
-              {lead.tags && lead.tags.length > 0 && (
-                <div className="hidden lg:flex items-center gap-1 shrink-0 max-w-[180px] overflow-hidden">
-                  {lead.tags.slice(0, 2).map(t => (
-                    <Badge key={t} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary">{t}</Badge>
-                  ))}
-                  {lead.tags.length > 2 && <span className="text-[10px] text-muted-foreground">+{lead.tags.length - 2}</span>}
-                </div>
-              )}
-
-              <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-muted-foreground shrink-0 w-28">
-                <span className={`h-2 w-2 rounded-full shrink-0 ${si.color}`} />
-                <span className="truncate">{si.title}</span>
-              </span>
-
-              <div className="shrink-0 text-right w-10">
-                <div className="text-sm font-semibold text-emerald-500 leading-none">{lead.score || 0}</div>
-                <div className="text-[9px] text-muted-foreground">score</div>
-              </div>
-
-              <div className="shrink-0 hidden group-hover:flex items-center gap-1">
-                {lead.status !== 'convertido' && (
-                  <button onClick={(e) => { e.stopPropagation(); updateLeadStatus(lead.id, 'convertido'); }} className="bg-emerald-500 text-white text-[10px] px-2 py-1 rounded hover:bg-emerald-600">Ganho</button>
-                )}
-                {lead.status !== 'perdido' && lead.status !== 'convertido' && (
-                  <button onClick={(e) => { e.stopPropagation(); updateLeadStatus(lead.id, 'perdido'); }} className="bg-red-500 text-white text-[10px] px-2 py-1 rounded hover:bg-red-600">Perda</button>
-                )}
-              </div>
+          {filteredLeads.length === 0 && (
+            <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground py-20 gap-2">
+              <Users className="h-8 w-8 text-muted-foreground/40" />
+              {search.trim() || agentFilter !== "all" ? "Nenhum lead com esses filtros." : "Nenhum lead ainda."}
             </div>
-          );
-        })}
-
-        {filteredLeads.length === 0 && (
-          <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground mt-20 gap-2">
-            <Users className="h-8 w-8 text-muted-foreground/40" />
-            {search.trim() || agentFilter !== "all" ? "Nenhum lead com esses filtros." : "Nenhum lead ainda."}
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Modal: Novo Lead */}
