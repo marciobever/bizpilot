@@ -583,25 +583,29 @@ function resolveHandoffTarget(config: any, contatoName?: string): { name: string
 }
 
 // Avisa o atendente escolhido (número configurado) que uma conversa precisa de atenção.
+// Retorna '' em sucesso ou uma string com o motivo da falha (também logada no job).
 async function notifyHandoff(
   config: any, channelInfo: any, instanceName: string, leadName: string, leadPhone: string, motivo: string, targetPhone: string
-): Promise<void> {
+): Promise<string> {
   const handoffPhone = String(targetPhone || '').replace(/\D/g, '');
-  if (!handoffPhone) return;
+  if (!handoffPhone) { console.error('[handoff] Sem número de destino — aviso não enviado.'); return 'sem-numero'; }
 
   const text = `🔔 *Atendimento transferido para humano*\nCliente: ${leadName || 'Cliente'} (${leadPhone})\nMotivo: ${motivo || 'Solicitado pelo cliente'}\n\nA IA foi pausada nesta conversa. Acesse o painel de Conversas para responder.`;
 
   try {
     if (channelInfo?.provider === 'meta' && channelInfo.meta?.accessToken && channelInfo.meta?.phoneNumberId) {
-      await fetch(`https://graph.facebook.com/v21.0/${channelInfo.meta.phoneNumberId}/messages`, {
+      const r = await fetch(`https://graph.facebook.com/v21.0/${channelInfo.meta.phoneNumberId}/messages`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${channelInfo.meta.accessToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: handoffPhone, type: 'text', text: { body: text } }),
       });
-      return;
+      const body = await r.text();
+      if (!r.ok) { console.error(`[handoff] Meta falhou (${r.status}) para ${handoffPhone}:`, body); return `meta ${r.status}: ${body}`; }
+      console.log(`[handoff] Aviso enviado via Meta para ${handoffPhone}.`);
+      return '';
     }
 
-    if (!instanceName) return;
+    if (!instanceName) { console.error('[handoff] Sem instanceName — aviso não enviado.'); return 'sem-instance'; }
     const { getVariable } = await import('windmill-client');
     const tryGet = async (...paths: string[]) => {
       for (const p of paths) { try { const v = await getVariable(p); if (v) return v; } catch {} }
@@ -609,14 +613,22 @@ async function notifyHandoff(
     };
     const evoUrl = await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_URL', 'u/bevervansomarcio/EVOLUTION_API_URL');
     const evoKey = await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_KEY', 'u/bevervansomarcio/EVOLUTION_API_KEY');
-    if (!evoUrl || !evoKey) return;
+    if (!evoUrl || !evoKey) { console.error('[handoff] EVOLUTION_API_URL/KEY não resolvidos via getVariable.'); return 'sem-creds'; }
 
-    await fetch(`${evoUrl}/message/sendText/${instanceName}`, {
+    console.log(`[handoff] Enviando aviso via Evolution: instance=${instanceName} destino=${handoffPhone}`);
+    const r = await fetch(`${evoUrl}/message/sendText/${instanceName}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: evoKey },
       body: JSON.stringify({ number: `${handoffPhone}@s.whatsapp.net`, text, linkPreview: false }),
     });
-  } catch { /* notificação é best-effort */ }
+    const body = await r.text();
+    if (!r.ok) { console.error(`[handoff] Evolution falhou (${r.status}) para ${handoffPhone}:`, body); return `evolution ${r.status}: ${body}`; }
+    console.log(`[handoff] Aviso enviado via Evolution para ${handoffPhone}. Resposta:`, body.slice(0, 300));
+    return '';
+  } catch (e: any) {
+    console.error('[handoff] Exceção ao enviar aviso:', e?.message || e);
+    return `exceção: ${e?.message || e}`;
+  }
 }
 
 async function transferToHuman(
@@ -624,8 +636,10 @@ async function transferToHuman(
   leadName: string, leadPhone: string, supabase: any
 ): Promise<string> {
   const target = resolveHandoffTarget(config, args?.contato);
+  console.log(`[handoff] contato pedido="${args?.contato || ''}" → resolvido: ${target ? `${target.name || '(sem nome)'} / ${target.phone}` : 'NENHUM'}`);
   await supabase.from('conversations').update({ status: 'paused' }).eq('id', conversationId);
-  await notifyHandoff(config, channelInfo, instanceName, leadName, leadPhone, args?.motivo || '', target?.phone || '');
+  const notifyResult = await notifyHandoff(config, channelInfo, instanceName, leadName, leadPhone, args?.motivo || '', target?.phone || '');
+  if (notifyResult) console.error('[handoff] Aviso ao atendente NÃO entregue. Motivo:', notifyResult);
   const who = target?.name ? target.name : 'um atendente';
   return `Atendimento transferido para ${who} com sucesso e a IA foi pausada nesta conversa. Responda ao cliente em 1 frase curta avisando que ${who} vai continuar o atendimento em instantes.`;
 }
