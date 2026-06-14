@@ -13,10 +13,19 @@ function escapeHtml(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+// Transforma URLs (http/https) em links clicáveis. Recebe texto já escapado.
+function linkify(escaped: string) {
+  return escaped.replace(/(https?:\/\/[^\s<]+)/g, (url) => {
+    const trail = (url.match(/[.,;:!?)]+$/) || [''])[0];
+    const clean = trail ? url.slice(0, url.length - trail.length) : url;
+    return `<a href="${clean}" style="color:#1e88ff;text-decoration:underline;word-break:break-all;">${clean}</a>${trail}`;
+  });
+}
+
 // Embrulha a mensagem em texto puro (escrita pela IA) num template HTML limpo:
-// card branco, fonte legível, quebras de linha preservadas e assinatura opcional.
+// card branco, fonte legível, links clicáveis, quebras de linha e assinatura opcional.
 function buildEmailHtml(body: string, fromName?: string) {
-  const safe = escapeHtml(body).replace(/\r\n|\r|\n/g, '<br>');
+  const safe = linkify(escapeHtml(body)).replace(/\r\n|\r|\n/g, '<br>');
   const signature = fromName
     ? `<div style="margin-top:20px;border-top:1px solid #e5e7eb;padding-top:14px;color:#6b7280;font-size:13px;">— ${escapeHtml(fromName)}</div>`
     : '';
