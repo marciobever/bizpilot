@@ -230,7 +230,12 @@ export default function Conversations() {
   });
 
   const chipCls = (active: boolean) =>
-    `shrink-0 whitespace-nowrap text-xs px-2.5 py-1 rounded-full border transition-colors ${active ? 'bg-brand-500 text-white border-brand-500' : 'bg-secondary/30 text-muted-foreground border-border hover:bg-secondary'}`;
+    `shrink-0 whitespace-nowrap text-[11px] px-2 py-0.5 rounded-full border transition-colors ${active ? 'bg-brand-500 text-white border-brand-500' : 'bg-secondary/40 text-muted-foreground border-border hover:bg-secondary'}`;
+
+  const statusMeta = (s: string) =>
+    s === 'paused' ? { dot: 'bg-yellow-500', label: 'Pausado', color: 'text-yellow-500' }
+    : s === 'closed' ? { dot: 'bg-muted-foreground', label: 'Resolvido', color: 'text-muted-foreground' }
+    : { dot: 'bg-emerald-500', label: 'Ativo', color: 'text-emerald-500' };
 
   if (loading) {
      return (
@@ -255,7 +260,7 @@ export default function Conversations() {
             />
           </div>
           {agentChips.length > 1 && (
-            <div className="flex gap-1.5 overflow-x-auto mt-3 pb-1">
+            <div className="flex gap-1.5 overflow-x-auto mt-2.5 pb-0.5">
               <button type="button" onClick={() => setAgentFilter("all")} className={chipCls(agentFilter === "all")}>
                 Todos <span className="opacity-60">{conversations.length}</span>
               </button>
@@ -268,35 +273,30 @@ export default function Conversations() {
           )}
         </div>
         <div className="flex-1 overflow-auto">
-          {filteredConversations.map((c) => (
+          {filteredConversations.map((c: any) => {
+            const sm = statusMeta(c.status);
+            return (
             <button
               key={c.id}
               onClick={() => setActiveId(c.id)}
-              className={`w-full text-left p-4 border-b border-border transition-colors hover:bg-secondary/40 flex gap-3 ${activeId === c.id ? 'bg-secondary/40 border-l-2 border-l-brand-500' : 'border-l-2 border-l-transparent'}`}
+              className={`w-full text-left px-3 py-2.5 border-b border-border/60 transition-colors hover:bg-secondary/40 flex gap-2.5 items-center ${activeId === c.id ? 'bg-secondary/50 border-l-2 border-l-brand-500' : 'border-l-2 border-l-transparent'}`}
             >
-              <Avatar fallback={(c.lead?.name || "??").substring(0, 2).toUpperCase()} className="h-10 w-10 shrink-0 bg-gradient-to-br from-brand-500 to-purple-500 text-white border-0" />
-              <div className="flex-1 min-w-0 overflow-hidden">
-                <div className="flex justify-between items-baseline mb-1">
-                  <div className="font-medium text-sm truncate">{c.lead?.name || c.lead?.phone || 'Desconhecido'}</div>
-                  <div className="text-xs text-muted-foreground shrink-0 ml-2">{formatListTime(c.last_message_at)}</div>
+              <Avatar fallback={(c.lead?.name || "??").substring(0, 2).toUpperCase()} className="h-9 w-9 shrink-0 bg-gradient-to-br from-brand-500 to-purple-500 text-white border-0 text-xs" />
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-center gap-2">
+                  <span className="font-medium text-sm truncate">{c.lead?.name || c.lead?.phone || 'Desconhecido'}</span>
+                  <span className="text-[11px] text-muted-foreground shrink-0">{formatListTime(c.last_message_at)}</span>
                 </div>
-                <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary gap-1">
-                     <Bot className="h-2.5 w-2.5" /> {c.agent?.name || 'Nenhum'}
-                   </Badge>
-                   {c.status === 'paused' && (
-                      <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4">Pausado</Badge>
-                   )}
-                   {c.status === 'closed' && (
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">Resolvido</Badge>
-                   )}
-                   {c.status === 'active' && (
-                      <span className="flex items-center gap-1 text-[10px] text-emerald-500"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Ativo</span>
-                   )}
+                <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${sm.dot}`} />
+                  <Bot className="h-3 w-3 shrink-0 text-muted-foreground" />
+                  <span className="text-[11px] text-muted-foreground truncate">{c.agent?.name || 'Sem agente'}</span>
+                  {c.status !== 'active' && <span className={`text-[11px] shrink-0 ${sm.color}`}>· {sm.label}</span>}
                 </div>
               </div>
             </button>
-          ))}
+            );
+          })}
           {filteredConversations.length === 0 && (
             <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground mt-16 px-4 gap-2">
               <MessageSquare className="h-8 w-8 text-muted-foreground/40" />
@@ -311,59 +311,58 @@ export default function Conversations() {
         {activeConv ? (
           <>
             {/* Chat Header */}
-            <div className={`h-16 border-b border-border flex items-center justify-between px-6 shrink-0 ${activeConv.status === 'paused' ? 'bg-yellow-500/10' : ''}`}>
-              <div className="flex items-center gap-3">
-                 <Avatar fallback={(activeConv.lead?.name || "??").substring(0, 2).toUpperCase()} className="bg-gradient-to-br from-brand-500 to-purple-500 text-white border-0" />
-                 <div>
-                   <div className="font-medium text-sm flex items-center gap-2">
-                     {activeConv.lead?.name || 'Desconhecido'} {activeConv.lead?.phone ? `(${activeConv.lead?.phone})` : ''}
-                     <Smartphone className="h-3 w-3 text-muted-foreground" />
+            <div className={`h-14 border-b border-border flex items-center justify-between gap-3 px-4 shrink-0 ${activeConv.status === 'paused' ? 'bg-yellow-500/10' : ''}`}>
+              <div className="flex items-center gap-2.5 min-w-0">
+                 <Avatar fallback={(activeConv.lead?.name || "??").substring(0, 2).toUpperCase()} className="h-9 w-9 shrink-0 bg-gradient-to-br from-brand-500 to-purple-500 text-white border-0 text-xs" />
+                 <div className="min-w-0">
+                   <div className="font-medium text-sm truncate">
+                     {activeConv.lead?.name || 'Desconhecido'} {activeConv.lead?.phone ? <span className="text-muted-foreground font-normal">· {activeConv.lead?.phone}</span> : ''}
                    </div>
-                   <div className="text-xs font-medium flex items-center gap-1">
+                   <div className="text-[11px] font-medium truncate">
                      {activeConv.status === 'paused' ? (
-                       <span className="text-yellow-500">IA Pausada (Atendimento Humano)</span>
+                       <span className="text-yellow-500">IA pausada — atendimento humano</span>
                      ) : activeConv.status === 'closed' ? (
-                       <span className="text-muted-foreground">Conversa Encerrada</span>
+                       <span className="text-muted-foreground">Conversa encerrada</span>
                      ) : (
                        <span className="text-emerald-500">Em atendimento por {activeConv.agent?.name || 'IA'}</span>
                      )}
                    </div>
                  </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
                   className={`h-8 ${activeConv.status === 'paused' ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/50 hover:bg-emerald-500/20' : 'bg-yellow-500/10 text-yellow-500 border-yellow-500/50 hover:bg-yellow-500/20'}`}
                   onClick={togglePause}
                   disabled={activeConv.status === 'closed'}
                 >
-                  {activeConv.status === 'paused' ? <PlayCircle className="mr-2 h-4 w-4" /> : <PauseCircle className="mr-2 h-4 w-4" />}
-                  {activeConv.status === 'paused' ? 'Retomar IA' : 'Assumir Conversa'}
+                  {activeConv.status === 'paused' ? <PlayCircle className="h-4 w-4 sm:mr-1.5" /> : <PauseCircle className="h-4 w-4 sm:mr-1.5" />}
+                  <span className="hidden sm:inline">{activeConv.status === 'paused' ? 'Retomar IA' : 'Assumir'}</span>
                 </Button>
                 {activeConv.status !== 'closed' && (
                     <Button variant="outline" size="sm" className="h-8" onClick={markResolved}>
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
-                      Marcar como Resolvido
+                      <CheckCircle2 className="h-4 w-4 sm:mr-1.5" />
+                      <span className="hidden sm:inline">Resolver</span>
                     </Button>
                 )}
               </div>
             </div>
 
             {/* Chat Log */}
-            <div className="flex-1 overflow-auto p-6 space-y-6">
-              {messages.map((msg, idx) => {
+            <div className="flex-1 overflow-auto p-4 space-y-3">
+              {messages.map((msg) => {
                 const isLead = msg.sender_type === 'lead';
                 const isHuman = msg.sender_type === 'human';
                 const isAgent = msg.sender_type === 'agent';
 
                 if (isLead) {
                    return (
-                     <div key={msg.id} className="flex gap-3 max-w-[80%]">
-                       <Avatar fallback="L" className="h-8 w-8" />
+                     <div key={msg.id} className="flex gap-2 max-w-[80%]">
+                       <Avatar fallback="L" className="h-7 w-7 shrink-0 text-[10px]" />
                        <div>
-                         <div className="text-[10px] text-muted-foreground mb-1 ml-1">{formatTime(msg.created_at)}</div>
-                         <div className="bg-secondary p-3 rounded-2xl rounded-tl-sm text-sm text-foreground">
+                         <div className="text-[10px] text-muted-foreground mb-0.5 ml-1">{formatTime(msg.created_at)}</div>
+                         <div className="bg-secondary px-3 py-2 rounded-2xl rounded-tl-sm text-sm text-foreground whitespace-pre-wrap break-words">
                            {msg.content}
                          </div>
                        </div>
@@ -371,18 +370,18 @@ export default function Conversations() {
                    );
                 } else {
                    return (
-                     <div key={msg.id} className="flex gap-3 max-w-[80%] ml-auto justify-end">
-                       <div className="items-end flex flex-col">
-                         <div className="text-[10px] text-muted-foreground mb-1 mr-1 flex items-center gap-1">
+                     <div key={msg.id} className="flex gap-2 max-w-[80%] ml-auto justify-end">
+                       <div className="items-end flex flex-col min-w-0">
+                         <div className="text-[10px] text-muted-foreground mb-0.5 mr-1 flex items-center gap-1">
                            {formatTime(msg.created_at)}
                            {isAgent && <Bot className="h-3 w-3" />}
                            {isHuman && <User className="h-3 w-3" />}
                          </div>
-                         <div className={`p-3 rounded-2xl rounded-tr-sm text-sm text-white ${isHuman ? 'bg-emerald-600' : 'bg-brand-600'}`}>
+                         <div className={`px-3 py-2 rounded-2xl rounded-tr-sm text-sm text-white whitespace-pre-wrap break-words ${isHuman ? 'bg-emerald-600' : 'bg-brand-600'}`}>
                            {msg.content}
                          </div>
                        </div>
-                       <Avatar fallback={isHuman ? "H" : "A"} className={`h-8 w-8 text-white border-0 ${isHuman ? 'bg-emerald-500' : 'bg-gradient-to-br from-brand-500 to-purple-500'}`} />
+                       <Avatar fallback={isHuman ? "H" : "A"} className={`h-7 w-7 shrink-0 text-[10px] text-white border-0 ${isHuman ? 'bg-emerald-500' : 'bg-gradient-to-br from-brand-500 to-purple-500'}`} />
                      </div>
                    );
                 }
