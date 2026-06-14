@@ -17,6 +17,7 @@ export default function Conversations() {
   const [inputText, setInputText] = useState("");
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState<string>("all");
+  const [showResolved, setShowResolved] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
 
@@ -83,12 +84,14 @@ export default function Conversations() {
           lead:leads(*),
           agent:agents(*)
         `)
-        .order('last_message_at', { ascending: false });
-        
+        .order('last_message_at', { ascending: false })
+        .limit(300);
+
       if (error) throw error;
       setConversations(data || []);
       if (!activeId && data && data.length > 0) {
-        setActiveId(data[0].id);
+        const firstOpen = data.find((c: any) => c.status !== 'closed') || data[0];
+        setActiveId(firstOpen.id);
       }
       setLoading(false);
     } catch (error) {
@@ -222,7 +225,13 @@ export default function Conversations() {
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
   })();
 
+  const resolvedCount = conversations.filter((c: any) => c.status === 'closed').length;
+  const openCount = conversations.length - resolvedCount;
+
   const filteredConversations = conversations.filter((c: any) => {
+    const isClosed = c.status === 'closed';
+    // Em aberto (padrão) esconde resolvidas; "Resolvidas" mostra só as resolvidas.
+    if (showResolved ? !isClosed : isClosed) return false;
     if (agentFilter !== "all" && (c.agent?.id || "none") !== agentFilter) return false;
     if (!search.trim()) return true;
     const q = search.trim().toLowerCase();
@@ -281,6 +290,14 @@ export default function Conversations() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
+          </div>
+          <div className="flex gap-1.5 mt-2.5">
+            <button type="button" onClick={() => setShowResolved(false)} className={chipCls(!showResolved)}>
+              Em aberto <span className="opacity-60">{openCount}</span>
+            </button>
+            <button type="button" onClick={() => setShowResolved(true)} className={chipCls(showResolved)}>
+              Resolvidas <span className="opacity-60">{resolvedCount}</span>
+            </button>
           </div>
           {agentChips.length > 1 && (
             <div className="flex gap-1.5 overflow-x-auto mt-2.5 pb-0.5">
