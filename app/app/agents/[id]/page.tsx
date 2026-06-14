@@ -1392,77 +1392,66 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
               </CardHeader>
               <CardContent className="space-y-6">
 
-                {/* Seletor de ponto de partida */}
-                {!showTemplates ? (
-                  <div className="flex flex-col sm:flex-row gap-3 p-3 rounded-lg bg-secondary/30 border border-border">
-                    <div className="flex gap-2">
-                      <Info className="h-4 w-4 text-brand-400 shrink-0 mt-0.5" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs text-muted-foreground">
-                          <strong className="text-foreground">Não sabe por onde começar?</strong> Use um template pronto para o seu nicho e personalize depois. Ou escreva do zero se preferir controle total.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2 shrink-0">
-                      <Button variant="outline" size="sm" onClick={() => setShowTemplates(true)} className="text-xs h-7 whitespace-nowrap">
-                        Ver Templates
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={handleAutoComplete} className="text-xs h-7 whitespace-nowrap">
-                        Auto-completar
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setShowInstructionsAI(!showInstructionsAI)} className="text-xs h-7 whitespace-nowrap text-brand-400 hover:text-brand-300">
-                        <Wand2 className="mr-1.5 h-3.5 w-3.5" />
-                        Gerar com IA
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold">Escolha um template de ponto de partida</div>
-                      <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setShowTemplates(false)}>Fechar</Button>
-                    </div>
-                    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                      {PROMPT_TEMPLATES.map((tpl) => (
-                        <button
-                          key={tpl.id}
-                          type="button"
-                          onClick={() => applyTemplate(tpl)}
-                          className="text-left p-3 rounded-lg border border-border bg-card hover:border-brand-500 hover:bg-brand-500/5 transition-all group"
-                        >
-                          <div className="text-lg mb-1">{tpl.emoji}</div>
-                          <div className="font-medium text-sm group-hover:text-brand-300 transition-colors">{tpl.label}</div>
-                          <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{tpl.description}</div>
-                        </button>
-                      ))}
+                {/* Toolbar de chips */}
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => { setShowTemplates(v => !v); setShowInstructionsAI(false); }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${showTemplates ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border bg-card hover:border-brand-500/40"}`}>
+                    <Puzzle className="h-3.5 w-3.5" /> Templates
+                  </button>
+                  <button type="button" onClick={() => { setShowInstructionsAI(v => !v); setShowTemplates(false); }}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs transition-colors ${showInstructionsAI ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border bg-card hover:border-brand-500/40"}`}>
+                    <Wand2 className="h-3.5 w-3.5" /> Gerar com IA
+                  </button>
+                  <button type="button" onClick={handleAutoComplete}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-card text-xs transition-colors hover:border-brand-500/40">
+                    <Zap className="h-3.5 w-3.5" /> Auto-completar
+                  </button>
+                </div>
+
+                {/* Painel: templates */}
+                {showTemplates && (
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 rounded-lg border border-border bg-secondary/20 p-3">
+                    {PROMPT_TEMPLATES.map((tpl) => (
                       <button
+                        key={tpl.id}
                         type="button"
-                        onClick={() => { setSystemPrompt(""); setShowTemplates(false); }}
-                        className="text-left p-3 rounded-lg border border-dashed border-border bg-background hover:border-muted-foreground/40 transition-all"
+                        onClick={() => { applyTemplate(tpl); setShowTemplates(false); }}
+                        className="text-left p-3 rounded-lg border border-border bg-card hover:border-brand-500 hover:bg-brand-500/5 transition-all group"
                       >
-                        <div className="text-lg mb-1">✏️</div>
-                        <div className="font-medium text-sm">Escrever do zero</div>
-                        <div className="text-[11px] text-muted-foreground mt-0.5">Começa com prompt em branco para controle total.</div>
+                        <div className="text-lg mb-1">{tpl.emoji}</div>
+                        <div className="font-medium text-sm group-hover:text-brand-300 transition-colors">{tpl.label}</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">{tpl.description}</div>
                       </button>
-                    </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => { setSystemPrompt(""); setShowTemplates(false); }}
+                      className="text-left p-3 rounded-lg border border-dashed border-border bg-background hover:border-muted-foreground/40 transition-all"
+                    >
+                      <div className="text-lg mb-1">✏️</div>
+                      <div className="font-medium text-sm">Escrever do zero</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">Prompt em branco, controle total.</div>
+                    </button>
+                  </div>
+                )}
+
+                {/* Painel: gerar com IA */}
+                {showInstructionsAI && (
+                  <div className="flex flex-col sm:flex-row gap-2 rounded-lg border border-border bg-secondary/20 p-3">
+                    <Textarea
+                      className="min-h-[60px] sm:min-h-0"
+                      placeholder="Descreva o que o bot faz (ex: tirar dúvidas sobre planos, agendar consultas)…"
+                      value={instructionsAIDescription}
+                      onChange={(e) => setInstructionsAIDescription(e.target.value)}
+                      disabled={instructionsAILoading}
+                    />
+                    <Button size="sm" className="shrink-0 gap-1.5" onClick={handleGenerateInstructions} disabled={instructionsAILoading || !instructionsAIDescription.trim()}>
+                      {instructionsAILoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Gerar
+                    </Button>
                   </div>
                 )}
 
                 <div className="space-y-2">
-                  {showInstructionsAI && (
-                    <div className="flex flex-col sm:flex-row gap-2 p-3 rounded-lg bg-secondary/30 border border-border">
-                      <Textarea
-                        className="min-h-[60px] sm:min-h-0"
-                        placeholder="Descreva o que você espera que o bot faça (ex: tirar dúvidas sobre planos, agendar consultas, etc.)"
-                        value={instructionsAIDescription}
-                        onChange={(e) => setInstructionsAIDescription(e.target.value)}
-                        disabled={instructionsAILoading}
-                      />
-                      <Button size="sm" className="shrink-0" onClick={handleGenerateInstructions} disabled={instructionsAILoading || !instructionsAIDescription.trim()}>
-                        {instructionsAILoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Gerar"}
-                      </Button>
-                    </div>
-                  )}
                   <div className="flex items-center justify-between">
                     <Label htmlFor="prompt">Prompt de Instruções</Label>
                     <span className="text-[10px] text-muted-foreground">{systemPrompt.length} caracteres</span>
@@ -1512,26 +1501,21 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                     >Adicionar</Button>
                   </div>
                   
-                  <div className="space-y-2 mt-4">
-                     {limitations.map((limit, idx) => (
-                       <div key={idx} className="flex items-start gap-3 bg-secondary/30 p-3 rounded-md border border-border">
-                         <div className="h-5 w-5 mt-0.5 rounded border border-brand-500 bg-brand-500/20 flex items-center justify-center shrink-0">
-                           <div className="w-2.5 h-2.5 bg-brand-500 rounded-sm" />
-                         </div>
-                         <div className="flex-1">
-                           <div className="text-sm font-medium">{limit}</div>
-                         </div>
-                         <Button variant="ghost" size="sm" className="h-6 px-2 text-destructive" onClick={() => {
-                           setLimitations(limitations.filter((_, i) => i !== idx));
-                         }}>
-                           Remover
-                         </Button>
-                       </div>
-                     ))}
-                      {limitations.length === 0 && (
-                        <div className="text-sm text-muted-foreground text-center py-4 border rounded-md border-dashed">Nenhuma limitação definida. Adicione regras para evitar comportamentos inesperados.</div>
-                     )}
-                  </div>
+                  {limitations.length > 0 ? (
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      {limitations.map((limit, idx) => (
+                        <Badge key={idx} variant="secondary" className="pl-2.5 pr-1.5 py-1.5 flex items-center gap-1.5 max-w-full font-normal">
+                          <ShieldAlert className="h-3 w-3 text-brand-500 shrink-0" />
+                          <span className="truncate">{limit}</span>
+                          <button onClick={() => setLimitations(limitations.filter((_, i) => i !== idx))} className="text-muted-foreground hover:text-destructive shrink-0">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground text-center py-4 border rounded-md border-dashed mt-4">Nenhuma regra definida ainda. Adicione regras para evitar comportamentos inesperados.</div>
+                  )}
                 </div>
               </CardContent>
             </Card>
