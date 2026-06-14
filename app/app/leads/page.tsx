@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Plus, X, Trash2, MessageSquare, Phone, Mail, Loader2, Search, Users } from "lucide-react";
+import { Plus, X, Trash2, MessageSquare, Phone, Mail, Loader2, Search, Users, Bot } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -23,6 +23,9 @@ export default function Leads() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  // lead_id -> agentes (bots) que já conversaram com ele; o 1º é o de origem.
+  const [leadAgents, setLeadAgents] = useState<Record<string, { id: string; name: string }[]>>({});
+  const [agentFilter, setAgentFilter] = useState("all");
 
   // Modal de criação
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -55,6 +58,21 @@ export default function Leads() {
 
       if (error) throw error;
       setLeads(data || []);
+
+      // Origem do lead: deriva o(s) agente(s) a partir das conversas.
+      const { data: convs } = await supabase
+        .from('conversations')
+        .select('lead_id, agent_id, agent:agents(name)')
+        .order('created_at', { ascending: true });
+      const map: Record<string, { id: string; name: string }[]> = {};
+      (convs || []).forEach((c: any) => {
+        if (!c.lead_id || !c.agent_id) return;
+        const arr = map[c.lead_id] || [];
+        if (!arr.some(a => a.id === c.agent_id)) arr.push({ id: c.agent_id, name: c.agent?.name || 'Agente' });
+        map[c.lead_id] = arr;
+      });
+      setLeadAgents(map);
+
       setLoading(false);
     } catch (error) {
       console.error("Error fetching leads:", error);
@@ -186,7 +204,25 @@ export default function Leads() {
     setEditForm(prev => ({ ...prev, tags: prev.tags.filter(t => t !== tag) }));
   };
 
+  const agentChips = (() => {
+    const m = new Map<string, { id: string; name: string; count: number }>();
+    leads.forEach(l => {
+      (leadAgents[l.id] || []).forEach(a => {
+        const e = m.get(a.id) || { id: a.id, name: a.name, count: 0 };
+        e.count++;
+        m.set(a.id, e);
+      });
+    });
+    return Array.from(m.values()).sort((a, b) => a.name.localeCompare(b.name));
+  })();
+
+  const chipCls = (active: boolean) =>
+    `shrink-0 whitespace-nowrap text-[11px] px-2 py-0.5 rounded-full border transition-colors ${active ? 'bg-brand-500 text-white border-brand-500' : 'bg-secondary/40 text-muted-foreground border-border hover:bg-secondary'}`;
+
+  const statusInfo = (id: string) => STATUS_MAP.find(s => s.id === id) || STATUS_MAP[0];
+
   const filteredLeads = leads.filter(l => {
+    if (agentFilter !== "all" && !(leadAgents[l.id] || []).some(a => a.id === agentFilter)) return false;
     if (!search.trim()) return true;
     const q = search.trim().toLowerCase();
     return (l.name || "").toLowerCase().includes(q) || (l.phone || "").includes(q) || (l.email || "").toLowerCase().includes(q);
@@ -228,79 +264,89 @@ export default function Leads() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden">
-        <div className="flex md:grid md:grid-cols-5 gap-3 h-full pb-4 overflow-x-auto">
-          {STATUS_MAP.map((col) => {
-            const columnLeads = filteredLeads.filter(l => l.status === col.id || (!l.status && col.id === 'novo'));
+      {/* Filtro por bot de origem */}
+      {agentChips.length > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-2 shrink-0">
+          <button type="button" onClick={() => setAgentFilter("all")} className={chipCls(agentFilter === "all")}>
+            Todos <span className="opacity-60">{leads.length}</span>
+          </button>
+          {agentChips.map((a) => (
+            <button type="button" key={a.id} onClick={() => setAgentFilter(a.id)} className={chipCls(agentFilter === a.id)}>
+              {a.name} <span className="opacity-60">{a.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
-            return (
-              <div key={col.id} className="w-[80vw] shrink-0 md:w-auto md:min-w-0 flex flex-col bg-secondary/20 rounded-xl border border-border overflow-hidden">
-                <div className="p-3 border-b border-border bg-card flex items-center justify-between shrink-0">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full ${col.color}`} />
-                    <span className="font-semibold text-xs">{col.title}</span>
-                    <Badge variant="secondary" className="ml-1 text-[10px] h-4 px-1.5">{columnLeads.length}</Badge>
-                  </div>
-                </div>
+      {/* Lista de leads */}
+      <div className="flex-1 overflow-y-auto pb-4 space-y-1.5">
+        {filteredLeads.map((lead) => {
+          const si = statusInfo(lead.status || 'novo');
+          const ags = leadAgents[lead.id] || [];
+          const primary = ags[0];
+          return (
+            <div
+              key={lead.id}
+              onClick={() => openLeadDetails(lead)}
+              className="group flex items-center gap-3 px-3 py-2.5 rounded-lg border border-border bg-card hover:border-brand-500/40 hover:bg-secondary/30 cursor-pointer transition-colors"
+            >
+              <Avatar fallback={(lead.name || "??").substring(0, 2).toUpperCase()} className="h-9 w-9 shrink-0 bg-gradient-to-br from-brand-500 to-purple-500 text-white border-0 text-xs" />
 
-                <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                  {columnLeads.map((lead) => (
-                    <div
-                      key={lead.id}
-                      onClick={() => openLeadDetails(lead)}
-                      className="bg-card border border-border p-3 rounded-lg shadow-sm cursor-pointer hover:border-brand-500/50 transition-colors group relative"
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <Avatar fallback={(lead.name || "??").substring(0, 2).toUpperCase()} className="h-7 w-7 shrink-0 bg-gradient-to-br from-brand-500 to-purple-500 text-white border-0 text-[10px]" />
-                        <div className="min-w-0">
-                          <div className="font-medium text-sm truncate">{lead.name || lead.phone}</div>
-                          <div className="text-[11px] text-muted-foreground truncate">{lead.email || "Sem e-mail"}</div>
-                        </div>
-                      </div>
-
-                      {lead.tags && lead.tags.length > 0 && (
-                        <div className="flex items-center gap-1 flex-wrap mb-2">
-                            {lead.tags.map(t => (
-                                <Badge key={t} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary">
-                                  {t}
-                                </Badge>
-                            ))}
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between gap-1 pt-2 border-t border-border/50">
-                        <div className="text-[11px] font-medium text-emerald-500 shrink-0">
-                           Score: {lead.score || 0}
-                        </div>
-                        <Badge variant="outline" className="text-[10px] py-0 px-1.5 h-4 bg-secondary/50 border-0 text-muted-foreground truncate max-w-full">
-                          {lead.phone}
-                        </Badge>
-                      </div>
-
-                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                         {col.id !== 'convertido' && (
-                             <button onClick={(e) => { e.stopPropagation(); updateLeadStatus(lead.id, 'convertido'); }} className="bg-emerald-500 text-white text-[10px] px-2 py-1 rounded">
-                                 Ganho
-                             </button>
-                         )}
-                         {col.id !== 'perdido' && col.id !== 'convertido' && (
-                             <button onClick={(e) => { e.stopPropagation(); updateLeadStatus(lead.id, 'perdido'); }} className="bg-red-500 text-white text-[10px] px-2 py-1 rounded">
-                                 Perda
-                             </button>
-                         )}
-                      </div>
-                    </div>
-                  ))}
-                  {columnLeads.length === 0 && (
-                      <div className="text-center text-xs text-muted-foreground py-10 border border-dashed border-border rounded-lg">
-                          {search.trim() ? "Nenhum resultado" : "Vazio"}
-                      </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-medium text-sm truncate">{lead.name || lead.phone || 'Sem nome'}</span>
+                  {primary ? (
+                    <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-brand-500 shrink-0">
+                      <Bot className="h-3 w-3" />{primary.name}{ags.length > 1 && <span className="opacity-60">+{ags.length - 1}</span>}
+                    </span>
+                  ) : (
+                    <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-muted-foreground shrink-0">
+                      <Bot className="h-3 w-3" />Manual
+                    </span>
                   )}
                 </div>
+                <div className="text-[11px] text-muted-foreground truncate">
+                  {lead.phone || 'Sem telefone'}{lead.email ? ` · ${lead.email}` : ''}
+                </div>
               </div>
-            )
-          })}
-        </div>
+
+              {lead.tags && lead.tags.length > 0 && (
+                <div className="hidden lg:flex items-center gap-1 shrink-0 max-w-[180px] overflow-hidden">
+                  {lead.tags.slice(0, 2).map(t => (
+                    <Badge key={t} variant="secondary" className="text-[10px] px-1.5 py-0 h-4 bg-primary/10 text-primary">{t}</Badge>
+                  ))}
+                  {lead.tags.length > 2 && <span className="text-[10px] text-muted-foreground">+{lead.tags.length - 2}</span>}
+                </div>
+              )}
+
+              <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] text-muted-foreground shrink-0 w-28">
+                <span className={`h-2 w-2 rounded-full shrink-0 ${si.color}`} />
+                <span className="truncate">{si.title}</span>
+              </span>
+
+              <div className="shrink-0 text-right w-10">
+                <div className="text-sm font-semibold text-emerald-500 leading-none">{lead.score || 0}</div>
+                <div className="text-[9px] text-muted-foreground">score</div>
+              </div>
+
+              <div className="shrink-0 hidden group-hover:flex items-center gap-1">
+                {lead.status !== 'convertido' && (
+                  <button onClick={(e) => { e.stopPropagation(); updateLeadStatus(lead.id, 'convertido'); }} className="bg-emerald-500 text-white text-[10px] px-2 py-1 rounded hover:bg-emerald-600">Ganho</button>
+                )}
+                {lead.status !== 'perdido' && lead.status !== 'convertido' && (
+                  <button onClick={(e) => { e.stopPropagation(); updateLeadStatus(lead.id, 'perdido'); }} className="bg-red-500 text-white text-[10px] px-2 py-1 rounded hover:bg-red-600">Perda</button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {filteredLeads.length === 0 && (
+          <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground mt-20 gap-2">
+            <Users className="h-8 w-8 text-muted-foreground/40" />
+            {search.trim() || agentFilter !== "all" ? "Nenhum lead com esses filtros." : "Nenhum lead ainda."}
+          </div>
+        )}
       </div>
 
       {/* Modal: Novo Lead */}
@@ -360,8 +406,13 @@ export default function Leads() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <p className="text-sm text-muted-foreground mb-6">
-              Criado em {new Date(selectedLead.created_at).toLocaleDateString('pt-BR')}
+            <p className="text-sm text-muted-foreground mb-6 flex items-center gap-2 flex-wrap">
+              <span>Criado em {new Date(selectedLead.created_at).toLocaleDateString('pt-BR')}</span>
+              {(leadAgents[selectedLead.id] || []).length > 0 && (
+                <span className="inline-flex items-center gap-1 text-brand-500">
+                  <Bot className="h-3 w-3" /> {(leadAgents[selectedLead.id] || []).map(a => a.name).join(', ')}
+                </span>
+              )}
             </p>
 
             <div className="space-y-4">
