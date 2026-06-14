@@ -9,17 +9,42 @@ function getServiceSupabase() {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-async function sendViaResend(apiKey: string, from: string, to: string, subject: string, body: string) {
+function escapeHtml(s: string) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Embrulha a mensagem em texto puro (escrita pela IA) num template HTML limpo:
+// card branco, fonte legível, quebras de linha preservadas e assinatura opcional.
+function buildEmailHtml(body: string, fromName?: string) {
+  const safe = escapeHtml(body).replace(/\r\n|\r|\n/g, '<br>');
+  const signature = fromName
+    ? `<div style="margin-top:20px;border-top:1px solid #e5e7eb;padding-top:14px;color:#6b7280;font-size:13px;">— ${escapeHtml(fromName)}</div>`
+    : '';
+  return `<!doctype html><html><body style="margin:0;padding:0;background:#f4f5f7;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 0;">
+    <tr><td align="center">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;">
+        <tr><td style="padding:28px 32px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2937;font-size:15px;line-height:1.6;">
+          ${safe}
+          ${signature}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+async function sendViaResend(apiKey: string, from: string, to: string, subject: string, text: string, html: string) {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from, to: [to], subject, text: body }),
+    body: JSON.stringify({ from, to: [to], subject, text, html }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.message || 'Erro ao enviar e-mail via Resend.');
 }
 
-async function sendViaSendgrid(apiKey: string, from: string, to: string, subject: string, body: string) {
+async function sendViaSendgrid(apiKey: string, from: string, to: string, subject: string, text: string, html: string) {
   const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -27,7 +52,8 @@ async function sendViaSendgrid(apiKey: string, from: string, to: string, subject
       personalizations: [{ to: [{ email: to }] }],
       from: { email: from },
       subject,
-      content: [{ type: 'text/plain', value: body }],
+      // SendGrid exige text/plain antes de text/html.
+      content: [{ type: 'text/plain', value: text }, { type: 'text/html', value: html }],
     }),
   });
   if (!res.ok) {
@@ -39,7 +65,7 @@ async function sendViaSendgrid(apiKey: string, from: string, to: string, subject
 // SMTP genérico (Gmail, Outlook, Zoho, Hostinger, etc.) via nodemailer.
 async function sendViaSmtp(
   cfg: { host: string; port: number; secure: boolean; user: string; pass: string },
-  from: string, to: string, subject: string, body: string,
+  from: string, to: string, subject: string, text: string, html: string,
 ) {
   const transporter = nodemailer.createTransport({
     host: cfg.host,
@@ -47,11 +73,11 @@ async function sendViaSmtp(
     secure: cfg.secure,
     auth: { user: cfg.user, pass: cfg.pass },
   });
-  await transporter.sendMail({ from, to, subject, text: body });
+  await transporter.sendMail({ from, to, subject, text, html });
 }
 
 // Envia via Gmail API usando o refresh token obtido no "Entrar com Google".
-async function sendViaGoogle(refreshToken: string, from: string, to: string, subject: string, body: string) {
+async function sendViaGoogle(refreshToken: string, from: string, to: string, subject: string, text: string, html: string) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   if (!clientId || !clientSecret) throw new Error('GOOGLE_CLIENT_ID/SECRET não configurados no servidor.');
@@ -72,17 +98,30 @@ async function sendViaGoogle(refreshToken: string, from: string, to: string, sub
     throw new Error(tokenData?.error_description || 'Não foi possível renovar o acesso ao Google. Reconecte a conta.');
   }
 
-  // Monta a mensagem RFC 822. Assunto codificado em MIME para suportar acentos.
+  // Monta a mensagem RFC 822 multipart/alternative (texto puro + HTML).
+  // Assunto codificado em MIME para suportar acentos.
   const encodedSubject = `=?UTF-8?B?${Buffer.from(subject, 'utf-8').toString('base64')}?=`;
+  const boundary = `bp_${Date.now()}`;
   const message = [
     `From: ${from}`,
     `To: ${to}`,
     `Subject: ${encodedSubject}`,
     'MIME-Version: 1.0',
+    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    '',
+    `--${boundary}`,
     'Content-Type: text/plain; charset="UTF-8"',
     'Content-Transfer-Encoding: base64',
     '',
-    Buffer.from(body, 'utf-8').toString('base64'),
+    Buffer.from(text, 'utf-8').toString('base64'),
+    '',
+    `--${boundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    Buffer.from(html, 'utf-8').toString('base64'),
+    '',
+    `--${boundary}--`,
   ].join('\r\n');
 
   const raw = Buffer.from(message, 'utf-8')
@@ -134,23 +173,24 @@ export async function POST(req: NextRequest) {
   }
 
   const from = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
+  const html = buildEmailHtml(body, fromName);
 
   try {
     if (provider === 'sendgrid') {
       if (!apiKey) throw new Error('Chave de API ausente.');
-      await sendViaSendgrid(apiKey, fromEmail, to, subject, body);
+      await sendViaSendgrid(apiKey, fromEmail, to, subject, body, html);
     } else if (provider === 'smtp') {
       if (!config.host || !config.user || !config.pass) throw new Error('Dados de SMTP incompletos.');
       await sendViaSmtp(
         { host: config.host, port: Number(config.port) || 465, secure: config.secure !== false, user: config.user, pass: config.pass },
-        from, to, subject, body,
+        from, to, subject, body, html,
       );
     } else if (provider === 'google') {
       if (!refreshToken) throw new Error('Conta Google não autorizada. Reconecte.');
-      await sendViaGoogle(refreshToken, from, to, subject, body);
+      await sendViaGoogle(refreshToken, from, to, subject, body, html);
     } else {
       if (!apiKey) throw new Error('Chave de API ausente.');
-      await sendViaResend(apiKey, from, to, subject, body);
+      await sendViaResend(apiKey, from, to, subject, body, html);
     }
 
     return NextResponse.json({ success: true });
