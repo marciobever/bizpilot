@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from 'next/link';
 import { useRouter as useNavigate } from 'next/navigation';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Save, Bot, MessageSquare, ShieldAlert, Database, Zap, Smartphone, FileText, Plus, Webhook, Loader2, Volume2, Info, CheckCircle2, Copy, ShieldCheck, AlertTriangle, QrCode, Trash2, Globe, X, Brain, Wand2, Smile, Settings, Puzzle } from "lucide-react";
+import { ArrowLeft, Save, Bot, MessageSquare, ShieldAlert, Database, Zap, Smartphone, FileText, Plus, Webhook, Loader2, Volume2, Info, CheckCircle2, Copy, ShieldCheck, AlertTriangle, QrCode, Trash2, Globe, X, Brain, Wand2, Smile, Settings, Puzzle, Mail, CreditCard, CalendarDays, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -13,6 +13,14 @@ import { Badge } from "@/components/ui/Badge";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { PROMPT_TEMPLATES, interpolateTemplate, type PromptTemplate } from "@/lib/agentTemplates";
+
+// Integrações de nível de conta (configuradas em Automações, valem p/ todos os agentes).
+const ACCOUNT_INTEGRATIONS: { id: string; name: string; desc: string; icon: any }[] = [
+  { id: "email", name: "E-mail", desc: "O agente envia e-mails (orçamentos, comprovantes, materiais).", icon: Mail },
+  { id: "payments", name: "Pagamentos", desc: "Envia links de pagamento (Pix, cartão, boleto).", icon: CreditCard },
+  { id: "calendar", name: "Agenda", desc: "Consulta horários livres e marca reuniões.", icon: CalendarDays },
+  { id: "external_db", name: "Banco de Dados Externo", desc: "Consulta seus clientes/produtos (Supabase, Firebase).", icon: Database },
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -75,6 +83,10 @@ export default function AgentConfig() {
   };
   const [tools, setTools] = useState<AgentTool[]>([]);
   const [showToolForm, setShowToolForm] = useState(false);
+  // Addons: gerenciadores que abrem sob demanda + status das integrações da conta.
+  const [showToolsManager, setShowToolsManager] = useState(false);
+  const [showMediaManager, setShowMediaManager] = useState(false);
+  const [integrations, setIntegrations] = useState<Record<string, string>>({});
   const [toolForm, setToolForm] = useState<Partial<AgentTool>>({ method: "GET", headers: {}, parameters: {}, required_params: [] });
   const [toolParamKey, setToolParamKey] = useState("");
   const [toolParamDesc, setToolParamDesc] = useState("");
@@ -198,6 +210,14 @@ export default function AgentConfig() {
   };
 
   useEffect(() => { if (activeTab === 'knowledge' && !isNew) fetchKnowledge(); }, [activeTab, id]);
+
+  // Status das integrações da conta (nível usuário) para exibir nos tiles de Addons.
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('integrations').select('provider,status').eq('user_id', user.id).then(({ data }) => {
+      if (data) setIntegrations(Object.fromEntries(data.map((r: any) => [r.provider, r.status])));
+    });
+  }, [user]);
 
   const handleAddKnowledge = async () => {
     if (!knowledgeForm.title.trim()) return;
@@ -1208,33 +1228,79 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
           )}
 
           {activeTab === "addons" && !addonsLocked && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Voz e Áudio</CardTitle>
-                <CardDescription>Permite que o agente envie respostas em áudio (TTS).</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Responder em Áudio (Voz Inteligente)</Label>
-                      <p className="text-xs text-muted-foreground mt-1">O bot converterá as respostas em mensagens de áudio para o cliente.</p>
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recursos do Agente</CardTitle>
+                  <CardDescription>Ative o que este agente pode fazer.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {/* Voz e Áudio */}
+                    <div className={`rounded-lg border p-3 transition-colors ${voiceEnabled ? "border-brand-500/50 bg-brand-500/5" : "border-border bg-card"}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <Volume2 className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm">Voz e Áudio</p>
+                            <p className="text-xs text-muted-foreground">Responde em áudio (TTS).</p>
+                          </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                          <input type="checkbox" className="sr-only peer" checked={voiceEnabled} onChange={(e) => setVoiceEnabled(e.target.checked)} />
+                          <div className="w-11 h-6 bg-secondary rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
+                        </label>
+                      </div>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" checked={voiceEnabled} onChange={(e) => setVoiceEnabled(e.target.checked)} />
-                      <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
-                    </label>
+                    {/* Memória de Dados */}
+                    <div className={`rounded-lg border p-3 transition-colors ${dataRecordsEnabled ? "border-brand-500/50 bg-brand-500/5" : "border-border bg-card"}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <Brain className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm">Memória de Dados</p>
+                            <p className="text-xs text-muted-foreground">Guarda e consulta dados do cliente.</p>
+                          </div>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                          <input type="checkbox" className="sr-only peer" checked={dataRecordsEnabled} onChange={(e) => setDataRecordsEnabled(e.target.checked)} />
+                          <div className="w-11 h-6 bg-secondary rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
+                        </label>
+                      </div>
+                    </div>
+                    {/* Ações e APIs */}
+                    <button type="button" onClick={() => setShowToolsManager(v => !v)} className={`text-left rounded-lg border p-3 transition-colors ${showToolsManager ? "border-brand-500/50 bg-brand-500/5" : "border-border bg-card hover:border-brand-500/40"}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <Webhook className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm">Ações e APIs</p>
+                            <p className="text-xs text-muted-foreground">{tools.length > 0 ? `${tools.length} ferramenta(s) configurada(s)` : "Webhooks p/ agendar, buscar dados…"}</p>
+                          </div>
+                        </div>
+                        <ChevronRight className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${showToolsManager ? "rotate-90" : ""}`} />
+                      </div>
+                    </button>
+                    {/* Arquivos para Envio */}
+                    <button type="button" onClick={() => setShowMediaManager(v => !v)} className={`text-left rounded-lg border p-3 transition-colors ${showMediaManager ? "border-brand-500/50 bg-brand-500/5" : "border-border bg-card hover:border-brand-500/40"}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-start gap-2 min-w-0">
+                          <FileText className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="font-medium text-sm">Arquivos para Envio</p>
+                            <p className="text-xs text-muted-foreground">{mediaFiles.length > 0 ? `${mediaFiles.length} arquivo(s)` : "Catálogos, tabelas, contratos…"}</p>
+                          </div>
+                        </div>
+                        <ChevronRight className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${showMediaManager ? "rotate-90" : ""}`} />
+                      </div>
+                    </button>
                   </div>
 
                   {voiceEnabled && (
-                    <div className="space-y-2 mt-4 bg-secondary/10 p-4 rounded-md border border-border">
+                    <div className="space-y-2 bg-secondary/10 p-4 rounded-md border border-border">
                       <Label>Voz da OpenAI</Label>
                       <div className="flex items-center gap-2">
-                        <select
-                          value={voiceVoice}
-                          onChange={(e) => setVoiceVoice(e.target.value)}
-                          className="flex-1 bg-background border border-border rounded-md h-10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-                        >
+                        <select value={voiceVoice} onChange={(e) => setVoiceVoice(e.target.value)} className="flex-1 bg-background border border-border rounded-md h-10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
                           <option value="alloy">Alloy (Neutra / Masculina)</option>
                           <option value="echo">Echo (Masculina)</option>
                           <option value="fable">Fable (Expressiva / Neutra)</option>
@@ -1246,12 +1312,46 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                           <Volume2 className="h-4 w-4 text-muted-foreground" />
                         </Button>
                       </div>
-                      <p className="text-xs text-muted-foreground">A voz é capaz de ler em PT-BR automaticamente a depender da resposta gerada pelo modelo.</p>
+                      <p className="text-xs text-muted-foreground">A voz lê em PT-BR automaticamente conforme a resposta gerada.</p>
                     </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <CardTitle>Integrações da Conta</CardTitle>
+                      <CardDescription>Valem para todos os seus agentes. Toque para configurar em Automações.</CardDescription>
+                    </div>
+                    <Button asChild variant="outline" size="sm" className="shrink-0 gap-1.5">
+                      <Link href="/app/automations">Automações <ChevronRight className="h-3.5 w-3.5" /></Link>
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {ACCOUNT_INTEGRATIONS.map((it) => {
+                      const connected = integrations[it.id] === "connected";
+                      const Icon = it.icon;
+                      return (
+                        <Link key={it.id} href="/app/automations" className={`rounded-lg border p-3 flex items-start justify-between gap-2 transition-colors ${connected ? "border-emerald-500/40 bg-emerald-500/5" : "border-border bg-card hover:border-brand-500/40"}`}>
+                          <div className="flex items-start gap-2 min-w-0">
+                            <Icon className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm">{it.name}</p>
+                              <p className="text-xs text-muted-foreground">{it.desc}</p>
+                            </div>
+                          </div>
+                          <Badge variant={connected ? "success" : "secondary"} className="shrink-0 border-0">{connected ? "Conectado" : "Conectar"}</Badge>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {activeTab === "config" && (
@@ -1329,29 +1429,6 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                       ))}
                     </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {activeTab === "addons" && !addonsLocked && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Memória de Dados (Registros)</CardTitle>
-                <CardDescription>Permite que o agente guarde e consulte informações fornecidas pelo cliente durante a conversa.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label>Memória de Dados (Registros)</Label>
-                      <p className="text-xs text-muted-foreground mt-1">Permite que o agente guarde informações que o cliente for fornecendo ao longo da conversa (ex: lançamentos financeiros, pedidos, anotações) e consulte esse histórico depois para responder perguntas e gerar resumos.</p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" className="sr-only peer" checked={dataRecordsEnabled} onChange={(e) => setDataRecordsEnabled(e.target.checked)} />
-                      <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
-                    </label>
-                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -1634,7 +1711,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
             </Card>
           )}
 
-          {activeTab === "addons" && !addonsLocked && (
+          {activeTab === "addons" && !addonsLocked && showToolsManager && (
             <Card>
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -1789,7 +1866,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
             </Card>
           )}
 
-          {activeTab === "addons" && !addonsLocked && (
+          {activeTab === "addons" && !addonsLocked && showMediaManager && (
             <Card>
               <CardHeader>
                 <div className="flex items-start justify-between">

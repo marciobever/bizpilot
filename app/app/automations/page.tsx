@@ -4,7 +4,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { MessageCircle, Webhook, Link as LinkIcon, Database, CheckCircle2, X, Loader2, AlertCircle, CalendarDays, Mail } from "lucide-react";
+import { MessageCircle, Webhook, Link as LinkIcon, Database, CheckCircle2, X, Loader2, AlertCircle, CalendarDays, Mail, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { useAuth } from "@/lib/auth";
@@ -505,43 +505,38 @@ function Integrations() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {INTEGRATIONS_META.map((int) => {
           const Icon = int.icon;
-          const status = getStatus(int.id);
+          const connected = getStatus(int.id) === "connected";
           return (
-            <Card key={int.id} className="flex flex-col">
-              <CardHeader className="flex flex-row items-start justify-between pb-2">
+            <button
+              key={int.id}
+              type="button"
+              onClick={() => openModal(int.id)}
+              className={`text-left rounded-xl border p-4 flex flex-col gap-3 transition-colors ${connected ? "border-emerald-500/40 bg-emerald-500/5" : "border-border bg-card hover:border-brand-500/40 hover:bg-brand-500/5"}`}
+            >
+              <div className="flex items-start justify-between gap-2">
                 <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 border ${int.bgClass}`}>
-                   <Icon className={`h-5 w-5 ${int.color}`} />
+                  <Icon className={`h-5 w-5 ${int.color}`} />
                 </div>
-                {status === "connected" ? (
+                {connected ? (
                   <Badge variant="success" className="gap-1 bg-emerald-500/10 text-emerald-500 border-0">
                     <CheckCircle2 className="h-3 w-3" /> Conectado
                   </Badge>
                 ) : (
-                  <Badge variant="secondary" className="bg-secondary text-muted-foreground border-0">Desconectado</Badge>
+                  <Badge variant="secondary" className="bg-secondary text-muted-foreground border-0">Conectar</Badge>
                 )}
-              </CardHeader>
-              <CardContent className="flex-1 mt-2">
-                <CardTitle className="text-base mb-1">{int.name}</CardTitle>
-                <CardDescription className="text-sm leading-relaxed">
-                  {int.description}
-                </CardDescription>
-                <div className="mt-4">
-                  <Badge variant="outline" className="text-[10px] border-border text-muted-foreground px-2">
-                    {int.category}
-                  </Badge>
-                </div>
-              </CardContent>
-              <CardFooter className="pt-4 border-t border-border mt-auto">
-                {status === "connected" ? (
-                  <Button variant="outline" className="w-full" onClick={() => openModal(int.id)}>Configurar</Button>
-                ) : (
-                  <Button className="w-full bg-foreground text-background hover:bg-foreground/90" onClick={() => openModal(int.id)}>Instalar</Button>
-                )}
-              </CardFooter>
-            </Card>
+              </div>
+              <div>
+                <p className="font-semibold text-sm">{int.name}</p>
+                <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{int.description}</p>
+              </div>
+              <div className="flex items-center justify-between mt-auto pt-1">
+                <Badge variant="outline" className="text-[10px] border-border text-muted-foreground px-2">{int.category}</Badge>
+                <span className="text-xs text-brand-500 inline-flex items-center gap-1">{connected ? "Gerenciar" : "Configurar"} <ChevronRight className="h-3 w-3" /></span>
+              </div>
+            </button>
           );
         })}
       </div>
