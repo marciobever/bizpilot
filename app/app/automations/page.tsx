@@ -338,7 +338,7 @@ function Integrations() {
     } else if (id === 'email') {
       const cfg = statusMap.email?.config || {};
       const provider = cfg.provider || "smtp";
-      const presetKey = provider === 'smtp'
+      const presetKey = provider === 'smtp' && cfg.host
         ? (Object.keys(SMTP_PRESETS).find(k => SMTP_PRESETS[k].host && SMTP_PRESETS[k].host === cfg.host) || 'custom')
         : 'gmail';
       setEmailForm({
@@ -1055,9 +1055,9 @@ function Integrations() {
                 </>
               ) : activeModal === 'email' ? (
                 <>
-                  <div className="p-4 bg-secondary border border-border rounded-lg text-sm mb-2">
-                    Conecte um e-mail. Com isso, seus agentes ganham automaticamente a ferramenta <code>enviar_email</code> para enviar orçamentos, comprovantes e materiais aos leads durante a conversa.
-                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Conecte um e-mail e seus agentes poderão enviar orçamentos, comprovantes e materiais aos leads automaticamente.
+                  </p>
 
                   <div className="space-y-2">
                     <Label>Como você quer conectar?</Label>
