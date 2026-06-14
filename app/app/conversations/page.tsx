@@ -16,6 +16,7 @@ export default function Conversations() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [search, setSearch] = useState("");
+  const [agentFilter, setAgentFilter] = useState<string>("all");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
 
@@ -208,11 +209,28 @@ export default function Conversations() {
     return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
   };
 
-  const filteredConversations = conversations.filter(c => {
+  // Agentes presentes nas conversas (para os chips de filtro), com contador.
+  const agentChips = (() => {
+    const map = new Map<string, { id: string; name: string; count: number }>();
+    conversations.forEach((c: any) => {
+      const id = c.agent?.id || "none";
+      const name = c.agent?.name || "Sem agente";
+      const e = map.get(id) || { id, name, count: 0 };
+      e.count++;
+      map.set(id, e);
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  })();
+
+  const filteredConversations = conversations.filter((c: any) => {
+    if (agentFilter !== "all" && (c.agent?.id || "none") !== agentFilter) return false;
     if (!search.trim()) return true;
     const q = search.trim().toLowerCase();
     return (c.lead?.name || "").toLowerCase().includes(q) || (c.lead?.phone || "").includes(q);
   });
+
+  const chipCls = (active: boolean) =>
+    `shrink-0 whitespace-nowrap text-xs px-2.5 py-1 rounded-full border transition-colors ${active ? 'bg-brand-500 text-white border-brand-500' : 'bg-secondary/30 text-muted-foreground border-border hover:bg-secondary'}`;
 
   if (loading) {
      return (
@@ -236,6 +254,18 @@ export default function Conversations() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          {agentChips.length > 1 && (
+            <div className="flex gap-1.5 overflow-x-auto mt-3 pb-1">
+              <button type="button" onClick={() => setAgentFilter("all")} className={chipCls(agentFilter === "all")}>
+                Todos <span className="opacity-60">{conversations.length}</span>
+              </button>
+              {agentChips.map((a) => (
+                <button type="button" key={a.id} onClick={() => setAgentFilter(a.id)} className={chipCls(agentFilter === a.id)}>
+                  {a.name} <span className="opacity-60">{a.count}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex-1 overflow-auto">
           {filteredConversations.map((c) => (
@@ -270,7 +300,7 @@ export default function Conversations() {
           {filteredConversations.length === 0 && (
             <div className="flex flex-col items-center justify-center text-center text-sm text-muted-foreground mt-16 px-4 gap-2">
               <MessageSquare className="h-8 w-8 text-muted-foreground/40" />
-              {search.trim() ? "Nenhuma conversa encontrada para essa busca." : "Nenhuma conversa encontrada."}
+              {search.trim() || agentFilter !== "all" ? "Nenhuma conversa encontrada com esses filtros." : "Nenhuma conversa encontrada."}
             </div>
           )}
         </div>
