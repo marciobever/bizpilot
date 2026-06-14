@@ -81,15 +81,21 @@ const buildTtsText = (t: string) =>
 function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boolean, hasCalendar: boolean, hasDataRecords: boolean, hasExternalDb: boolean, hasEmail: boolean, mediaFiles: { name: string; description: string; url: string }[]): any[] {
   const tools: any[] = [];
 
+  const handoffContacts: { name: string; phone: string }[] = Array.isArray(config.handoffContacts) ? config.handoffContacts.filter((c: any) => c?.phone) : [];
+  const contactNames = handoffContacts.map(c => c.name).filter(Boolean);
+
   tools.push({
     type: 'function',
     function: {
       name: 'transferir_atendimento',
-      description: 'Transfere a conversa para um atendente humano e pausa as respostas automáticas. Use quando o cliente pedir explicitamente para falar com uma pessoa/atendente/humano, ou quando a situação exigir escalar conforme as regras restritas (ex: reclamação grave, urgência, fora da sua capacidade).',
+      description: contactNames.length
+        ? `Transfere a conversa para um atendente humano e pausa as respostas automáticas. Use quando o cliente pedir para falar com uma pessoa/atendente, ou quando a situação exigir escalar (ex: reclamação grave, urgência, fora da sua capacidade). Contatos disponíveis: ${contactNames.join(', ')}. Em "contato", escolha o nome mais adequado ao que o cliente pediu; se o cliente não especificar uma pessoa, deixe vazio para usar o contato padrão.`
+        : 'Transfere a conversa para um atendente humano e pausa as respostas automáticas. Use quando o cliente pedir explicitamente para falar com uma pessoa/atendente/humano, ou quando a situação exigir escalar conforme as regras restritas (ex: reclamação grave, urgência, fora da sua capacidade).',
       parameters: {
         type: 'object',
         properties: {
           motivo: { type: 'string', description: 'Breve motivo da transferência, para o atendente humano entender o contexto rapidamente.' },
+          ...(contactNames.length ? { contato: { type: 'string', description: `Nome do contato para quem encaminhar. Opções: ${contactNames.join(', ')}. Deixe vazio para o contato padrão (o primeiro da lista).` } } : {}),
         },
         required: ['motivo'],
       },
@@ -560,11 +566,27 @@ async function sendEmail(args: any, agentId: string, appBaseUrl: string): Promis
   }
 }
 
-// Avisa um humano disponível (número configurado) que uma conversa precisa de atenção.
+// Resolve para qual contato encaminhar: o nome escolhido pela IA (match exato ou
+// parcial), senão o primeiro contato cadastrado, senão o handoffPhone legado.
+function resolveHandoffTarget(config: any, contatoName?: string): { name: string; phone: string } | null {
+  const contacts: { name: string; phone: string }[] = Array.isArray(config.handoffContacts)
+    ? config.handoffContacts.filter((c: any) => c?.phone) : [];
+  if (contatoName) {
+    const q = String(contatoName).trim().toLowerCase();
+    const found = contacts.find(c => (c.name || '').toLowerCase() === q)
+      || contacts.find(c => (c.name || '').toLowerCase().includes(q));
+    if (found) return found;
+  }
+  if (contacts[0]) return contacts[0];
+  if (config.handoffPhone) return { name: '', phone: String(config.handoffPhone) };
+  return null;
+}
+
+// Avisa o atendente escolhido (número configurado) que uma conversa precisa de atenção.
 async function notifyHandoff(
-  config: any, channelInfo: any, instanceName: string, leadName: string, leadPhone: string, motivo: string
+  config: any, channelInfo: any, instanceName: string, leadName: string, leadPhone: string, motivo: string, targetPhone: string
 ): Promise<void> {
-  const handoffPhone = String(config.handoffPhone || '').replace(/\D/g, '');
+  const handoffPhone = String(targetPhone || '').replace(/\D/g, '');
   if (!handoffPhone) return;
 
   const text = `🔔 *Atendimento transferido para humano*\nCliente: ${leadName || 'Cliente'} (${leadPhone})\nMotivo: ${motivo || 'Solicitado pelo cliente'}\n\nA IA foi pausada nesta conversa. Acesse o painel de Conversas para responder.`;
@@ -601,9 +623,11 @@ async function transferToHuman(
   args: any, config: any, channelInfo: any, instanceName: string, conversationId: string,
   leadName: string, leadPhone: string, supabase: any
 ): Promise<string> {
+  const target = resolveHandoffTarget(config, args?.contato);
   await supabase.from('conversations').update({ status: 'paused' }).eq('id', conversationId);
-  await notifyHandoff(config, channelInfo, instanceName, leadName, leadPhone, args?.motivo || '');
-  return 'Atendimento transferido para um humano com sucesso e a IA foi pausada nesta conversa. Responda ao cliente em 1 frase curta avisando que um atendente vai continuar o atendimento em instantes.';
+  await notifyHandoff(config, channelInfo, instanceName, leadName, leadPhone, args?.motivo || '', target?.phone || '');
+  const who = target?.name ? target.name : 'um atendente';
+  return `Atendimento transferido para ${who} com sucesso e a IA foi pausada nesta conversa. Responda ao cliente em 1 frase curta avisando que ${who} vai continuar o atendimento em instantes.`;
 }
 
 async function executeTool(

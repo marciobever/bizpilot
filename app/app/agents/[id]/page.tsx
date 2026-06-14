@@ -53,7 +53,7 @@ export default function AgentConfig() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [ignoreGroups, setIgnoreGroups] = useState(true);
   const [dataRecordsEnabled, setDataRecordsEnabled] = useState(false);
-  const [handoffPhone, setHandoffPhone] = useState("");
+  const [handoffContacts, setHandoffContacts] = useState<{ name: string; phone: string }[]>([]);
 
   // ── Mini agentes de IA (geração de saudação e instruções) ─────────────────
   const [showGreetingAI, setShowGreetingAI] = useState(false);
@@ -612,7 +612,8 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
           if (cfg.limitations && Array.isArray(cfg.limitations)) setLimitations(cfg.limitations);
           if (cfg.ignoreGroups !== undefined) setIgnoreGroups(cfg.ignoreGroups);
           if (cfg.dataRecordsEnabled !== undefined) setDataRecordsEnabled(cfg.dataRecordsEnabled);
-          if (cfg.handoffPhone) setHandoffPhone(cfg.handoffPhone);
+          if (cfg.handoffContacts && Array.isArray(cfg.handoffContacts)) setHandoffContacts(cfg.handoffContacts);
+          else if (cfg.handoffPhone) setHandoffContacts([{ name: 'Atendente', phone: cfg.handoffPhone }]);
           if (cfg.blocklist && Array.isArray(cfg.blocklist)) setBlocklist(cfg.blocklist);
           if (cfg.tags && Array.isArray(cfg.tags)) {
             setTags(cfg.tags);
@@ -688,7 +689,8 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
       limitations: limitations,
       ignoreGroups: ignoreGroups,
       dataRecordsEnabled: dataRecordsEnabled,
-      handoffPhone: handoffPhone.trim(),
+      handoffContacts: handoffContacts.map(c => ({ name: c.name.trim(), phone: c.phone.replace(/\D/g, '') })).filter(c => c.phone),
+      handoffPhone: (handoffContacts[0]?.phone || '').replace(/\D/g, ''),
       blocklist: blocklist,
       tags: tags,
       variables: varsObject,
@@ -754,7 +756,8 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
       limitations: limitations,
       ignoreGroups: ignoreGroups,
       dataRecordsEnabled: dataRecordsEnabled,
-      handoffPhone: handoffPhone.trim(),
+      handoffContacts: handoffContacts.map(c => ({ name: c.name.trim(), phone: c.phone.replace(/\D/g, '') })).filter(c => c.phone),
+      handoffPhone: (handoffContacts[0]?.phone || '').replace(/\D/g, ''),
       blocklist: blocklist,
       tags: tags,
       variables: varsObject,
@@ -1328,15 +1331,49 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                   </div>
                 </div>
 
-                <div className="space-y-2 pt-4 border-t border-border">
-                  <Label htmlFor="handoffPhone">Número para Transferência (Atendimento Humano)</Label>
-                  <Input
-                    id="handoffPhone"
-                    placeholder="Ex: 5511999999999"
-                    value={handoffPhone}
-                    onChange={(e) => setHandoffPhone(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">Quando o cliente pedir para falar com um atendente (ou a IA decidir escalar), a conversa é pausada e este número recebe um aviso por WhatsApp com o contexto. Deixe em branco para apenas pausar a IA, sem notificação.</p>
+                <div className="space-y-3 pt-4 border-t border-border">
+                  <div>
+                    <Label>Contatos para Transferência (Atendimento Humano)</Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Cadastre as pessoas da equipe (nome + WhatsApp). Quando o cliente pedir para falar com alguém, a IA encaminha para o contato correspondente <strong>pelo nome</strong> e o avisa por WhatsApp com o contexto. O <strong>primeiro da lista</strong> é usado quando o cliente não especifica. Sem contatos, a IA apenas pausa a conversa ao escalar.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    {handoffContacts.map((c, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <Input
+                          placeholder="Nome (ex: Corretor Centro)"
+                          value={c.name}
+                          onChange={(e) => setHandoffContacts(prev => prev.map((x, j) => j === i ? { ...x, name: e.target.value } : x))}
+                          className="flex-1 min-w-0"
+                        />
+                        <Input
+                          placeholder="WhatsApp (ex: 5541999999999)"
+                          value={c.phone}
+                          onChange={(e) => setHandoffContacts(prev => prev.map((x, j) => j === i ? { ...x, phone: e.target.value } : x))}
+                          className="flex-1 min-w-0"
+                        />
+                        <Button
+                          type="button" variant="ghost" size="icon"
+                          className="shrink-0 text-destructive hover:bg-destructive/10"
+                          onClick={() => setHandoffContacts(prev => prev.filter((_, j) => j !== i))}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                    {handoffContacts.length === 0 && (
+                      <p className="text-xs text-muted-foreground italic">Nenhum contato cadastrado.</p>
+                    )}
+                  </div>
+
+                  <Button
+                    type="button" variant="outline" size="sm" className="gap-2"
+                    onClick={() => setHandoffContacts(prev => [...prev, { name: '', phone: '' }])}
+                  >
+                    <Plus className="h-4 w-4" /> Adicionar contato
+                  </Button>
                 </div>
 
                 <div className="space-y-4 pt-4 border-t border-border">
