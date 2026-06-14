@@ -1094,7 +1094,18 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
 
   // ── Persiste resposta ─────────────────────────────────────────────────────
 
-  await supabase.from('messages').insert({ conversation_id: conversation.id, sender_type: 'agent', content: responseText });
+  // Anexa mídia enviada nesta resposta (QR do Pix = imagem; enviar_arquivo = documento)
+  // para que apareça no painel de Conversas.
+  const mediaUrl = sideEffects.fileUrl || sideEffects.imageUrl || null;
+  const mediaType = sideEffects.fileUrl ? 'document' : (sideEffects.imageUrl ? 'image' : null);
+  await supabase.from('messages').insert({
+    conversation_id: conversation.id,
+    sender_type: 'agent',
+    content: responseText,
+    media_url: mediaUrl,
+    media_type: mediaType,
+    media_name: sideEffects.fileName || null,
+  });
   await supabase.from('conversations').update({ last_message_at: new Date().toISOString() }).eq('id', conversation.id);
 
   // ── TTS (responder no mesmo canal: só gera áudio se usuário mandou áudio) ──

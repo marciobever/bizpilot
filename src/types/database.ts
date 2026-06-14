@@ -52,5 +52,8 @@ export type Message = {
   conversation_id: string;
   sender_type: 'lead' | 'agent' | 'human';
   content: string;
+  media_url?: string | null;
+  media_type?: 'image' | 'document' | 'audio' | null;
+  media_name?: string | null;
   created_at: string;
 };

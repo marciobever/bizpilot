@@ -4,7 +4,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { Search, Send, CheckCircle2, Smartphone, Bot, User, PauseCircle, PlayCircle, MessageSquare, Loader2 } from "lucide-react";
+import { Search, Send, CheckCircle2, Smartphone, Bot, User, PauseCircle, PlayCircle, MessageSquare, Loader2, FileText, Download } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { Conversation, Message } from "@/types/database";
@@ -232,6 +232,29 @@ export default function Conversations() {
   const chipCls = (active: boolean) =>
     `shrink-0 whitespace-nowrap text-[11px] px-2 py-0.5 rounded-full border transition-colors ${active ? 'bg-brand-500 text-white border-brand-500' : 'bg-secondary/40 text-muted-foreground border-border hover:bg-secondary'}`;
 
+  // Renderiza a mídia anexada à mensagem (imagem do QR Pix, documento, áudio).
+  const renderMedia = (msg: Message) => {
+    if (!msg.media_url) return null;
+    if (msg.media_type === 'image') {
+      return (
+        <a href={msg.media_url} target="_blank" rel="noreferrer" className="block mt-1.5">
+          <img src={msg.media_url} alt={msg.media_name || 'imagem'} className="rounded-lg max-w-[220px] max-h-[280px] object-contain border border-border bg-white" />
+        </a>
+      );
+    }
+    if (msg.media_type === 'audio') {
+      return <audio controls src={msg.media_url} className="mt-1.5 max-w-[240px]" />;
+    }
+    return (
+      <a href={msg.media_url} target="_blank" rel="noreferrer"
+        className="mt-1.5 flex items-center gap-2 px-3 py-2 rounded-lg bg-black/10 border border-white/20 text-xs hover:bg-black/20">
+        <FileText className="h-4 w-4 shrink-0" />
+        <span className="truncate max-w-[160px]">{msg.media_name || 'Documento'}</span>
+        <Download className="h-3.5 w-3.5 shrink-0 opacity-70 ml-auto" />
+      </a>
+    );
+  };
+
   const statusMeta = (s: string) =>
     s === 'paused' ? { dot: 'bg-yellow-500', label: 'Pausado', color: 'text-yellow-500' }
     : s === 'closed' ? { dot: 'bg-muted-foreground', label: 'Resolvido', color: 'text-muted-foreground' }
@@ -362,8 +385,9 @@ export default function Conversations() {
                        <Avatar fallback="L" className="h-7 w-7 shrink-0 text-[10px]" />
                        <div>
                          <div className="text-[10px] text-muted-foreground mb-0.5 ml-1">{formatTime(msg.created_at)}</div>
-                         <div className="bg-secondary px-3 py-2 rounded-2xl rounded-tl-sm text-sm text-foreground whitespace-pre-wrap break-words">
-                           {msg.content}
+                         <div className="bg-secondary px-3 py-2 rounded-2xl rounded-tl-sm text-sm text-foreground">
+                           {msg.content && <div className="whitespace-pre-wrap break-words">{msg.content}</div>}
+                           {renderMedia(msg)}
                          </div>
                        </div>
                      </div>
@@ -377,8 +401,9 @@ export default function Conversations() {
                            {isAgent && <Bot className="h-3 w-3" />}
                            {isHuman && <User className="h-3 w-3" />}
                          </div>
-                         <div className={`px-3 py-2 rounded-2xl rounded-tr-sm text-sm text-white whitespace-pre-wrap break-words ${isHuman ? 'bg-emerald-600' : 'bg-brand-600'}`}>
-                           {msg.content}
+                         <div className={`px-3 py-2 rounded-2xl rounded-tr-sm text-sm text-white ${isHuman ? 'bg-emerald-600' : 'bg-brand-600'}`}>
+                           {msg.content && <div className="whitespace-pre-wrap break-words">{msg.content}</div>}
+                           {renderMedia(msg)}
                          </div>
                        </div>
                        <Avatar fallback={isHuman ? "H" : "A"} className={`h-7 w-7 shrink-0 text-[10px] text-white border-0 ${isHuman ? 'bg-emerald-500' : 'bg-gradient-to-br from-brand-500 to-purple-500'}`} />
