@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { AlertCircle, Loader2 } from "lucide-react";
+import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 
 export default function Register() {
   const navigate = useNavigate();
@@ -46,7 +47,15 @@ export default function Register() {
           <p>{error}</p>
         </div>
       )}
-      
+
+      <GoogleAuthButton label="Cadastrar com Google" />
+
+      <div className="flex items-center gap-3">
+        <span className="h-px flex-1 bg-border" />
+        <span className="text-xs text-muted-foreground">ou cadastre com e-mail</span>
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
       <div className="space-y-2">
         <Label htmlFor="email">E-mail</Label>
         <Input 
