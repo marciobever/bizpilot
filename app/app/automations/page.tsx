@@ -135,16 +135,48 @@ const EXTERNAL_DB_PROVIDERS: { value: string; label: string }[] = [
   { value: "firebase", label: "Firebase (Firestore)" },
 ];
 
-const EMAIL_PROVIDERS: { value: string; label: string; help: string }[] = [
+// Presets de SMTP para os provedores mais comuns. O usuário só escolhe o
+// serviço e preenche e-mail + senha; servidor/porta são preenchidos sozinhos.
+const SMTP_PRESETS: Record<string, { label: string; host: string; port: number; secure: boolean; docUrl?: string; docLabel?: string }> = {
+  gmail: {
+    label: "Gmail",
+    host: "smtp.gmail.com", port: 465, secure: true,
+    docUrl: "https://myaccount.google.com/apppasswords",
+    docLabel: "Gerar uma “Senha de app” do Gmail (exige verificação em 2 etapas ativada)",
+  },
+  outlook: {
+    label: "Outlook / Hotmail",
+    host: "smtp-mail.outlook.com", port: 587, secure: false,
+    docUrl: "https://support.microsoft.com/pt-br/account-billing/usar-senhas-de-aplicativo-com-aplicativos-que-n%C3%A3o-d%C3%A3o-suporte-%C3%A0-verifica%C3%A7%C3%A3o-em-duas-etapas-5896ed9b-4263-e681-128a-a6f2979a7944",
+    docLabel: "Criar uma senha de app no Outlook",
+  },
+  zoho: {
+    label: "Zoho Mail",
+    host: "smtp.zoho.com", port: 465, secure: true,
+    docUrl: "https://www.zoho.com/mail/help/zoho-smtp.html",
+    docLabel: "Ver dados de SMTP do Zoho",
+  },
+  custom: {
+    label: "Outro provedor (manual)",
+    host: "", port: 465, secure: true,
+  },
+};
+
+// Provedores de API transacional (avançado) — exigem domínio próprio verificado.
+const EMAIL_API_PROVIDERS: { value: string; label: string; help: string; docUrl: string; docLabel: string }[] = [
   {
     value: "resend",
     label: "Resend",
-    help: "Painel da Resend → API Keys → Create API Key.",
+    help: "Painel da Resend → API Keys → Create API Key. Requer domínio verificado.",
+    docUrl: "https://resend.com/docs/dashboard/api-keys/introduction",
+    docLabel: "Criar conta e chave na Resend",
   },
   {
     value: "sendgrid",
     label: "SendGrid",
-    help: "Painel do SendGrid → Settings → API Keys → Create API Key.",
+    help: "Painel do SendGrid → Settings → API Keys → Create API Key. Requer remetente verificado.",
+    docUrl: "https://www.twilio.com/docs/sendgrid/ui/account-and-settings/api-keys",
+    docLabel: "Criar conta e chave no SendGrid",
   },
 ];
 
@@ -190,7 +222,10 @@ function Integrations() {
   const [externalDbMsg, setExternalDbMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // E-mail (Resend / SendGrid)
-  const [emailForm, setEmailForm] = useState({ provider: "resend", apiKey: "", fromEmail: "", fromName: "" });
+  const [emailForm, setEmailForm] = useState({
+    provider: "smtp", apiKey: "", fromEmail: "", fromName: "",
+    smtpPreset: "gmail", host: "smtp.gmail.com", port: "465", secure: true, user: "", pass: "",
+  });
   const [emailMsg, setEmailMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
@@ -211,6 +246,15 @@ function Integrations() {
       router.replace('/app/automations');
     } else if (calendarStatus === 'error') {
       alert('Não foi possível conectar ao Google Calendar. Verifique o Client ID/Secret e tente novamente.');
+      router.replace('/app/automations');
+    }
+
+    const emailStatus = searchParams.get('email');
+    if (emailStatus === 'connected') {
+      if (user) fetchIntegrations();
+      router.replace('/app/automations');
+    } else if (emailStatus === 'error') {
+      alert('Não foi possível conectar a conta Google para e-mail. Tente novamente.');
       router.replace('/app/automations');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -293,11 +337,21 @@ function Integrations() {
       });
     } else if (id === 'email') {
       const cfg = statusMap.email?.config || {};
+      const provider = cfg.provider || "smtp";
+      const presetKey = provider === 'smtp'
+        ? (Object.keys(SMTP_PRESETS).find(k => SMTP_PRESETS[k].host && SMTP_PRESETS[k].host === cfg.host) || 'custom')
+        : 'gmail';
       setEmailForm({
-        provider: cfg.provider || "resend",
+        provider,
         apiKey: cfg.apiKey ? "••••••••••••" : "",
         fromEmail: cfg.fromEmail || "",
         fromName: cfg.fromName || "",
+        smtpPreset: presetKey,
+        host: cfg.host || SMTP_PRESETS.gmail.host,
+        port: String(cfg.port ?? SMTP_PRESETS.gmail.port),
+        secure: cfg.secure !== false,
+        user: cfg.user || "",
+        pass: cfg.pass ? "••••••••••••" : "",
       });
     }
   };
@@ -468,10 +522,43 @@ function Integrations() {
       } else if (id === 'email') {
         const provider = emailForm.provider;
         const existing = statusMap.email?.config || {};
+        const fromName = emailForm.fromName.trim();
         setEmailMsg(null);
 
+        // "Entrar com Google": abre o consentimento OAuth; o restante é salvo no callback.
+        if (provider === 'google') {
+          window.location.href = `/api/email/google/auth?userId=${user.id}`;
+          return;
+        }
+
+        if (provider === 'smtp') {
+          const host = emailForm.host.trim();
+          const port = Number(emailForm.port) || 465;
+          const secure = emailForm.secure;
+          const smtpUser = emailForm.user.trim();
+          const fromEmail = emailForm.fromEmail.trim() || smtpUser;
+          if (!host) { setEmailMsg({ ok: false, text: 'Informe o servidor SMTP.' }); return; }
+          if (!smtpUser) { setEmailMsg({ ok: false, text: 'Informe o usuário/e-mail do SMTP.' }); return; }
+          const passInput = emailForm.pass.trim();
+          const finalPass = passInput.startsWith('•') ? existing.pass : passInput;
+          if (!finalPass) { setEmailMsg({ ok: false, text: 'Informe a senha (ou senha de app).' }); return; }
+
+          const res = await fetch('/api/email/test', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider: 'smtp', host, port, secure, user: smtpUser, pass: finalPass }),
+          });
+          const data = await res.json();
+          if (!data.success) { setEmailMsg({ ok: false, text: data.error || 'Não foi possível conectar ao servidor.' }); return; }
+
+          await upsertIntegration('email', 'E-mail', 'connected', {
+            provider: 'smtp', host, port, secure, user: smtpUser, pass: finalPass, fromEmail, fromName,
+          });
+          setActiveModal(null);
+          return;
+        }
+
+        // resend / sendgrid
         const fromEmail = emailForm.fromEmail.trim();
-        const fromName = emailForm.fromName.trim();
         if (!fromEmail) { setEmailMsg({ ok: false, text: 'Informe o e-mail de remetente.' }); return; }
 
         const keyInput = emailForm.apiKey.trim();
@@ -969,49 +1056,149 @@ function Integrations() {
               ) : activeModal === 'email' ? (
                 <>
                   <div className="p-4 bg-secondary border border-border rounded-lg text-sm mb-2">
-                    Conecte um provedor de e-mail. Com isso, seus agentes ganham automaticamente a ferramenta <code>enviar_email</code> para enviar e-mails (orçamentos, comprovantes, materiais) para os leads durante a conversa.
+                    Conecte um e-mail. Com isso, seus agentes ganham automaticamente a ferramenta <code>enviar_email</code> para enviar orçamentos, comprovantes e materiais aos leads durante a conversa.
                   </div>
+
                   <div className="space-y-2">
-                    <Label htmlFor="emailProvider">Provedor</Label>
-                    <select
-                      id="emailProvider"
-                      value={emailForm.provider}
-                      onChange={(e) => setEmailForm(prev => ({ ...prev, provider: e.target.value }))}
-                      className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
-                    >
-                      {EMAIL_PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
-                    </select>
+                    <Label>Como você quer conectar?</Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {[
+                        { key: 'google', title: 'Entrar com Google', desc: '1 clique, sem senha', badge: 'Recomendado' },
+                        { key: 'smtp', title: 'E-mail próprio', desc: 'Gmail, Outlook, Zoho…' },
+                        { key: 'api', title: 'Avançado', desc: 'Resend / SendGrid' },
+                      ].map(m => {
+                        const active = m.key === 'google' ? emailForm.provider === 'google'
+                          : m.key === 'smtp' ? emailForm.provider === 'smtp'
+                          : (emailForm.provider === 'resend' || emailForm.provider === 'sendgrid');
+                        return (
+                          <button
+                            type="button" key={m.key}
+                            onClick={() => setEmailForm(prev => ({
+                              ...prev,
+                              provider: m.key === 'api'
+                                ? (prev.provider === 'resend' || prev.provider === 'sendgrid' ? prev.provider : 'resend')
+                                : m.key,
+                            }))}
+                            className={`text-left p-3 rounded-lg border transition-colors ${active ? 'border-brand-500 bg-brand-500/10' : 'border-border bg-background hover:bg-secondary'}`}
+                          >
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-sm font-medium">{m.title}</span>
+                              {m.badge && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-brand-500/15 text-brand-500">{m.badge}</span>}
+                            </div>
+                            <span className="text-xs text-muted-foreground">{m.desc}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="emailApiKey">Chave de API</Label>
-                    <Input
-                      id="emailApiKey" type="password"
-                      value={emailForm.apiKey}
-                      onChange={(e) => setEmailForm(prev => ({ ...prev, apiKey: e.target.value }))}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {EMAIL_PROVIDERS.find(p => p.value === emailForm.provider)?.help}
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="emailFromEmail">E-mail de remetente</Label>
-                    <Input
-                      id="emailFromEmail" type="email" placeholder="contato@seudominio.com"
-                      value={emailForm.fromEmail}
-                      onChange={(e) => setEmailForm(prev => ({ ...prev, fromEmail: e.target.value }))}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Precisa ser um e-mail/domínio verificado no painel do provedor escolhido.
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="emailFromName">Nome de remetente (opcional)</Label>
-                    <Input
-                      id="emailFromName" placeholder="Ex: Salão da Maria"
-                      value={emailForm.fromName}
-                      onChange={(e) => setEmailForm(prev => ({ ...prev, fromName: e.target.value }))}
-                    />
-                  </div>
+
+                  {emailForm.provider === 'google' && (
+                    <div className="p-4 bg-secondary border border-border rounded-lg text-sm space-y-2">
+                      <p>Você será levado à tela do Google para autorizar o envio de e-mails. Os e-mails sairão da própria conta que você autorizar — sem configurar servidor nem senha.</p>
+                      <p className="text-xs text-muted-foreground">Se aparecer um aviso de “app não verificado”, toque em <strong>Avançado → Continuar</strong>: é seguro, é o app do próprio BizPilot.</p>
+                    </div>
+                  )}
+
+                  {emailForm.provider === 'smtp' && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="smtpPreset">Serviço de e-mail</Label>
+                        <select
+                          id="smtpPreset"
+                          value={emailForm.smtpPreset}
+                          onChange={(e) => {
+                            const key = e.target.value; const p = SMTP_PRESETS[key];
+                            setEmailForm(prev => ({ ...prev, smtpPreset: key, host: p.host || prev.host, port: String(p.port), secure: p.secure }));
+                          }}
+                          className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        >
+                          {Object.entries(SMTP_PRESETS).map(([k, p]) => <option key={k} value={k}>{p.label}</option>)}
+                        </select>
+                        {SMTP_PRESETS[emailForm.smtpPreset]?.docUrl && (
+                          <a href={SMTP_PRESETS[emailForm.smtpPreset].docUrl} target="_blank" rel="noreferrer" className="text-xs text-brand-500 hover:underline inline-block mt-1">
+                            {SMTP_PRESETS[emailForm.smtpPreset].docLabel} →
+                          </a>
+                        )}
+                      </div>
+
+                      {emailForm.smtpPreset === 'custom' && (
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="col-span-2 space-y-2">
+                            <Label htmlFor="smtpHost">Servidor (host)</Label>
+                            <Input id="smtpHost" placeholder="smtp.seudominio.com" value={emailForm.host} onChange={(e) => setEmailForm(prev => ({ ...prev, host: e.target.value }))} />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="smtpPort">Porta</Label>
+                            <Input id="smtpPort" value={emailForm.port} onChange={(e) => setEmailForm(prev => ({ ...prev, port: e.target.value, secure: e.target.value.trim() === '465' }))} />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <Label htmlFor="smtpUser">E-mail / usuário</Label>
+                        <Input id="smtpUser" type="email" placeholder="voce@gmail.com" value={emailForm.user} onChange={(e) => setEmailForm(prev => ({ ...prev, user: e.target.value }))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="smtpPass">Senha (ou senha de app)</Label>
+                        <Input id="smtpPass" type="password" value={emailForm.pass} onChange={(e) => setEmailForm(prev => ({ ...prev, pass: e.target.value }))} />
+                        <p className="text-xs text-muted-foreground mt-1">No Gmail e Outlook, use uma “Senha de app” (não a senha normal da conta).</p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="smtpFromName">Nome de remetente (opcional)</Label>
+                        <Input id="smtpFromName" placeholder="Ex: Salão da Maria" value={emailForm.fromName} onChange={(e) => setEmailForm(prev => ({ ...prev, fromName: e.target.value }))} />
+                      </div>
+                    </>
+                  )}
+
+                  {(emailForm.provider === 'resend' || emailForm.provider === 'sendgrid') && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="emailProvider">Provedor</Label>
+                        <select
+                          id="emailProvider"
+                          value={emailForm.provider}
+                          onChange={(e) => setEmailForm(prev => ({ ...prev, provider: e.target.value }))}
+                          className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        >
+                          {EMAIL_API_PROVIDERS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                        </select>
+                        {(() => { const p = EMAIL_API_PROVIDERS.find(x => x.value === emailForm.provider); return p ? (
+                          <a href={p.docUrl} target="_blank" rel="noreferrer" className="text-xs text-brand-500 hover:underline inline-block mt-1">{p.docLabel} →</a>
+                        ) : null; })()}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="emailApiKey">Chave de API</Label>
+                        <Input
+                          id="emailApiKey" type="password"
+                          value={emailForm.apiKey}
+                          onChange={(e) => setEmailForm(prev => ({ ...prev, apiKey: e.target.value }))}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {EMAIL_API_PROVIDERS.find(p => p.value === emailForm.provider)?.help}
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="emailFromEmail">E-mail de remetente</Label>
+                        <Input
+                          id="emailFromEmail" type="email" placeholder="contato@seudominio.com"
+                          value={emailForm.fromEmail}
+                          onChange={(e) => setEmailForm(prev => ({ ...prev, fromEmail: e.target.value }))}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Precisa ser um e-mail/domínio verificado no painel do provedor escolhido.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="emailFromName">Nome de remetente (opcional)</Label>
+                        <Input
+                          id="emailFromName" placeholder="Ex: Salão da Maria"
+                          value={emailForm.fromName}
+                          onChange={(e) => setEmailForm(prev => ({ ...prev, fromName: e.target.value }))}
+                        />
+                      </div>
+                    </>
+                  )}
+
                   {emailMsg && (
                     <div className={`flex items-start gap-2 text-sm p-3 rounded-lg ${emailMsg.ok ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
                       <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" /> {emailMsg.text}
@@ -1035,7 +1222,7 @@ function Integrations() {
                   <Button type="button" variant="outline" onClick={() => setActiveModal(null)} disabled={savingIntegration}>Cancelar</Button>
                   <Button type="submit" className="bg-brand-500 hover:bg-brand-600 text-white" disabled={savingIntegration}>
                     {savingIntegration ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                    {activeModal === 'calendar' && calendarForm.provider === 'google' ? 'Conectar com Google' : 'Salvar Conexão'}
+                    {(activeModal === 'calendar' && calendarForm.provider === 'google') || (activeModal === 'email' && emailForm.provider === 'google') ? 'Conectar com Google' : 'Salvar Conexão'}
                   </Button>
                 </div>
               </div>
