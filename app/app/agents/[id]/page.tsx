@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from 'next/link';
 import { useRouter as useNavigate } from 'next/navigation';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Save, Bot, MessageSquare, ShieldAlert, Database, Zap, Smartphone, FileText, Plus, Webhook, Loader2, Volume2, Info, CheckCircle2, Copy, ShieldCheck, AlertTriangle, QrCode, Trash2, Globe, X, Brain, Wand2, Smile, Settings, Puzzle, Mail, CreditCard, CalendarDays, ChevronRight } from "lucide-react";
+import { ArrowLeft, Save, Bot, MessageSquare, ShieldAlert, Database, Zap, Smartphone, FileText, Plus, Webhook, Loader2, Volume2, Info, CheckCircle2, Copy, ShieldCheck, AlertTriangle, QrCode, Trash2, Globe, X, Brain, Wand2, Smile, Settings, Puzzle, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -13,14 +13,6 @@ import { Badge } from "@/components/ui/Badge";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { PROMPT_TEMPLATES, interpolateTemplate, type PromptTemplate } from "@/lib/agentTemplates";
-
-// Integrações de nível de conta (configuradas em Automações, valem p/ todos os agentes).
-const ACCOUNT_INTEGRATIONS: { id: string; name: string; desc: string; icon: any }[] = [
-  { id: "email", name: "E-mail", desc: "O agente envia e-mails (orçamentos, comprovantes, materiais).", icon: Mail },
-  { id: "payments", name: "Pagamentos", desc: "Envia links de pagamento (Pix, cartão, boleto).", icon: CreditCard },
-  { id: "calendar", name: "Agenda", desc: "Consulta horários livres e marca reuniões.", icon: CalendarDays },
-  { id: "external_db", name: "Banco de Dados Externo", desc: "Consulta seus clientes/produtos (Supabase, Firebase).", icon: Database },
-];
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -86,7 +78,6 @@ export default function AgentConfig() {
   // Addons: gerenciadores que abrem sob demanda + status das integrações da conta.
   const [showToolsManager, setShowToolsManager] = useState(false);
   const [showMediaManager, setShowMediaManager] = useState(false);
-  const [integrations, setIntegrations] = useState<Record<string, string>>({});
   const [toolForm, setToolForm] = useState<Partial<AgentTool>>({ method: "GET", headers: {}, parameters: {}, required_params: [] });
   const [toolParamKey, setToolParamKey] = useState("");
   const [toolParamDesc, setToolParamDesc] = useState("");
@@ -210,14 +201,6 @@ export default function AgentConfig() {
   };
 
   useEffect(() => { if (activeTab === 'knowledge' && !isNew) fetchKnowledge(); }, [activeTab, id]);
-
-  // Status das integrações da conta (nível usuário) para exibir nos tiles de Addons.
-  useEffect(() => {
-    if (!user) return;
-    supabase.from('integrations').select('provider,status').eq('user_id', user.id).then(({ data }) => {
-      if (data) setIntegrations(Object.fromEntries(data.map((r: any) => [r.provider, r.status])));
-    });
-  }, [user]);
 
   const handleAddKnowledge = async () => {
     if (!knowledgeForm.title.trim()) return;
@@ -1318,39 +1301,6 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <CardTitle>Integrações da Conta</CardTitle>
-                      <CardDescription>Valem para todos os seus agentes. Toque para configurar em Automações.</CardDescription>
-                    </div>
-                    <Button asChild variant="outline" size="sm" className="shrink-0 gap-1.5">
-                      <Link href="/app/automations">Automações <ChevronRight className="h-3.5 w-3.5" /></Link>
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {ACCOUNT_INTEGRATIONS.map((it) => {
-                      const connected = integrations[it.id] === "connected";
-                      const Icon = it.icon;
-                      return (
-                        <Link key={it.id} href="/app/automations" className={`rounded-lg border p-3 flex items-start justify-between gap-2 transition-colors ${connected ? "border-emerald-500/40 bg-emerald-500/5" : "border-border bg-card hover:border-brand-500/40"}`}>
-                          <div className="flex items-start gap-2 min-w-0">
-                            <Icon className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
-                            <div className="min-w-0">
-                              <p className="font-medium text-sm">{it.name}</p>
-                              <p className="text-xs text-muted-foreground">{it.desc}</p>
-                            </div>
-                          </div>
-                          <Badge variant={connected ? "success" : "secondary"} className="shrink-0 border-0">{connected ? "Conectado" : "Conectar"}</Badge>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
             </div>
           )}
 

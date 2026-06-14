@@ -4,11 +4,12 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { MessageCircle, Webhook, Link as LinkIcon, Database, CheckCircle2, X, Loader2, AlertCircle, CalendarDays, Mail, ChevronRight } from "lucide-react";
+import { MessageCircle, Webhook, Link as LinkIcon, Database, CheckCircle2, X, Loader2, AlertCircle, CalendarDays, Mail, ChevronRight, Lock } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { planAllows, requiredPlanLabel } from "@/lib/plans";
 
 const INTEGRATIONS_META = [
   {
@@ -157,6 +158,7 @@ function Integrations() {
   const [loading, setLoading] = useState(true);
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [savingIntegration, setSavingIntegration] = useState(false);
+  const [plan, setPlan] = useState<string | null>(null);
 
   // Webhooks Customizados
   const [webhookForm, setWebhookForm] = useState({ url: "", secret: "", events: [] as string[] });
@@ -192,8 +194,10 @@ function Integrations() {
   const [emailMsg, setEmailMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
-    if (user) fetchIntegrations();
-    else setLoading(false);
+    if (user) {
+      fetchIntegrations();
+      supabase.from("profiles").select("plan").eq("id", user.id).single().then(({ data }) => setPlan(data?.plan || "basico"));
+    } else setLoading(false);
   }, [user]);
 
   useEffect(() => {
@@ -509,18 +513,23 @@ function Integrations() {
         {INTEGRATIONS_META.map((int) => {
           const Icon = int.icon;
           const connected = getStatus(int.id) === "connected";
+          const locked = !planAllows(plan, int.id);
           return (
             <button
               key={int.id}
               type="button"
-              onClick={() => openModal(int.id)}
-              className={`text-left rounded-xl border p-4 flex flex-col gap-3 transition-colors ${connected ? "border-emerald-500/40 bg-emerald-500/5" : "border-border bg-card hover:border-brand-500/40 hover:bg-brand-500/5"}`}
+              onClick={() => locked ? router.push("/app/settings") : openModal(int.id)}
+              className={`text-left rounded-xl border p-4 flex flex-col gap-3 transition-colors ${locked ? "border-border bg-card opacity-75 hover:opacity-100 hover:border-amber-500/40" : connected ? "border-emerald-500/40 bg-emerald-500/5" : "border-border bg-card hover:border-brand-500/40 hover:bg-brand-500/5"}`}
             >
               <div className="flex items-start justify-between gap-2">
                 <div className={`h-10 w-10 rounded-lg flex items-center justify-center shrink-0 border ${int.bgClass}`}>
                   <Icon className={`h-5 w-5 ${int.color}`} />
                 </div>
-                {connected ? (
+                {locked ? (
+                  <Badge variant="secondary" className="gap-1 bg-amber-500/10 text-amber-600 border-0">
+                    <Lock className="h-3 w-3" /> {requiredPlanLabel(int.id)}
+                  </Badge>
+                ) : connected ? (
                   <Badge variant="success" className="gap-1 bg-emerald-500/10 text-emerald-500 border-0">
                     <CheckCircle2 className="h-3 w-3" /> Conectado
                   </Badge>
@@ -534,7 +543,9 @@ function Integrations() {
               </div>
               <div className="flex items-center justify-between mt-auto pt-1">
                 <Badge variant="outline" className="text-[10px] border-border text-muted-foreground px-2">{int.category}</Badge>
-                <span className="text-xs text-brand-500 inline-flex items-center gap-1">{connected ? "Gerenciar" : "Configurar"} <ChevronRight className="h-3 w-3" /></span>
+                <span className={`text-xs inline-flex items-center gap-1 ${locked ? "text-amber-600" : "text-brand-500"}`}>
+                  {locked ? "Fazer upgrade" : connected ? "Gerenciar" : "Configurar"} <ChevronRight className="h-3 w-3" />
+                </span>
               </div>
             </button>
           );
