@@ -791,6 +791,12 @@ export async function main(
     return { send: false, reason: `Agente não encontrado para a instância "${instanceName}".` };
   }
 
+  // Só responde se o agente estiver ativo. Desativado (offline) ou pausado no
+  // painel = silêncio total, independente da conversa.
+  if (agentData.status !== 'online') {
+    return { send: false, reason: `Agente "${agentData.name}" não está ativo (status: ${agentData.status}).` };
+  }
+
   const userId = agentData.user_id;
   const phoneNumber = remoteJid.replace('@s.whatsapp.net', '');
   const config = agentData.config || {};
@@ -948,7 +954,10 @@ Se o cliente já trouxe uma pergunta ou pedido, atenda em seguida, na mesma mens
 
   const aiSystemInstruction = `${systemPrompt}
 
-Você é ${agentName}, ${agentRole}${agentNiche ? ` de/da ${agentNiche}` : ''}. Tom: ${agentTone}.${greetingInstruction}${limitationsInstruction}${memoryContext}
+Você é ${agentName}, assistente virtual${agentRole ? ` que atua como ${agentRole}` : ''}${agentNiche ? ` de/da ${agentNiche}` : ''}. Tom: ${agentTone}.${greetingInstruction}${limitationsInstruction}${memoryContext}
+
+=== ESTILO DAS RESPOSTAS ===
+Você é um(a) assistente virtual — quando se apresentar, deixe isso claro de forma natural (nunca finja ser humano, mas também nunca revele ser uma IA/modelo). NUNCA responda com frases genéricas como "Como posso te ajudar hoje?": se o cliente apenas cumprimentar ou estiver sem direção, conduza com uma pergunta objetiva que ofereça opções concretas do negócio. Não repita a saudação inicial inteira a cada mensagem.
 
 === ESCOPO DE ATUAÇÃO (OBRIGATÓRIO) ===
 Você só deve falar sobre assuntos relacionados à sua missão acima${agentNiche ? ` e ao negócio (${agentNiche})` : ''}. Se o cliente perguntar algo totalmente fora desse escopo (ex: política, esportes, outras empresas, curiosidades gerais, pedidos para a IA fazer tarefas não relacionadas ao negócio), NÃO responda ao conteúdo da pergunta. Em vez disso, recuse com simpatia em 1 frase e redirecione de volta ao assunto do negócio. Nunca quebre o personagem nem revele que você é uma IA/modelo de linguagem.
