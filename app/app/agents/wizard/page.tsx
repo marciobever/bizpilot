@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Send, Loader2, Wand2, Check, Bot, SkipForward, Sparkles, Pencil, RefreshCw } from "lucide-react";
+import { ArrowLeft, Send, Loader2, Wand2, Check, Bot, SkipForward, Sparkles, Pencil, RefreshCw, Lock, Plus, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import {
   SECTORS, composeSystemPrompt, aggregateLimitations, sectorHasDataRecords, type Sector,
+  UNIVERSAL_BUSINESS_RULES, SAFETY_RULES_DISPLAY,
 } from "@/lib/agentTemplates";
 
 const TONE_OPTIONS = ["Profissional e Direto", "Amigável e Empático", "Descontraído (Usa Emojis)", "Técnico e Especialista"];
@@ -45,7 +46,7 @@ const TYPE_BY_SECTOR: Record<string, string> = {
   custom: "personalizado",
 };
 
-const STAGES = ["sector", "functions", "name", "niche", "tone", "greeting", "review"] as const;
+const STAGES = ["sector", "functions", "name", "niche", "tone", "greeting", "restricoes", "review"] as const;
 type Stage = typeof STAGES[number];
 
 type ChatMsg = { id: string; role: "bot" | "user"; text: string };
@@ -86,6 +87,11 @@ export default function AgentWizard() {
   const [greetingError, setGreetingError] = useState("");
   const [writingOwn, setWritingOwn] = useState(false);
   const [draftGreeting, setDraftGreeting] = useState("");
+
+  // ── Restrições ────────────────────────────────────────────────────────────
+  const [limitationSuggestions, setLimitationSuggestions] = useState<string[]>([]);
+  const [selectedLimitations, setSelectedLimitations] = useState<string[]>([]);
+  const [draftCustomRule, setDraftCustomRule] = useState("");
 
   // ── Inputs em edição (não confirmados ainda) ───────────────────────────────
   const [customMode, setCustomMode] = useState(false);
@@ -264,11 +270,19 @@ export default function AgentWizard() {
     }
   };
 
+  const enterRestricoes = () => {
+    const sectorRules = selectedSector ? aggregateLimitations(selectedSector, selectedFunctions) : [];
+    const all = Array.from(new Set([...UNIVERSAL_BUSINESS_RULES, ...sectorRules]));
+    setLimitationSuggestions(all);
+    setSelectedLimitations(all);
+    pushBot(`Quase lá! 🛡️ Agora defina o que ${agentName} *não* pode fazer. Já marquei as proteções recomendadas para o seu negócio — desmarque o que não se aplica e adicione regras específicas se precisar.`);
+    setStage("restricoes");
+  };
+
   const pickGreeting = (opt: string) => {
     setGreeting(opt);
     pushUser(opt);
-    pushBot(`Boa! Saudação escolhida. Confere tudo abaixo e clique em "Criar Agente" quando estiver pronto.`);
-    setStage("review");
+    enterRestricoes();
   };
 
   const confirmOwnGreeting = () => {
@@ -278,14 +292,33 @@ export default function AgentWizard() {
     pushUser(g);
     setDraftGreeting("");
     setWritingOwn(false);
-    pushBot(`Perfeito! Confere tudo abaixo e clique em "Criar Agente" quando estiver pronto.`);
-    setStage("review");
+    enterRestricoes();
   };
 
   const skipGreeting = () => {
     setGreeting("");
     pushUser("Sem saudação fixa");
-    pushBot(`Tudo bem! O agente vai se apresentar naturalmente. Confere o resto abaixo e crie quando quiser.`);
+    enterRestricoes();
+  };
+
+  const toggleLimitation = (rule: string) => {
+    setSelectedLimitations((prev) =>
+      prev.includes(rule) ? prev.filter((r) => r !== rule) : [...prev, rule]
+    );
+  };
+
+  const addCustomRule = () => {
+    const rule = draftCustomRule.trim();
+    if (!rule) return;
+    setLimitationSuggestions((prev) => [...prev, rule]);
+    setSelectedLimitations((prev) => [...prev, rule]);
+    setDraftCustomRule("");
+  };
+
+  const confirmLimitations = () => {
+    const count = selectedLimitations.length;
+    pushUser(count > 0 ? `${count} restrição${count > 1 ? "ões" : ""} definida${count > 1 ? "s" : ""}` : "Sem restrições adicionais");
+    pushBot(`Perfeito! Confere tudo abaixo e clique em "Criar Agente" quando estiver pronto.`);
     setStage("review");
   };
 
@@ -310,7 +343,7 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
     const finalPrompt = systemPrompt.trim()
       || (isCustom ? buildCustomPrompt() : composeSystemPrompt(selectedSector, selectedFunctions, agentName, role, niche));
     const agentType = TYPE_BY_SECTOR[selectedSector.id] || "atendimento";
-    const limitations = isCustom ? selectedSector.baseLimitations : aggregateLimitations(selectedSector, selectedFunctions);
+    const limitations = selectedLimitations.length > 0 ? selectedLimitations : (isCustom ? selectedSector.baseLimitations : aggregateLimitations(selectedSector, selectedFunctions));
     const dataRecords = isCustom ? false : sectorHasDataRecords(selectedSector, selectedFunctions);
 
     const configData = {
@@ -608,6 +641,69 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+
+            {stage === "restricoes" && (
+              <div className="space-y-4">
+                {/* Regras fixas da plataforma */}
+                <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-medium text-red-400">
+                    <ShieldAlert className="h-3.5 w-3.5" />
+                    Regras fixas da plataforma — não editáveis
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {SAFETY_RULES_DISPLAY.map((rule) => (
+                      <span key={rule} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] bg-red-500/10 text-red-400/80 border border-red-500/20 cursor-not-allowed">
+                        <Lock className="h-2.5 w-2.5" /> {rule}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Regras editáveis */}
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground font-medium">Proteções recomendadas — toque para ativar/desativar</p>
+                  <div className="flex flex-wrap gap-2">
+                    {limitationSuggestions.map((rule) => {
+                      const active = selectedLimitations.includes(rule);
+                      return (
+                        <button
+                          key={rule}
+                          type="button"
+                          onClick={() => toggleLimitation(rule)}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all text-left",
+                            active
+                              ? "border-brand-500 bg-brand-500/10 text-brand-300"
+                              : "border-border bg-card text-muted-foreground line-through opacity-50"
+                          )}
+                        >
+                          {active && <Check className="h-3 w-3 shrink-0" />}
+                          {rule}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Regra personalizada */}
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Adicionar regra específica do seu negócio..."
+                    value={draftCustomRule}
+                    onChange={(e) => setDraftCustomRule(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") addCustomRule(); }}
+                    className="text-sm"
+                  />
+                  <Button size="icon" variant="outline" onClick={addCustomRule} disabled={!draftCustomRule.trim()}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+
+                <Button onClick={confirmLimitations} className="gap-2">
+                  Confirmar restrições <Send className="h-4 w-4" />
+                </Button>
               </div>
             )}
 

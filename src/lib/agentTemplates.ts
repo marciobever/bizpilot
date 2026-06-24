@@ -1,3 +1,25 @@
+// ─── Regras universais de conduta de negócio (pré-marcadas no wizard, editáveis) ──
+// Aplicadas a todo agente por padrão. O usuário pode desmarcar no wizard.
+export const UNIVERSAL_BUSINESS_RULES: string[] = [
+  "Nunca inventar preços, valores ou prazos — apenas informar o que estiver na Base de Conhecimento",
+  "Nunca confirmar agendamento, pedido ou reserva sem que a equipe valide a disponibilidade",
+  "Nunca oferecer descontos ou condições especiais não autorizados pelo negócio",
+  "Nunca solicitar senha, número completo de cartão ou dados bancários pelo chat",
+  "Se não souber a resposta, dizer que vai verificar com a equipe — nunca inventar",
+  "Não falar de concorrentes nem comparar preços com outras empresas",
+];
+
+// ─── Resumo das regras de segurança fixas (apenas para exibição no wizard) ───
+// As regras reais ficam hardcoded no Windmill (SAFETY_BLOCK). Isso é só UI.
+export const SAFETY_RULES_DISPLAY: string[] = [
+  "Conteúdo sexual ou impróprio",
+  "Pedofilia e exploração de menores",
+  "Instrução de crimes ou atividades ilegais",
+  "Violência, terrorismo ou automutilação",
+  "Discurso de ódio e discriminação",
+  "Crimes digitais e golpes financeiros",
+];
+
 // ─── Setores e Funções de Agente ─────────────────────────────────────────────
 // Modelo em 2 camadas:
 //   1. Setor (o ramo do negócio) — define persona base, tom, papel e missão.
