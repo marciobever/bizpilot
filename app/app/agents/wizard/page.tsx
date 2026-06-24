@@ -54,12 +54,20 @@ export default function AgentWizard() {
   const { user } = useAuth();
   const navigate = useRouter();
 
+  const INTRO_TEXT = "Oi! 👋 Sou o assistente de criação de agentes do BizPilot. Em poucos minutos a gente monta o seu robô de atendimento.\n\nPra começar: qual é o setor do seu negócio? Escolha a opção que mais combina — ou, se nenhuma encaixar, toque em \"Outro\" e descreva o seu caso.";
+
   const [messages, setMessages] = useState<ChatMsg[]>([
-    { id: "intro", role: "bot", text: "Oi! 👋 Sou o assistente de criação de agentes do BizPilot. Em poucos minutos a gente monta o seu robô de atendimento.\n\nPra começar: qual é o setor do seu negócio? Escolha a opção que mais combina — ou, se nenhuma encaixar, toque em \"Outro\" e descreva o seu caso." },
+    { id: "intro", role: "bot", text: INTRO_TEXT },
   ]);
   const [stage, setStage] = useState<Stage>("sector");
   const [botTyping, setBotTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<ChatMsg[]>([]);
+
+  // Typewriter state
+  const [revealedChars, setRevealedChars] = useState<Record<string, number>>({ intro: 0 });
+  const [typewritingId, setTypewritingId] = useState<string | null>("intro");
+  const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set(["intro"]));
 
   // ── Dados coletados ───────────────────────────────────────────────────────
   const [agentName, setAgentName] = useState("");
@@ -88,20 +96,59 @@ export default function AgentWizard() {
 
   const isCustom = selectedSector?.id === "custom";
 
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  // Typewriter engine — revela 3 chars a cada 16ms (~60fps)
+  useEffect(() => {
+    if (!typewritingId) return;
+    const interval = setInterval(() => {
+      const msg = messagesRef.current.find((m) => m.id === typewritingId);
+      if (!msg) return;
+      setRevealedChars((prev) => {
+        const current = prev[typewritingId] ?? 0;
+        if (current >= msg.text.length) {
+          setTypewritingId(null);
+          return { ...prev, [typewritingId]: msg.text.length };
+        }
+        return { ...prev, [typewritingId]: Math.min(current + 3, msg.text.length) };
+      });
+    }, 16);
+    return () => clearInterval(interval);
+  }, [typewritingId]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, botTyping, stage, customMode, writingOwn]);
 
   const pushUser = (text: string) => {
-    setMessages((m) => [...m, { id: `u-${Date.now()}`, role: "user", text }]);
+    const id = `u-${Date.now()}`;
+    setMessages((m) => [...m, { id, role: "user", text }]);
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      setVisibleIds((prev) => new Set(Array.from(prev).concat(id)));
+    }));
   };
 
   const pushBot = (text: string, delay = 550) => {
     setBotTyping(true);
     setTimeout(() => {
-      setMessages((m) => [...m, { id: `b-${Date.now()}`, role: "bot", text }]);
+      const id = `b-${Date.now()}`;
+      setMessages((m) => [...m, { id, role: "bot", text }]);
       setBotTyping(false);
+      setRevealedChars((prev) => ({ ...prev, [id]: 0 }));
+      setTypewritingId(id);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        setVisibleIds((prev) => new Set(Array.from(prev).concat(id)));
+      }));
     }, delay);
+  };
+
+  const getDisplayText = (msg: ChatMsg) => {
+    if (msg.role === "bot" && revealedChars[msg.id] !== undefined) {
+      const chars = revealedChars[msg.id];
+      const displayed = msg.text.slice(0, chars);
+      return typewritingId === msg.id ? displayed + "▋" : displayed;
+    }
+    return msg.text;
   };
 
   // Rótulos das funções escolhidas.
@@ -340,7 +387,14 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
       {/* Transcript */}
       <div className="flex-1 overflow-auto rounded-xl border border-border bg-card p-4 space-y-4">
         {messages.map((m) => (
-          <div key={m.id} className={cn("flex max-w-[85%] gap-2", m.role === "user" ? "ml-auto justify-end" : "")}>
+          <div
+            key={m.id}
+            className={cn(
+              "flex max-w-[85%] gap-2 transition-all duration-300 ease-out",
+              m.role === "user" ? "ml-auto justify-end" : "",
+              visibleIds.has(m.id) ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
+            )}
+          >
             {m.role === "bot" && (
               <div className="h-7 w-7 rounded-full bg-brand-500/10 flex items-center justify-center shrink-0 mt-0.5">
                 <Bot className="h-4 w-4 text-brand-500" />
@@ -350,7 +404,7 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
               "p-3 rounded-2xl text-sm whitespace-pre-wrap leading-relaxed",
               m.role === "bot" ? "bg-secondary text-foreground rounded-tl-sm" : "bg-brand-600 text-white rounded-tr-sm"
             )}>
-              {m.text}
+              {getDisplayText(m)}
             </div>
           </div>
         ))}
