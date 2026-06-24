@@ -258,7 +258,9 @@ export default function AgentWizard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ field: "greetings", description: buildBrief() || "Atendimento ao cliente", context }),
       });
-      const data = await res.json();
+      const rawText = await res.text();
+      let data: any = {};
+      try { data = JSON.parse(rawText); } catch { throw new Error("Servidor indisponível. Tente novamente em instantes."); }
       if (!res.ok) throw new Error(data.error || "Erro ao gerar saudações.");
       setGreetingOptions(data.options || []);
       setMessages((m) => [...m, { id: `b-${Date.now()}`, role: "bot", text: `Escrevi 3 jeitos de ${agentName} se apresentar. Toca na que você mais gostou — ou escreve a sua.` }]);
