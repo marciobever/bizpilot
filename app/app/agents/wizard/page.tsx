@@ -67,7 +67,6 @@ export default function AgentWizard() {
   // Typewriter state
   const [revealedChars, setRevealedChars] = useState<Record<string, number>>({ intro: 0 });
   const [typewritingId, setTypewritingId] = useState<string | null>("intro");
-  const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set(["intro"]));
 
   // ── Dados coletados ───────────────────────────────────────────────────────
   const [agentName, setAgentName] = useState("");
@@ -106,15 +105,21 @@ export default function AgentWizard() {
       if (!msg) return;
       setRevealedChars((prev) => {
         const current = prev[typewritingId] ?? 0;
-        if (current >= msg.text.length) {
-          setTypewritingId(null);
-          return { ...prev, [typewritingId]: msg.text.length };
-        }
+        if (current >= msg.text.length) return prev;
         return { ...prev, [typewritingId]: Math.min(current + 3, msg.text.length) };
       });
     }, 16);
     return () => clearInterval(interval);
   }, [typewritingId]);
+
+  // Para o typewriter quando o texto está completo
+  useEffect(() => {
+    if (!typewritingId) return;
+    const msg = messages.find((m) => m.id === typewritingId);
+    if (msg && (revealedChars[typewritingId] ?? 0) >= msg.text.length) {
+      setTypewritingId(null);
+    }
+  }, [revealedChars, typewritingId, messages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -123,9 +128,6 @@ export default function AgentWizard() {
   const pushUser = (text: string) => {
     const id = `u-${Date.now()}`;
     setMessages((m) => [...m, { id, role: "user", text }]);
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      setVisibleIds((prev) => new Set(Array.from(prev).concat(id)));
-    }));
   };
 
   const pushBot = (text: string, delay = 550) => {
@@ -136,9 +138,6 @@ export default function AgentWizard() {
       setBotTyping(false);
       setRevealedChars((prev) => ({ ...prev, [id]: 0 }));
       setTypewritingId(id);
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        setVisibleIds((prev) => new Set(Array.from(prev).concat(id)));
-      }));
     }, delay);
   };
 
@@ -390,9 +389,8 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
           <div
             key={m.id}
             className={cn(
-              "flex max-w-[85%] gap-2 transition-all duration-300 ease-out",
-              m.role === "user" ? "ml-auto justify-end" : "",
-              visibleIds.has(m.id) ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
+              "flex max-w-[85%] gap-2 animate-in fade-in-0 slide-in-from-bottom-2 duration-300",
+              m.role === "user" ? "ml-auto justify-end" : ""
             )}
           >
             {m.role === "bot" && (
