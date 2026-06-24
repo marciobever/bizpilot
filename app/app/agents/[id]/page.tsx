@@ -417,6 +417,24 @@ export default function AgentConfig() {
     }
   };
 
+  const handleSwitchToMeta = async () => {
+    if (whatsappProvider === "evolution" && waConnected) {
+      const ok = confirm(
+        "Você está migrando do Evolution para o WhatsApp Oficial (Meta).\n\nIsso irá desconectar sua instância Evolution atual. Deseja continuar?"
+      );
+      if (!ok) return;
+      try {
+        await fetch(`/api/evolution/instances/agent_${id}`, { method: 'DELETE' });
+        setWaConnected(false);
+        setWaQrCode("");
+        setCheckingWa(false);
+      } catch (e) {
+        console.error("Erro ao remover instância Evolution:", e);
+      }
+    }
+    setWhatsappProvider("meta");
+  };
+
   const webhookUrl = webhookOrigin ? `${webhookOrigin}/api/meta/webhook` : "/api/meta/webhook";
 
   const copyToClipboard = (value: string) => {
@@ -2160,7 +2178,7 @@ ${limitations.map(l => "- " + l).join("\n") || "- Nenhuma limitação definida a
 
                        <button
                          type="button"
-                         onClick={() => setWhatsappProvider("meta")}
+                         onClick={handleSwitchToMeta}
                          className={`text-left p-3 rounded-lg border transition-all ${whatsappProvider === "meta" ? "border-brand-500 bg-brand-500/5 ring-1 ring-brand-500/40" : "border-border bg-background hover:border-muted-foreground/40"}`}
                        >
                          <div className="flex items-center justify-between mb-2">
