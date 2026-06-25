@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import Link from "next/link";
-import { Plus, X, Trash2, MessageSquare, Phone, Mail, Loader2, Search, Users, Bot, CheckCircle2, XCircle } from "lucide-react";
+import { Plus, Phone, Mail, Search, Users, Bot, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -9,6 +8,8 @@ import { Avatar } from "@/components/ui/Avatar";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { Lead } from "@/types/database";
+import { CreateLeadModal } from "./_modals/CreateLeadModal";
+import { LeadDetailModal } from "./_modals/LeadDetailModal";
 
 const STATUS_MAP = [
   { id: "novo", title: "Novo", color: "bg-blue-500", pill: "bg-blue-500/10 text-blue-600 dark:text-blue-400" },
@@ -380,157 +381,32 @@ export default function Leads() {
         </div>
       </div>
 
-      {/* Modal: Novo Lead */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-          <div className="bg-card w-full max-w-sm rounded-2xl border border-border shadow-2xl p-6">
-            <h3 className="text-lg font-bold mb-1">Novo Lead</h3>
-            <p className="text-sm text-muted-foreground mb-6">Adicione um contato manualmente ao pipeline.</p>
-
-            <form onSubmit={handleCreateLead} className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Nome</label>
-                <Input
-                  placeholder="Ex: João da Silva"
-                  value={newLead.name}
-                  onChange={(e) => setNewLead(prev => ({ ...prev, name: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Telefone</label>
-                <Input
-                  placeholder="Ex: 5511999999999"
-                  value={newLead.phone}
-                  onChange={(e) => setNewLead(prev => ({ ...prev, phone: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">E-mail</label>
-                <Input
-                  type="email"
-                  placeholder="Ex: joao@email.com"
-                  value={newLead.email}
-                  onChange={(e) => setNewLead(prev => ({ ...prev, email: e.target.value }))}
-                />
-              </div>
-
-              <div className="pt-4 flex justify-end gap-3">
-                <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>Cancelar</Button>
-                <Button type="submit" disabled={!newLead.name.trim() || creating}>
-                  {creating ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Criar Lead
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <CreateLeadModal
+          newLead={newLead}
+          setNewLead={setNewLead}
+          creating={creating}
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={handleCreateLead}
+        />
       )}
 
-      {/* Modal: Detalhes do Lead */}
       {selectedLead && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
-          <div className="bg-card w-full max-w-md rounded-2xl border border-border shadow-2xl p-6 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between mb-1">
-              <h3 className="text-lg font-bold">Detalhes do Lead</h3>
-              <button onClick={closeLeadDetails} className="text-muted-foreground hover:text-foreground">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <p className="text-sm text-muted-foreground mb-6 flex items-center gap-2 flex-wrap">
-              <span>Criado em {new Date(selectedLead.created_at).toLocaleDateString('pt-BR')}</span>
-              {(leadAgents[selectedLead.id] || []).length > 0 && (
-                <span className="inline-flex items-center gap-1 text-brand-500">
-                  <Bot className="h-3 w-3" /> {(leadAgents[selectedLead.id] || []).map(a => a.name).join(', ')}
-                </span>
-              )}
-            </p>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Nome</label>
-                <Input value={editForm.name} onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))} />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium flex items-center gap-1"><Phone className="h-3 w-3" /> Telefone</label>
-                  <Input value={editForm.phone} onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium flex items-center gap-1"><Mail className="h-3 w-3" /> E-mail</label>
-                  <Input type="email" value={editForm.email} onChange={(e) => setEditForm(prev => ({ ...prev, email: e.target.value }))} />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Status</label>
-                  <select
-                    value={editForm.status}
-                    onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}
-                    className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-brand-500"
-                  >
-                    {STATUS_MAP.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Score</label>
-                  <Input type="number" value={editForm.score} onChange={(e) => setEditForm(prev => ({ ...prev, score: Number(e.target.value) }))} />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Tags</label>
-                <div className="flex items-center gap-2 flex-wrap mb-2">
-                  {editForm.tags.map(tag => (
-                    <Badge key={tag} variant="secondary" className="text-xs px-2 py-0.5 bg-primary/10 text-primary gap-1">
-                      {tag}
-                      <button onClick={() => removeTag(tag)} className="hover:text-destructive">
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-                  {editForm.tags.length === 0 && <span className="text-xs text-muted-foreground">Nenhuma tag</span>}
-                </div>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Nova tag"
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
-                    className="h-8 text-xs"
-                  />
-                  <Button type="button" size="sm" variant="outline" className="h-8 shrink-0" onClick={addTag}>
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-              </div>
-
-              {hasConversation && (
-                <Link
-                  href="/app/conversations"
-                  className="flex items-center gap-2 text-sm text-primary hover:underline"
-                >
-                  <MessageSquare className="h-4 w-4" /> Ver conversas com este lead
-                </Link>
-              )}
-            </div>
-
-            <div className="pt-6 flex justify-between gap-3">
-              <Button type="button" variant="ghost" className="text-destructive hover:bg-destructive/10" onClick={handleDeleteLead}>
-                <Trash2 className="h-4 w-4 mr-2" /> Excluir
-              </Button>
-              <div className="flex gap-3">
-                <Button type="button" variant="outline" onClick={closeLeadDetails}>Cancelar</Button>
-                <Button type="button" onClick={handleSaveLead} disabled={saving}>
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Salvar
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <LeadDetailModal
+          lead={selectedLead}
+          leadAgents={leadAgents[selectedLead.id] || []}
+          editForm={editForm}
+          setEditForm={setEditForm}
+          newTag={newTag}
+          setNewTag={setNewTag}
+          saving={saving}
+          hasConversation={hasConversation}
+          onClose={closeLeadDetails}
+          onSave={handleSaveLead}
+          onDelete={handleDeleteLead}
+          onAddTag={addTag}
+          onRemoveTag={removeTag}
+        />
       )}
     </div>
   );
