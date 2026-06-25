@@ -30,12 +30,21 @@ Limites e Regras: Barreiras que o bot nunca ultrapassa. Exemplos: nunca dar desc
 
 Funcionalidades (plano Profissional): Voz e Áudio (bot responde com mensagem de voz), Memória de Dados (bot lembra do cliente), Ações Externas (bot conecta com outros sistemas).
 
-Integrações: Calendário (Google Calendar, Calendly), Pagamentos (Pix, Mercado Pago, Stripe), E-mail, Notificações Externas (Zapier, Make).
+Integrações disponíveis (menu Integrações no sidebar):
+- Calendário: Google Calendar, Calendly, Cal.com — bot agenda reuniões direto pelo WhatsApp
+- Pagamentos: Pix, Mercado Pago, Asaas, Woovi, Stripe — bot envia link de pagamento durante a conversa
+- E-mail: o bot ENVIA e-mails para o cliente durante a conversa do WhatsApp (orçamentos, comprovantes, materiais). Configurar em Integrações, escolher Gmail, Outlook, Zoho ou outro SMTP. Depois disso o bot consegue mandar e-mail quando o cliente pedir. Isso é diferente de "responder e-mails recebidos" — o BizPilot atende pelo WhatsApp, não por caixa de entrada de e-mail.
+- Instagram e Facebook: bot atende DMs das redes sociais também
+- Notificações Externas: avisa Zapier, Make ou qualquer sistema quando lead é qualificado ou venda fechada
 
 Planos: Básico (funcionalidades essenciais), Profissional R$79,99/mês (voz, memória, ações externas), Avançado R$119,99/mês (tudo do profissional com limites maiores).
 
-Bot não responde: Verificar se WhatsApp está conectado na aba Canais e se o agente foi salvo.
-Bot respondeu errado: Adicionar mais informações na Base de Conhecimento ou refinar as Instruções.`;
+Bot não responde: Verificar se WhatsApp está conectado na aba Canais e se o agente foi salvo. O agente precisa estar com status "online".
+Bot respondeu errado ou inventou informação: Adicionar mais informações na Base de Conhecimento ou refinar as Instruções do Bot.
+Bot não envia email: Verificar se a integração de E-mail está configurada em Integrações e se as credenciais estão corretas. Testar com o botão "Testar" dentro da integração.
+Bot não agenda: Verificar se a integração de Calendário está ativa e se o link ou credenciais estão corretos.
+Como configurar email: Ir em Integrações no menu lateral, clicar em E-mail, escolher Gmail/Outlook/Zoho ou SMTP manual, inserir as credenciais. Depois o bot consegue enviar e-mails durante conversas no WhatsApp.
+O BizPilot NÃO lê caixa de entrada de e-mail. Ele envia e-mails para clientes, mas não responde e-mails recebidos — o canal principal é WhatsApp.`;
 
 function parseReply(raw: string): { reply: string; suggestions: string[] } {
   const cleaned = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
