@@ -77,7 +77,7 @@ export function SupportChatPanel({ messages, input, loading, onInputChange, onSe
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
-              className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+              className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap ${
                 msg.role === "user"
                   ? "bg-brand-600 text-white rounded-br-sm"
                   : "bg-secondary text-foreground rounded-bl-sm"
