@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
 import {
   INTEGRATIONS_META, WEBHOOK_EVENTS, PAYMENT_PROVIDERS,
-  CALENDAR_PROVIDERS, EXTERNAL_DB_PROVIDERS, SMTP_PRESETS, EMAIL_API_PROVIDERS,
+  CALENDAR_PROVIDERS, EXTERNAL_DB_PROVIDERS, SMTP_PRESETS, EMAIL_API_PROVIDERS, EMAIL_TEMPLATES,
 } from "../_constants";
 
 interface Props {
@@ -29,7 +29,7 @@ interface Props {
   externalDbForm: { provider: string; projectUrl: string; apiKey: string; table: string; searchColumn: string; projectId: string; collection: string; searchField: string };
   setExternalDbForm: (v: any) => void;
   externalDbMsg: { ok: boolean; text: string } | null;
-  emailForm: { provider: string; apiKey: string; fromEmail: string; fromName: string; smtpPreset: string; host: string; port: string; secure: boolean; user: string; pass: string };
+  emailForm: { provider: string; apiKey: string; fromEmail: string; fromName: string; smtpPreset: string; host: string; port: string; secure: boolean; user: string; pass: string; templateId: string; brandColor: string };
   setEmailForm: (v: any) => void;
   emailMsg: { ok: boolean; text: string } | null;
   onClose: () => void;
@@ -68,9 +68,7 @@ export function IntegrationModal({
   const iconBg = MODAL_ICON_BG[activeModal] || "bg-secondary border-border";
   const isConnectable = ["webhook", "payments", "instagram", "facebook", "calendar", "external_db", "email"].includes(activeModal);
   const isConnected = isConnectable && statusMap[activeModal]?.status === "connected";
-  const isGoogleSubmit =
-    (activeModal === "calendar" && calendarForm.provider === "google") ||
-    (activeModal === "email" && emailForm.provider === "google");
+  const isGoogleSubmit = activeModal === "calendar" && calendarForm.provider === "google";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
@@ -247,13 +245,12 @@ export function IntegrationModal({
               <p className="text-sm text-muted-foreground">Conecte um e-mail e seus agentes poderão enviar orçamentos, comprovantes e materiais aos leads automaticamente.</p>
               <div className="space-y-2">
                 <Label>Como você quer conectar?</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {[
-                    { key: "google", title: "Entrar com Google", desc: "1 clique, sem senha", badge: "Recomendado" },
-                    { key: "smtp", title: "E-mail próprio", desc: "Gmail, Outlook, Zoho…" },
+                    { key: "smtp", title: "E-mail próprio", desc: "Gmail, Outlook, Zoho…", badge: "Recomendado" },
                     { key: "api", title: "Avançado", desc: "Resend / SendGrid" },
                   ].map((m) => {
-                    const active = m.key === "google" ? emailForm.provider === "google" : m.key === "smtp" ? emailForm.provider === "smtp" : (emailForm.provider === "resend" || emailForm.provider === "sendgrid");
+                    const active = m.key === "smtp" ? emailForm.provider === "smtp" : (emailForm.provider === "resend" || emailForm.provider === "sendgrid");
                     return (
                       <button type="button" key={m.key} onClick={() => setEmailForm({ ...emailForm, provider: m.key === "api" ? (emailForm.provider === "resend" || emailForm.provider === "sendgrid" ? emailForm.provider : "resend") : m.key })} className={`text-left p-3 rounded-lg border transition-colors ${active ? "border-brand-500 bg-brand-500/10" : "border-border bg-background hover:bg-secondary"}`}>
                         <div className="flex items-center gap-1.5 flex-wrap">
@@ -266,11 +263,6 @@ export function IntegrationModal({
                   })}
                 </div>
               </div>
-              {emailForm.provider === "google" && (
-                <div className="p-4 bg-secondary border border-border rounded-lg text-sm space-y-2">
-                  <p>Você será levado à tela do Google para autorizar o envio de e-mails. Se aparecer um aviso de "app não verificado", toque em <strong>Avançado → Continuar</strong>.</p>
-                </div>
-              )}
               {emailForm.provider === "smtp" && (
                 <>
                   <div className="space-y-2">
@@ -305,6 +297,88 @@ export function IntegrationModal({
                   <div className="space-y-2"><Label>Nome de remetente (opcional)</Label><Input placeholder="Ex: Salão da Maria" value={emailForm.fromName} onChange={(e) => setEmailForm({ ...emailForm, fromName: e.target.value })} /></div>
                 </>
               )}
+
+              {/* ── Template de e-mail ── */}
+              <div className="space-y-3 pt-1 border-t border-border/50">
+                <div>
+                  <Label>Template de e-mail</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Como os e-mails do bot vão aparecer para os seus clientes.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {EMAIL_TEMPLATES.map((t) => {
+                    const color = emailForm.brandColor || "#6366f1";
+                    const isActive = emailForm.templateId === t.id;
+                    return (
+                      <button
+                        type="button"
+                        key={t.id}
+                        onClick={() => setEmailForm({ ...emailForm, templateId: t.id })}
+                        className={`text-left p-3 rounded-lg border transition-colors ${isActive ? "border-brand-500 bg-brand-500/10" : "border-border bg-background hover:bg-secondary"}`}
+                      >
+                        {/* Mini preview */}
+                        <div className="w-full h-14 bg-gray-50 dark:bg-zinc-800 rounded mb-2 overflow-hidden border border-border/40">
+                          {t.id === "minimal" && (
+                            <div className="bg-white dark:bg-zinc-900 h-full p-2">
+                              <div className="h-1.5 w-3/4 bg-gray-200 dark:bg-zinc-700 rounded mb-1.5" />
+                              <div className="h-1.5 w-full bg-gray-100 dark:bg-zinc-800 rounded mb-1" />
+                              <div className="h-1.5 w-2/3 bg-gray-100 dark:bg-zinc-800 rounded" />
+                            </div>
+                          )}
+                          {t.id === "branded" && (
+                            <div className="h-full overflow-hidden">
+                              <div className="h-5 rounded-t flex items-center justify-center" style={{ backgroundColor: color }}>
+                                <div className="w-16 h-1.5 bg-white/50 rounded" />
+                              </div>
+                              <div className="bg-white dark:bg-zinc-900 p-2">
+                                <div className="h-1.5 w-3/4 bg-gray-200 dark:bg-zinc-700 rounded mb-1" />
+                                <div className="h-1.5 w-full bg-gray-100 dark:bg-zinc-800 rounded" />
+                              </div>
+                            </div>
+                          )}
+                          {t.id === "professional" && (
+                            <div className="bg-white dark:bg-zinc-900 h-full border-t-2 rounded" style={{ borderTopColor: color }}>
+                              <div className="px-2 pt-1.5 pb-1 border-b border-gray-100 dark:border-zinc-700">
+                                <div className="h-1.5 w-1/2 bg-gray-300 dark:bg-zinc-600 rounded" />
+                              </div>
+                              <div className="p-2">
+                                <div className="h-1.5 w-3/4 bg-gray-100 dark:bg-zinc-800 rounded mb-1" />
+                                <div className="h-1.5 w-full bg-gray-100 dark:bg-zinc-800 rounded" />
+                              </div>
+                            </div>
+                          )}
+                          {t.id === "modern" && (
+                            <div className="bg-white dark:bg-zinc-900 h-full p-2">
+                              <div className="h-1 w-8 rounded mb-2" style={{ backgroundColor: color }} />
+                              <div className="h-1.5 w-1/3 rounded mb-1.5" style={{ backgroundColor: color + "60" }} />
+                              <div className="h-1.5 w-3/4 bg-gray-100 dark:bg-zinc-800 rounded mb-1" />
+                              <div className="h-1.5 w-full bg-gray-100 dark:bg-zinc-800 rounded" />
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-xs font-medium">{t.name}</p>
+                        <p className="text-[10px] text-muted-foreground leading-tight">{t.desc}</p>
+                      </button>
+                    );
+                  })}
+                </div>
+                {emailForm.templateId !== "minimal" && (
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 space-y-1.5">
+                      <Label>Cor da marca</Label>
+                      <Input placeholder="#6366f1" value={emailForm.brandColor} onChange={(e) => setEmailForm({ ...emailForm, brandColor: e.target.value })} />
+                    </div>
+                    <div className="pt-6 shrink-0">
+                      <input
+                        type="color"
+                        value={emailForm.brandColor.match(/^#[0-9a-fA-F]{6}$/) ? emailForm.brandColor : "#6366f1"}
+                        onChange={(e) => setEmailForm({ ...emailForm, brandColor: e.target.value })}
+                        className="h-10 w-10 rounded-lg border border-border cursor-pointer bg-background p-0.5"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {emailMsg && <div className={`flex items-start gap-2 text-sm p-3 rounded-lg ${emailMsg.ok ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}><AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />{emailMsg.text}</div>}
             </>
           )}

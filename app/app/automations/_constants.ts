@@ -157,6 +157,13 @@ export const SMTP_PRESETS: Record<string, { label: string; host: string; port: n
   },
 };
 
+export const EMAIL_TEMPLATES: { id: string; name: string; desc: string }[] = [
+  { id: "minimal", name: "Simples", desc: "Mensagem direta, sem cabeçalho." },
+  { id: "branded", name: "Com marca", desc: "Cabeçalho colorido com o nome da empresa." },
+  { id: "professional", name: "Profissional", desc: "Borda superior e rodapé formal." },
+  { id: "modern", name: "Moderno", desc: "Sotaque minimalista com a cor da marca." },
+];
+
 export const EMAIL_API_PROVIDERS: { value: string; label: string; help: string; docUrl: string; docLabel: string }[] = [
   {
     value: "resend",

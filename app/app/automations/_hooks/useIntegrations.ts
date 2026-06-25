@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
-import { INTEGRATIONS_META, SMTP_PRESETS } from "../_constants";
+import { INTEGRATIONS_META, SMTP_PRESETS, EMAIL_TEMPLATES } from "../_constants";
 
 export function useIntegrations() {
   const { user } = useAuth();
@@ -39,6 +39,7 @@ export function useIntegrations() {
   const [emailForm, setEmailForm] = useState({
     provider: "smtp", apiKey: "", fromEmail: "", fromName: "",
     smtpPreset: "gmail", host: "smtp.gmail.com", port: "465", secure: true, user: "", pass: "",
+    templateId: "minimal", brandColor: "#6366f1",
   });
   const [emailMsg, setEmailMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -62,14 +63,6 @@ export function useIntegrations() {
       router.replace("/app/automations");
     } else if (calendarStatus === "error") {
       alert("Não foi possível conectar ao Google Calendar. Verifique o Client ID/Secret e tente novamente.");
-      router.replace("/app/automations");
-    }
-    const emailStatus = searchParams.get("email");
-    if (emailStatus === "connected") {
-      if (user) fetchIntegrations();
-      router.replace("/app/automations");
-    } else if (emailStatus === "error") {
-      alert("Não foi possível conectar a conta Google para e-mail. Tente novamente.");
       router.replace("/app/automations");
     }
   }, [searchParams, user]);
@@ -139,15 +132,17 @@ export function useIntegrations() {
       });
     } else if (id === "email") {
       const cfg = statusMap.email?.config || {};
-      const provider = cfg.provider || "smtp";
+      const provider = cfg.provider === "google" ? "smtp" : (cfg.provider || "smtp");
       const presetKey = provider === "smtp" && cfg.host
         ? (Object.keys(SMTP_PRESETS).find((k) => SMTP_PRESETS[k].host && SMTP_PRESETS[k].host === cfg.host) || "custom")
         : "gmail";
+      const validTemplate = EMAIL_TEMPLATES.find((t) => t.id === cfg.templateId) ? cfg.templateId : "minimal";
       setEmailForm({
         provider, apiKey: cfg.apiKey ? "••••••••••••" : "", fromEmail: cfg.fromEmail || "", fromName: cfg.fromName || "",
         smtpPreset: presetKey, host: cfg.host || SMTP_PRESETS.gmail.host,
         port: String(cfg.port ?? SMTP_PRESETS.gmail.port), secure: cfg.secure !== false,
         user: cfg.user || "", pass: cfg.pass ? "••••••••••••" : "",
+        templateId: validTemplate, brandColor: cfg.brandColor || "#6366f1",
       });
     }
   };
@@ -256,11 +251,9 @@ export function useIntegrations() {
         const provider = emailForm.provider;
         const existing = statusMap.email?.config || {};
         const fromName = emailForm.fromName.trim();
+        const templateId = emailForm.templateId;
+        const brandColor = emailForm.brandColor.trim() || "#6366f1";
         setEmailMsg(null);
-        if (provider === "google") {
-          window.location.href = `/api/email/google/auth?userId=${user.id}`;
-          return;
-        }
         if (provider === "smtp") {
           const host = emailForm.host.trim();
           const port = Number(emailForm.port) || 465;
@@ -274,7 +267,7 @@ export function useIntegrations() {
           const res = await fetch("/api/email/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: "smtp", host, port, secure: emailForm.secure, user: smtpUser, pass: finalPass }) });
           const data = await res.json();
           if (!data.success) { setEmailMsg({ ok: false, text: data.error || "Não foi possível conectar ao servidor." }); return; }
-          await upsertIntegration("email", "E-mail", "connected", { provider: "smtp", host, port, secure: emailForm.secure, user: smtpUser, pass: finalPass, fromEmail, fromName });
+          await upsertIntegration("email", "E-mail", "connected", { provider: "smtp", host, port, secure: emailForm.secure, user: smtpUser, pass: finalPass, fromEmail, fromName, templateId, brandColor });
           setActiveModal(null);
           return;
         }
@@ -286,7 +279,7 @@ export function useIntegrations() {
         const res = await fetch("/api/email/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, apiKey: finalApiKey }) });
         const data = await res.json();
         if (!data.success) { setEmailMsg({ ok: false, text: data.error || "Credencial inválida." }); return; }
-        await upsertIntegration("email", "E-mail", "connected", { provider, apiKey: finalApiKey, fromEmail, fromName });
+        await upsertIntegration("email", "E-mail", "connected", { provider, apiKey: finalApiKey, fromEmail, fromName, templateId, brandColor });
         setActiveModal(null);
       }
     } finally {

@@ -22,25 +22,54 @@ function linkify(escaped: string) {
   });
 }
 
-// Embrulha a mensagem em texto puro (escrita pela IA) num template HTML limpo:
-// card branco, fonte legível, links clicáveis, quebras de linha e assinatura opcional.
-function buildEmailHtml(body: string, fromName?: string) {
+function buildEmailHtml(body: string, fromName?: string, templateId?: string, brandColor?: string) {
+  const color = brandColor?.match(/^#[0-9a-fA-F]{3,6}$/) ? brandColor : '#6366f1';
   const safe = linkify(escapeHtml(body)).replace(/\r\n|\r|\n/g, '<br>');
+  const BASE = 'font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;';
+  const WRAP = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 0;"><tr><td align="center">`;
+  const WRAP_END = `</td></tr></table>`;
   const signature = fromName
     ? `<div style="margin-top:20px;border-top:1px solid #e5e7eb;padding-top:14px;color:#6b7280;font-size:13px;">— ${escapeHtml(fromName)}</div>`
     : '';
-  return `<!doctype html><html><body style="margin:0;padding:0;background:#f4f5f7;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;padding:24px 0;">
-    <tr><td align="center">
-      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;">
-        <tr><td style="padding:28px 32px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2937;font-size:15px;line-height:1.6;">
-          ${safe}
-          ${signature}
+
+  if (templateId === 'branded') {
+    const initial = fromName ? fromName.charAt(0).toUpperCase() : '?';
+    return `<!doctype html><html><body style="margin:0;padding:0;background:#f4f5f7;">${WRAP}
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#fff;border-radius:12px;overflow:hidden;">
+        <tr><td style="background:${color};padding:20px 32px;text-align:center;">
+          <span style="display:inline-block;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,0.25);line-height:36px;text-align:center;color:#fff;font-size:16px;font-weight:700;${BASE}margin-right:10px;vertical-align:middle;">${initial}</span>
+          ${fromName ? `<span style="color:#fff;font-size:17px;font-weight:600;${BASE}vertical-align:middle;">${escapeHtml(fromName)}</span>` : ''}
         </td></tr>
-      </table>
-    </td></tr>
-  </table>
-</body></html>`;
+        <tr><td style="padding:28px 32px;${BASE}color:#1f2937;font-size:15px;line-height:1.6;">${safe}</td></tr>
+        <tr><td style="padding:14px 32px 20px;border-top:1px solid #e5e7eb;background:#f9fafb;"><p style="margin:0;${BASE}font-size:12px;color:#9ca3af;text-align:center;">E-mail enviado automaticamente.</p></td></tr>
+      </table>${WRAP_END}</body></html>`;
+  }
+
+  if (templateId === 'professional') {
+    return `<!doctype html><html><body style="margin:0;padding:0;background:#f4f5f7;">${WRAP}
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#fff;border-radius:12px;overflow:hidden;border-top:4px solid ${color};">
+        ${fromName ? `<tr><td style="padding:20px 32px 16px;border-bottom:1px solid #e5e7eb;"><p style="margin:0;${BASE}font-size:16px;font-weight:700;color:#111827;">${escapeHtml(fromName)}</p></td></tr>` : ''}
+        <tr><td style="padding:28px 32px;${BASE}color:#1f2937;font-size:15px;line-height:1.6;">${safe}</td></tr>
+        <tr><td style="padding:16px 32px 20px;border-top:1px solid #e5e7eb;"><p style="margin:0;${BASE}font-size:12px;color:#9ca3af;">Atenciosamente${fromName ? `,<br><strong style="color:#6b7280;">${escapeHtml(fromName)}</strong>` : '.'}</p></td></tr>
+      </table>${WRAP_END}</body></html>`;
+  }
+
+  if (templateId === 'modern') {
+    return `<!doctype html><html><body style="margin:0;padding:0;background:#f4f5f7;">${WRAP}
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#fff;border-radius:12px;overflow:hidden;">
+        <tr><td style="padding:28px 32px 0;">
+          <div style="width:40px;height:4px;background:${color};border-radius:2px;margin-bottom:16px;"></div>
+          ${fromName ? `<p style="margin:0 0 18px;${BASE}font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:${color};">${escapeHtml(fromName)}</p>` : ''}
+        </td></tr>
+        <tr><td style="padding:0 32px 28px;${BASE}color:#1f2937;font-size:15px;line-height:1.6;">${safe}${signature}</td></tr>
+      </table>${WRAP_END}</body></html>`;
+  }
+
+  // minimal (default)
+  return `<!doctype html><html><body style="margin:0;padding:0;background:#f4f5f7;">${WRAP}
+    <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#fff;border:1px solid #e5e7eb;border-radius:12px;">
+      <tr><td style="padding:28px 32px;${BASE}color:#1f2937;font-size:15px;line-height:1.6;">${safe}${signature}</td></tr>
+    </table>${WRAP_END}</body></html>`;
 }
 
 async function sendViaResend(apiKey: string, from: string, to: string, subject: string, text: string, html: string) {
@@ -173,8 +202,8 @@ export async function POST(req: NextRequest) {
   }
 
   const config = integration.config as any;
-  const { provider, apiKey, fromEmail, fromName, refreshToken } = config as {
-    provider: string; apiKey?: string; fromEmail: string; fromName?: string; refreshToken?: string;
+  const { provider, apiKey, fromEmail, fromName, templateId, brandColor } = config as {
+    provider: string; apiKey?: string; fromEmail: string; fromName?: string; templateId?: string; brandColor?: string;
   };
 
   if (!fromEmail) {
@@ -182,7 +211,7 @@ export async function POST(req: NextRequest) {
   }
 
   const from = fromName ? `${fromName} <${fromEmail}>` : fromEmail;
-  const html = buildEmailHtml(body, fromName);
+  const html = buildEmailHtml(body, fromName, templateId, brandColor);
 
   try {
     if (provider === 'sendgrid') {
@@ -195,8 +224,8 @@ export async function POST(req: NextRequest) {
         from, to, subject, body, html,
       );
     } else if (provider === 'google') {
-      if (!refreshToken) throw new Error('Conta Google não autorizada. Reconecte.');
-      await sendViaGoogle(refreshToken, from, to, subject, body, html);
+      if (!config.refreshToken) throw new Error('Conta Google não autorizada. Reconecte via SMTP.');
+      await sendViaGoogle(config.refreshToken, from, to, subject, body, html);
     } else {
       if (!apiKey) throw new Error('Chave de API ausente.');
       await sendViaResend(apiKey, from, to, subject, body, html);
