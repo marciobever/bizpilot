@@ -1,5 +1,6 @@
 "use client";
 import { Volume2, Brain, Webhook, FileText, ChevronRight, Loader2, X, Plus, Puzzle } from "lucide-react";
+import { HelpTooltip } from "@/components/ui/HelpTooltip";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -102,7 +103,10 @@ export function AddonsTab({
                 <div className="flex items-start gap-2 min-w-0">
                   <Volume2 className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
                   <div className="min-w-0">
-                    <p className="font-medium text-sm">Voz e Áudio</p>
+                    <p className="font-medium text-sm flex items-center gap-1.5">
+                      Voz e Áudio
+                      <HelpTooltip text="O bot responde com mensagens de áudio além de texto. Ideal para clientes que preferem ouvir a ler." />
+                    </p>
                     <p className="text-xs text-muted-foreground">Responde com mensagens de voz.</p>
                   </div>
                 </div>
@@ -118,7 +122,10 @@ export function AddonsTab({
                 <div className="flex items-start gap-2 min-w-0">
                   <Brain className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
                   <div className="min-w-0">
-                    <p className="font-medium text-sm">Memória de Dados</p>
+                    <p className="font-medium text-sm flex items-center gap-1.5">
+                      Memória de Dados
+                      <HelpTooltip text="O bot lembra de informações do cliente entre conversas — nome, preferências, histórico de pedidos. Assim ele nunca pergunta a mesma coisa duas vezes." />
+                    </p>
                     <p className="text-xs text-muted-foreground">Guarda e consulta dados do cliente.</p>
                   </div>
                 </div>
@@ -134,7 +141,10 @@ export function AddonsTab({
                 <div className="flex items-start gap-2 min-w-0">
                   <Webhook className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
                   <div className="min-w-0">
-                    <p className="font-medium text-sm">Ações Externas</p>
+                    <p className="font-medium text-sm flex items-center gap-1.5">
+                      Ações Externas
+                      <HelpTooltip text="Conecte o bot a outros sistemas: agendar no Google Calendar, consultar estoque, criar pedido no ERP. O bot decide sozinho quando chamar cada ação." />
+                    </p>
                     <p className="text-xs text-muted-foreground">{tools.length > 0 ? `${tools.length} ação(ões) configurada(s)` : "Conecte o bot com outros sistemas…"}</p>
                   </div>
                 </div>

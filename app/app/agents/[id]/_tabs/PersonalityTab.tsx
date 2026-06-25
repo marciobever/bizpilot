@@ -1,5 +1,6 @@
 "use client";
 import { Wand2, Loader2 } from "lucide-react";
+import { HelpTooltip } from "@/components/ui/HelpTooltip";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -81,7 +82,10 @@ export function PersonalityTab({
           <p className="text-xs text-muted-foreground">Deixe em branco para permitir que a IA decida a melhor saudação com base no contexto.</p>
         </div>
         <div className="space-y-2">
-          <Label>Tempo de Digitação (Humanização)</Label>
+          <Label className="flex items-center gap-2">
+            Tempo de Digitação
+            <HelpTooltip text="Simula o delay de uma pessoa digitando antes de responder. Quanto maior, mais o bot parece humano — mas respostas demoram mais para chegar." />
+          </Label>
           <div className="flex items-center gap-4 border border-border rounded-md p-4 bg-secondary/20">
             <div className="flex-1">
               <input type="range" className="w-full accent-brand-500" min="0" max="100" value={typingSpeed} onChange={(e) => setTypingSpeed(e.target.value)} />

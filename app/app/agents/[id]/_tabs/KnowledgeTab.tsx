@@ -1,5 +1,6 @@
 "use client";
 import { Brain, Globe, FileText, Plus, Loader2, Trash2 } from "lucide-react";
+import { HelpTooltip } from "@/components/ui/HelpTooltip";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -36,8 +37,11 @@ export function KnowledgeTab({
       <CardHeader>
         <div className="flex items-start justify-between">
           <div>
-            <CardTitle>Base de Conhecimento</CardTitle>
-            <CardDescription>Adicione textos ou URLs. A IA busca automaticamente quando precisar responder sobre o seu negócio.</CardDescription>
+            <CardTitle className="flex items-center gap-2">
+              Base de Conhecimento
+              <HelpTooltip text="Tudo que você adicionar aqui o bot vai saber de cor — preços, serviços, FAQ, políticas. Quanto mais detalhe, melhores as respostas." />
+            </CardTitle>
+            <CardDescription>Adicione textos ou URLs. O bot busca automaticamente quando precisar responder sobre o seu negócio.</CardDescription>
           </div>
           {!isNew && (
             <Button size="sm" className="gap-2 shrink-0" onClick={() => setShowKnowledgeForm(!showKnowledgeForm)}>

@@ -1,5 +1,6 @@
 "use client";
 import { Wand2, Loader2, Zap, Puzzle, Plus, X, ShieldAlert, Info } from "lucide-react";
+import { HelpTooltip } from "@/components/ui/HelpTooltip";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -38,7 +39,10 @@ export function InstructionsTab({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Instruções do Agente</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            Instruções do Agente
+            <HelpTooltip text="É aqui que você define a personalidade e o roteiro do bot. Pense como se fosse o treinamento de um funcionário: o que ele pode oferecer, como deve se apresentar e o que nunca deve fazer." />
+          </CardTitle>
           <CardDescription>O núcleo do comportamento — o que o agente deve e não deve fazer. Quanto mais específico, melhor.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -110,8 +114,11 @@ export function InstructionsTab({
 
       <Card>
         <CardHeader>
-          <CardTitle>Limites e Regras</CardTitle>
-          <CardDescription>Regras estritas que protegem sua empresa de respostas fora do escopo ou "alucinações".</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            Limites e Regras
+            <HelpTooltip text="Barreiras que o bot nunca ultrapassa. Ex: 'Nunca dar desconto acima de 10%', 'Nunca citar concorrentes', 'Sempre transferir para humano se o cliente pedir reembolso'." />
+          </CardTitle>
+          <CardDescription>Regras estritas que protegem sua empresa de respostas fora do escopo ou invenções do bot.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2">
