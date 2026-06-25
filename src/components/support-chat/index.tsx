@@ -9,13 +9,13 @@ export function SupportChat() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSend() {
-    const text = input.trim();
-    if (!text || loading) return;
+  async function send(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
 
-    const userMsg: Message = { role: "user", content: text };
-    const next = [...messages, userMsg];
-    setMessages(next);
+    const userMsg: Message = { role: "user", content: trimmed };
+    const history = [...messages, userMsg];
+    setMessages(history);
     setInput("");
     setLoading(true);
 
@@ -23,17 +23,23 @@ export function SupportChat() {
       const res = await fetch("/api/support-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: next }),
+        body: JSON.stringify({
+          messages: history.map(({ role, content }) => ({ role, content })),
+        }),
       });
       const data = await res.json();
-      if (data.reply) {
-        setMessages([...next, { role: "assistant", content: data.reply }]);
-      }
+      const reply = data.reply || "Desculpe, tive um problema. Tente novamente.";
+      const suggestions: string[] = data.suggestions ?? [];
+      setMessages([...history, { role: "assistant", content: reply, suggestions }]);
     } catch {
-      setMessages([...next, { role: "assistant", content: "Desculpe, tive um problema ao responder. Tente novamente." }]);
+      setMessages([...history, { role: "assistant", content: "Desculpe, tive um problema. Tente novamente.", suggestions: [] }]);
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleSuggestion(text: string) {
+    send(text);
   }
 
   return (
@@ -44,7 +50,8 @@ export function SupportChat() {
           input={input}
           loading={loading}
           onInputChange={setInput}
-          onSend={handleSend}
+          onSend={() => send(input)}
+          onSuggestion={handleSuggestion}
           onClose={() => setOpen(false)}
         />
       )}
