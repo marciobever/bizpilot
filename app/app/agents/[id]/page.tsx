@@ -25,6 +25,8 @@ import { ChannelsTab } from "./_tabs/ChannelsTab";
 // Views
 import { NewAgentView } from "./_views/NewAgentView";
 import { SetupWhatsappView } from "./_views/SetupWhatsappView";
+// Components
+import { AgentTour } from "./_components/AgentTour";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -285,6 +287,15 @@ export default function AgentConfig() {
 
         {/* Tab Content */}
         <div className="md:col-span-4 space-y-6">
+          <AgentTour
+            agentId={agentId}
+            agentName={form.agentName}
+            waConnected={waChannel.waConnected}
+            metaConnected={waChannel.metaConnected}
+            knowledgeCount={knowledge.knowledgeEntries.length}
+            onNavigate={setActiveTab}
+            onSave={handleSave}
+          />
           {activeTab === "identity" && (
             <IdentityTab agentName={form.agentName} setAgentName={form.setAgentName} role={form.role} setRole={form.setRole} niche={form.niche} setNiche={form.setNiche} />
           )}
