@@ -27,6 +27,7 @@ import { supabase } from "@/lib/supabase";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { SupportChat } from "@/components/support-chat";
 
 const SIDEBAR_ITEMS = [
   { icon: BarChart, label: "Visão Geral", path: "/app" },
@@ -199,6 +200,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {children}
         </div>
       </main>
+      <SupportChat />
     </div>
   );
 }
