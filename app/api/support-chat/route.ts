@@ -1,115 +1,123 @@
 import { NextRequest, NextResponse } from "next/server";
+import { TOOL_DEFINITIONS, executeTool } from "./tools";
 
-const SYSTEM_PROMPT = `Você é o assistente de suporte do BizPilot — sistema de bots de WhatsApp para empresas brasileiras.
+const SYSTEM_PROMPT = `Você é o assistente do BizPilot — sistema de bots de WhatsApp para empresas brasileiras.
+Você responde dúvidas E também pode fazer configurações diretamente pelo chat.
 
-REGRAS DE RESPOSTA (siga obrigatoriamente):
-- NUNCA use markdown: sem **, sem ##, sem listas com -, sem asteriscos, sem cabeçalhos
-- Responda em texto simples, como uma mensagem de WhatsApp
-- Use \n para separar frases ou passos — nunca escreva tudo junto em um bloco
-- Quando for passo a passo, use "1.", "2.", "3." em linhas separadas com \n entre elas
-- Máximo 4 linhas por resposta. Se tiver mais conteúdo, ofereça em "suggestions"
-- Seja específico: diga exatamente onde clicar, qual aba, qual campo
-- Nunca diga "me avise se precisar de ajuda" ou frases genéricas de encerramento
+QUANDO USAR FERRAMENTAS:
+- Usuário pede para mudar nome, tom, saudação, cargo ou nicho → use update_agent
+- Usuário pede para adicionar uma regra/restrição → use add_rule
+- Usuário quer adicionar informação ao bot (preços, horários, FAQ) → use add_knowledge
+- Usuário pergunta como está configurado o bot → use get_agent_info
+- Não há agentId no contexto → use list_agents para mostrar os bots disponíveis
 
-FORMATO DE RESPOSTA (JSON obrigatório):
-{"reply": "linha 1\nlinha 2\nlinha 3", "suggestions": ["Próximo passo 1", "Próximo passo 2"]}
+REGRAS DE RESPOSTA:
+- NUNCA use markdown: sem **, sem ##, sem asteriscos
+- Texto simples, como mensagem de WhatsApp
+- Use \\n para separar frases — nunca escreva tudo junto
+- Máximo 3 linhas. Se tiver mais conteúdo, ofereça em suggestions
+- Quando executar uma ação, confirme o que foi feito de forma curta e positiva
+- Nunca diga "me avise se precisar de mais ajuda"
 
-Use "suggestions" para oferecer próximos passos concretos (máximo 3). Deixe vazio [] se não houver.
+FORMATO DE RESPOSTA (JSON obrigatório para a resposta final):
+{"reply": "texto aqui\\noutro parágrafo", "suggestions": ["Próxima ação 1", "Próxima ação 2"]}
 
 CONHECIMENTO DO BIZPILOT:
 
-Criar bot: Menu Agentes, clicar em Novo Agente, seguir o assistente passo a passo (setor, funções, nome, tom de voz). Depois conectar WhatsApp na aba Canais.
+Criar bot: Menu Agentes, Novo Agente, seguir o assistente. Depois conectar WhatsApp na aba Canais.
 
-Conectar WhatsApp via QR Code (gratuito):
-1. Na página do agente, clicar na aba Canais
-2. Clicar em "Conectar WhatsApp"
-3. Digitar um nome para a instância (ex: loja_principal) sem espaços
-4. Clicar em "Avançar para o QR Code"
-5. No celular: abrir WhatsApp, tocar nos 3 pontinhos, Aparelhos conectados, Conectar aparelho
-6. Escanear o QR Code que aparece na tela
-Pronto, o bot começa a responder pelo número escaneado.
+Conectar WhatsApp via QR Code:
+1. Aba Canais do agente
+2. Clicar em Conectar WhatsApp
+3. Digitar nome da instância sem espaços
+4. Escanear QR Code com o celular: WhatsApp > 3 pontinhos > Aparelhos conectados > Conectar aparelho
 
-Conectar WhatsApp via Meta Cloud API (oficial, pago):
-Precisa de 3 informações do painel do Meta (business.facebook.com):
-- Phone Number ID: em WhatsApp Manager, selecionar o número, o ID aparece na tela
-- Access Token: em Configurações do Sistema, criar um Usuário do Sistema com permissão WhatsApp, gerar token
-- WABA ID: em WhatsApp Manager, na seção Contas do WhatsApp Business
+Conectar WhatsApp via Meta Cloud API: precisa de Phone Number ID, Access Token e WABA ID do painel business.facebook.com.
 
-Depois na aba Canais do BizPilot, escolher Meta Cloud API e colar essas informações.
+Base de Conhecimento: onde o bot aprende sobre a empresa. Pode ser texto, URL ou importar site inteiro.
+Instruções do Bot: roteiro e personalidade. Use templates ou gere com IA.
+Limites e Regras: barreiras que o bot nunca ultrapassa.
+Funcionalidades (plano Profissional): Voz e Áudio, Memória de Dados, Ações Externas.
+Integrações: Calendário, Pagamentos (Pix/Mercado Pago/Stripe), E-mail (bot envia emails durante conversa), Notificações Externas (Zapier/Make).
+Planos: Básico, Profissional R$79,99/mês, Avançado R$119,99/mês.
 
-WhatsApp desconectou: Ir na aba Canais do agente e escanear o QR Code novamente com o celular.
+Problemas comuns:
+- Bot não responde: verificar se WhatsApp está conectado na aba Canais e se o agente foi salvo
+- WhatsApp desconectou: ir em Canais e escanear QR Code novamente
+- Bot respondeu errado: adicionar mais conteúdo na Base de Conhecimento`;
 
-Base de Conhecimento: Onde o bot aprende sobre a empresa. Pode adicionar texto (colar diretamente), URL (link de página do site) ou importar o site inteiro. Quanto mais informação, melhor o bot responde.
+type OAIMessage = { role: string; content: string | null; tool_calls?: any[]; tool_call_id?: string };
 
-Instruções do Bot: Define o roteiro e personalidade. Use templates prontos ou gere com IA. Organizar em seções com === ajuda a manter organizado.
-
-Limites e Regras: Barreiras que o bot nunca ultrapassa. Exemplos: nunca dar desconto acima de X%, sempre transferir para humano se pedir reembolso.
-
-Funcionalidades (plano Profissional): Voz e Áudio (bot responde com mensagem de voz), Memória de Dados (bot lembra do cliente), Ações Externas (bot conecta com outros sistemas).
-
-Integrações disponíveis (menu Integrações no sidebar):
-- Calendário: Google Calendar, Calendly, Cal.com — bot agenda reuniões direto pelo WhatsApp
-- Pagamentos: Pix, Mercado Pago, Asaas, Woovi, Stripe — bot envia link de pagamento durante a conversa
-- E-mail: o bot ENVIA e-mails para o cliente durante a conversa do WhatsApp (orçamentos, comprovantes, materiais). Configurar em Integrações, escolher Gmail, Outlook, Zoho ou outro SMTP. Depois disso o bot consegue mandar e-mail quando o cliente pedir. Isso é diferente de "responder e-mails recebidos" — o BizPilot atende pelo WhatsApp, não por caixa de entrada de e-mail.
-- Instagram e Facebook: bot atende DMs das redes sociais também
-- Notificações Externas: avisa Zapier, Make ou qualquer sistema quando lead é qualificado ou venda fechada
-
-Planos: Básico (funcionalidades essenciais), Profissional R$79,99/mês (voz, memória, ações externas), Avançado R$119,99/mês (tudo do profissional com limites maiores).
-
-Bot não responde: Verificar se WhatsApp está conectado na aba Canais e se o agente foi salvo. O agente precisa estar com status "online".
-Bot respondeu errado ou inventou informação: Adicionar mais informações na Base de Conhecimento ou refinar as Instruções do Bot.
-Bot não envia email: Verificar se a integração de E-mail está configurada em Integrações e se as credenciais estão corretas. Testar com o botão "Testar" dentro da integração.
-Bot não agenda: Verificar se a integração de Calendário está ativa e se o link ou credenciais estão corretos.
-Como configurar email: Ir em Integrações no menu lateral, clicar em E-mail, escolher Gmail/Outlook/Zoho ou SMTP manual, inserir as credenciais. Depois o bot consegue enviar e-mails durante conversas no WhatsApp.
-O BizPilot NÃO lê caixa de entrada de e-mail. Ele envia e-mails para clientes, mas não responde e-mails recebidos — o canal principal é WhatsApp.`;
+async function callOpenAI(messages: OAIMessage[], useTools: boolean) {
+  const body: any = {
+    model: "gpt-4o-mini",
+    messages,
+    temperature: 0.4,
+    max_tokens: 250,
+  };
+  if (useTools) {
+    body.tools = TOOL_DEFINITIONS;
+    body.tool_choice = "auto";
+  }
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
 
 function parseReply(raw: string): { reply: string; suggestions: string[] } {
-  const cleaned = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
   try {
+    const cleaned = raw.replace(/```json/gi, "").replace(/```/g, "").trim();
     const parsed = JSON.parse(cleaned);
-    return {
-      reply: String(parsed.reply || "").trim(),
-      suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions.slice(0, 3) : [],
-    };
+    return { reply: String(parsed.reply || "").trim(), suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions.slice(0, 3) : [] };
   } catch {
-    return { reply: cleaned, suggestions: [] };
+    return { reply: raw.trim(), suggestions: [] };
   }
 }
 
 export async function POST(req: NextRequest) {
-  const { messages } = await req.json() as {
+  const { messages, context } = await req.json() as {
     messages: { role: "user" | "assistant"; content: string }[];
+    context?: { userId?: string; agentId?: string };
   };
 
-  if (!messages?.length) {
-    return NextResponse.json({ error: "messages é obrigatório" }, { status: 400 });
-  }
+  if (!messages?.length) return NextResponse.json({ error: "messages obrigatório" }, { status: 400 });
+
+  const userId = context?.userId || "";
+  const agentId = context?.agentId || "";
+
+  const contextNote = [
+    agentId ? `agentId do bot atual: ${agentId}` : "Usuário não está em nenhum bot específico agora.",
+    userId ? `userId: ${userId}` : "",
+  ].filter(Boolean).join(" | ");
+
+  const systemMsg = { role: "system", content: `${SYSTEM_PROMPT}\n\nCONTEXTO ATUAL: ${contextNote}` };
+  const history: OAIMessage[] = messages.map(({ role, content }) => ({ role, content }));
+  let oaiMessages: OAIMessage[] = [systemMsg, ...history];
 
   try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          ...messages,
-        ],
-        temperature: 0.4,
-        max_tokens: 200,
-      }),
-    });
+    let data = await callOpenAI(oaiMessages, !!userId);
+    let choice = data.choices[0];
 
-    if (!res.ok) {
-      const err = await res.text();
-      return NextResponse.json({ error: err }, { status: 502 });
+    // Function calling loop (max 3 rounds)
+    for (let i = 0; i < 3 && choice.finish_reason === "tool_calls"; i++) {
+      const assistantMsg = choice.message;
+      oaiMessages = [...oaiMessages, assistantMsg];
+
+      for (const call of assistantMsg.tool_calls || []) {
+        const args = JSON.parse(call.function.arguments || "{}");
+        const result = await executeTool(call.function.name, args, userId);
+        oaiMessages.push({ role: "tool", content: result, tool_call_id: call.id });
+      }
+
+      data = await callOpenAI(oaiMessages, false);
+      choice = data.choices[0];
     }
 
-    const data = await res.json();
-    const raw = data.choices?.[0]?.message?.content?.trim();
+    const raw = choice.message?.content?.trim();
     if (!raw) return NextResponse.json({ error: "Resposta vazia" }, { status: 502 });
 
     const { reply, suggestions } = parseReply(raw);

@@ -1,9 +1,19 @@
 "use client";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { useAuth } from "@/lib/auth";
 import { SupportChatButton } from "./SupportChatButton";
 import { SupportChatPanel, type Message } from "./SupportChatPanel";
 
+function extractAgentId(pathname: string): string {
+  const match = pathname.match(/\/app\/agents\/([^/]+)/);
+  const id = match?.[1];
+  return id && id !== "new" && id !== "wizard" ? id : "";
+}
+
 export function SupportChat() {
+  const { user } = useAuth();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -25,21 +35,20 @@ export function SupportChat() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: history.map(({ role, content }) => ({ role, content })),
+          context: {
+            userId: user?.id || "",
+            agentId: extractAgentId(pathname),
+          },
         }),
       });
       const data = await res.json();
       const reply = data.reply || "Desculpe, tive um problema. Tente novamente.";
-      const suggestions: string[] = data.suggestions ?? [];
-      setMessages([...history, { role: "assistant", content: reply, suggestions }]);
+      setMessages([...history, { role: "assistant", content: reply, suggestions: data.suggestions ?? [] }]);
     } catch {
       setMessages([...history, { role: "assistant", content: "Desculpe, tive um problema. Tente novamente.", suggestions: [] }]);
     } finally {
       setLoading(false);
     }
-  }
-
-  function handleSuggestion(text: string) {
-    send(text);
   }
 
   return (
@@ -51,7 +60,7 @@ export function SupportChat() {
           loading={loading}
           onInputChange={setInput}
           onSend={() => send(input)}
-          onSuggestion={handleSuggestion}
+          onSuggestion={send}
           onClose={() => setOpen(false)}
         />
       )}
