@@ -66,7 +66,7 @@ export function InstructionsTab({
               <button type="button" onClick={() => { setSystemPrompt(""); setShowTemplates(false); }} className="text-left p-3 rounded-lg border border-dashed border-border bg-background hover:border-muted-foreground/40 transition-all">
                 <div className="text-lg mb-1">✏️</div>
                 <div className="font-medium text-sm">Escrever do zero</div>
-                <div className="text-xs text-muted-foreground mt-0.5">Prompt em branco, controle total.</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Sem modelo, controle total.</div>
               </button>
             </div>
           )}
@@ -88,7 +88,7 @@ export function InstructionsTab({
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="prompt">Prompt de Instruções</Label>
+              <Label htmlFor="prompt">Instruções do Bot</Label>
               <span className="text-xs text-muted-foreground">{systemPrompt.length} caracteres</span>
             </div>
             <Textarea

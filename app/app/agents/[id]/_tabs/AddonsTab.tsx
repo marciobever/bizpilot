@@ -68,17 +68,17 @@ export function AddonsTab({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Puzzle className="h-5 w-5 text-brand-500" />
-            Addons — Disponível no plano Profissional
+            Funcionalidades — Disponível no plano Profissional
           </CardTitle>
           <CardDescription>
-            Resposta em áudio (TTS), memória de dados e ferramentas/APIs externas fazem parte do plano Profissional (R$ 79,99/mês) e do plano Avançado (R$ 119,99/mês).
+            Resposta em áudio, memória de dados e ações externas fazem parte do plano Profissional (R$ 79,99/mês) e do plano Avançado (R$ 119,99/mês).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <ul className="text-sm text-muted-foreground space-y-1.5">
-            <li>• Respostas em áudio com voz natural (TTS)</li>
-            <li>• Memória de dados — o agente guarda e consulta registros do cliente</li>
-            <li>• Ações e APIs (Tools) — o agente chama webhooks externos para agendar, buscar dados, etc.</li>
+            <li>• Respostas em áudio com voz natural</li>
+            <li>• Memória de dados — o bot guarda e consulta informações do cliente</li>
+            <li>• Ações externas — o bot conecta com outros sistemas para agendar, buscar dados, etc.</li>
           </ul>
           <Button className="bg-brand-600 hover:bg-brand-700 text-white" onClick={() => navigate.push("/app/settings")}>
             Fazer upgrade de plano
@@ -103,7 +103,7 @@ export function AddonsTab({
                   <Volume2 className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
                   <div className="min-w-0">
                     <p className="font-medium text-sm">Voz e Áudio</p>
-                    <p className="text-xs text-muted-foreground">Responde em áudio (TTS).</p>
+                    <p className="text-xs text-muted-foreground">Responde com mensagens de voz.</p>
                   </div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
@@ -134,8 +134,8 @@ export function AddonsTab({
                 <div className="flex items-start gap-2 min-w-0">
                   <Webhook className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
                   <div className="min-w-0">
-                    <p className="font-medium text-sm">Ações e APIs</p>
-                    <p className="text-xs text-muted-foreground">{tools.length > 0 ? `${tools.length} ferramenta(s) configurada(s)` : "Webhooks p/ agendar, buscar dados…"}</p>
+                    <p className="font-medium text-sm">Ações Externas</p>
+                    <p className="text-xs text-muted-foreground">{tools.length > 0 ? `${tools.length} ação(ões) configurada(s)` : "Conecte o bot com outros sistemas…"}</p>
                   </div>
                 </div>
                 <ChevronRight className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${showToolsManager ? "rotate-90" : ""}`} />
@@ -158,7 +158,7 @@ export function AddonsTab({
 
           {voiceEnabled && (
             <div className="space-y-2 bg-secondary/10 p-4 rounded-md border border-border">
-              <Label>Voz da OpenAI</Label>
+              <Label>Escolha a voz</Label>
               <div className="flex items-center gap-2">
                 <select value={voiceVoice} onChange={(e) => setVoiceVoice(e.target.value)} className="flex-1 bg-background border border-border rounded-md h-10 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
                   <option value="alloy">Alloy (Neutra / Masculina)</option>
@@ -183,8 +183,8 @@ export function AddonsTab({
           <CardHeader>
             <div className="flex items-start justify-between">
               <div>
-                <CardTitle>Ações e Integrações (Agents Tools)</CardTitle>
-                <CardDescription>A IA chama automaticamente estas ferramentas quando precisar. Configure webhooks para agendar, buscar dados, enviar e-mails, etc.</CardDescription>
+                <CardTitle>Ações Externas</CardTitle>
+                <CardDescription>O bot chama automaticamente essas ações quando precisar — para agendar, buscar dados, enviar e-mails e muito mais.</CardDescription>
               </div>
               <Button size="sm" className="gap-2 shrink-0" onClick={() => setShowToolForm(!showToolForm)}>
                 <Plus className="h-4 w-4" /> Nova Ferramenta
@@ -212,11 +212,11 @@ export function AddonsTab({
                   <Input placeholder="Agenda uma consulta. Use quando o cliente quiser marcar um horário." value={toolForm.description || ""} onChange={(e) => setToolForm({ ...toolForm, description: e.target.value })} />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">URL do Webhook</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">Endereço do serviço (URL)</label>
                   <Input placeholder="https://meuservidor.com/api/agendar" value={toolForm.url || ""} onChange={(e) => setToolForm({ ...toolForm, url: e.target.value })} />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Headers (opcional)</label>
+                  <label className="text-xs text-muted-foreground mb-1 block">Autenticação (opcional)</label>
                   <div className="space-y-1 mb-2">
                     {Object.entries(toolForm.headers || {}).map(([k, v]) => (
                       <div key={k} className="flex items-center gap-2 text-xs">
@@ -226,8 +226,8 @@ export function AddonsTab({
                     ))}
                   </div>
                   <div className="flex gap-2">
-                    <Input placeholder="Authorization" value={toolHeaderKey} className="h-8 text-xs" onChange={(e) => setToolHeaderKey(e.target.value)} />
-                    <Input placeholder="Bearer token..." value={toolHeaderVal} className="h-8 text-xs" onChange={(e) => setToolHeaderVal(e.target.value)} />
+                    <Input placeholder="Nome do campo" value={toolHeaderKey} className="h-8 text-xs" onChange={(e) => setToolHeaderKey(e.target.value)} />
+                    <Input placeholder="Sua chave de acesso..." value={toolHeaderVal} className="h-8 text-xs" onChange={(e) => setToolHeaderVal(e.target.value)} />
                     <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => { if (toolHeaderKey.trim()) { setToolForm({ ...toolForm, headers: { ...toolForm.headers, [toolHeaderKey.trim()]: toolHeaderVal.trim() } }); setToolHeaderKey(""); setToolHeaderVal(""); } }}>
                       <Plus className="h-3 w-3" />
                     </Button>
@@ -259,7 +259,7 @@ export function AddonsTab({
               </div>
             )}
             {tools.length === 0 ? (
-              <div className="text-center py-10 text-muted-foreground text-sm"><Webhook className="h-8 w-8 mx-auto mb-3 opacity-30" />Nenhuma ferramenta configurada. A IA responderá apenas com texto.</div>
+              <div className="text-center py-10 text-muted-foreground text-sm"><Webhook className="h-8 w-8 mx-auto mb-3 opacity-30" />Nenhuma ação configurada. O bot responderá apenas com texto.</div>
             ) : (
               <div className="space-y-2">
                 {tools.map((tool) => (

@@ -231,10 +231,10 @@ export default function AgentConfig() {
     { id: "identity", label: "Identidade", icon: Bot },
     { id: "personality", label: "Personalidade", icon: Smile },
     { id: "config", label: "Configurações", icon: Settings },
-    { id: "addons", label: "Addons", icon: Puzzle },
-    { id: "instructions", label: "Personalizada", icon: ShieldAlert },
-    { id: "tags", label: "Tags e Variáveis", icon: FileText },
-    { id: "knowledge", label: "Arquivos RAG", icon: Database },
+    { id: "addons", label: "Funcionalidades", icon: Puzzle },
+    { id: "instructions", label: "Instruções", icon: ShieldAlert },
+    { id: "tags", label: "Dados Dinâmicos", icon: FileText },
+    { id: "knowledge", label: "Base de Conhecimento", icon: Database },
     { id: "channels", label: "Canais", icon: Zap },
   ];
 

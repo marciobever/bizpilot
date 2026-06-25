@@ -36,7 +36,7 @@ export function KnowledgeTab({
       <CardHeader>
         <div className="flex items-start justify-between">
           <div>
-            <CardTitle>Base de Conhecimento (RAG)</CardTitle>
+            <CardTitle>Base de Conhecimento</CardTitle>
             <CardDescription>Adicione textos ou URLs. A IA busca automaticamente quando precisar responder sobre o seu negócio.</CardDescription>
           </div>
           {!isNew && (
@@ -58,15 +58,15 @@ export function KnowledgeTab({
             <div className="flex gap-2">
               {["text", "url", "sitemap"].map((type) => (
                 <Button key={type} size="sm" variant={knowledgeForm.sourceType === type ? "default" : "outline"} onClick={() => setKnowledgeForm({ ...knowledgeForm, sourceType: type })}>
-                  {type === "text" ? <><FileText className="h-3 w-3 mr-1" />Texto</> : type === "url" ? <><Globe className="h-3 w-3 mr-1" />URL</> : <><Globe className="h-3 w-3 mr-1" />Catálogo (Sitemap)</>}
+                  {type === "text" ? <><FileText className="h-3 w-3 mr-1" />Texto</> : type === "url" ? <><Globe className="h-3 w-3 mr-1" />URL</> : <><Globe className="h-3 w-3 mr-1" />Importar Site</>}
                 </Button>
               ))}
             </div>
 
             {knowledgeForm.sourceType === "sitemap" ? (
               <>
-                <p className="text-xs text-muted-foreground">Importa várias páginas de uma vez a partir de um sitemap.xml — cada página vira uma entrada separada na base.</p>
-                <Input placeholder="https://meusite.com/sitemap.xml" value={sitemapForm.sitemapUrl} onChange={(e) => setSitemapForm({ ...sitemapForm, sitemapUrl: e.target.value })} />
+                <p className="text-xs text-muted-foreground">Importa várias páginas do seu site de uma vez — cada página vira uma entrada separada na base de conhecimento.</p>
+                <Input placeholder="https://meusite.com/sitemap.xml — endereço do mapa do site" value={sitemapForm.sitemapUrl} onChange={(e) => setSitemapForm({ ...sitemapForm, sitemapUrl: e.target.value })} />
                 <Input placeholder="Filtro de URL (opcional, ex: /imovel/)" value={sitemapForm.urlFilter} onChange={(e) => setSitemapForm({ ...sitemapForm, urlFilter: e.target.value })} />
                 <div className="flex items-center gap-2">
                   <Label htmlFor="sitemap-max" className="text-xs whitespace-nowrap">Máx. de páginas</Label>
@@ -82,7 +82,7 @@ export function KnowledgeTab({
                   <Button size="sm" variant="outline" onClick={() => setShowKnowledgeForm(false)}>Cancelar</Button>
                   <Button size="sm" onClick={onImportSitemap} disabled={importingSitemap}>
                     {importingSitemap ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                    {importingSitemap ? "Importando..." : "Importar Catálogo"}
+                    {importingSitemap ? "Importando..." : "Importar Site"}
                   </Button>
                 </div>
               </>
@@ -98,7 +98,7 @@ export function KnowledgeTab({
                   <Button size="sm" variant="outline" onClick={() => setShowKnowledgeForm(false)}>Cancelar</Button>
                   <Button size="sm" onClick={onAddKnowledge} disabled={addingKnowledge}>
                     {addingKnowledge ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
-                    {addingKnowledge ? "Processando..." : "Salvar e Vetorizar"}
+                    {addingKnowledge ? "Salvando..." : "Salvar"}
                   </Button>
                 </div>
               </>
@@ -121,7 +121,7 @@ export function KnowledgeTab({
                   {entry.source_type === "url" ? <Globe className="h-4 w-4 text-brand-500 shrink-0" /> : <FileText className="h-4 w-4 text-emerald-500 shrink-0" />}
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{entry.title}</p>
-                    <p className="text-xs text-muted-foreground">{entry.chunk_count} chunks · {new Date(entry.created_at).toLocaleDateString("pt-BR")}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(entry.created_at).toLocaleDateString("pt-BR")}</p>
                   </div>
                 </div>
                 <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive shrink-0" onClick={() => onDeleteKnowledge(entry.id)}>

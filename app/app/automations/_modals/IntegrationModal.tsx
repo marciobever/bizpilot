@@ -91,19 +91,19 @@ export function IntegrationModal({
           {activeModal === "webhook" && (
             <>
               <div className="p-4 bg-secondary border border-border rounded-lg text-sm">
-                Sempre que um lead mudar de etapa nos eventos marcados abaixo, enviamos um <code>POST</code> com os dados do lead para a URL configurada.
+                Quando um lead avançar nos eventos marcados abaixo, o BizPilot avisa automaticamente o sistema que você escolher (Zapier, Make, seu próprio sistema, etc.).
               </div>
               <div className="space-y-2">
-                <Label htmlFor="webhookUrl">URL de destino</Label>
-                <Input id="webhookUrl" placeholder="https://sua-ferramenta.com/webhook" required value={webhookForm.url} onChange={(e) => setWebhookForm({ ...webhookForm, url: e.target.value })} />
+                <Label htmlFor="webhookUrl">Endereço de destino (URL)</Label>
+                <Input id="webhookUrl" placeholder="https://hooks.zapier.com/hooks/catch/..." required value={webhookForm.url} onChange={(e) => setWebhookForm({ ...webhookForm, url: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="webhookSecret">Secret (opcional)</Label>
-                <Input id="webhookSecret" placeholder="Usado para assinar o payload (HMAC SHA-256)" value={webhookForm.secret} onChange={(e) => setWebhookForm({ ...webhookForm, secret: e.target.value })} />
-                <p className="text-xs text-muted-foreground">Se preenchido, enviamos o header <code>X-Synapse-Signature</code> com o HMAC SHA-256 do corpo da requisição.</p>
+                <Label htmlFor="webhookSecret">Chave de segurança (opcional)</Label>
+                <Input id="webhookSecret" placeholder="Deixe em branco se não souber — pode configurar depois" value={webhookForm.secret} onChange={(e) => setWebhookForm({ ...webhookForm, secret: e.target.value })} />
+                <p className="text-xs text-muted-foreground">Se preenchida, permite que o sistema de destino verifique que a notificação veio do BizPilot.</p>
               </div>
               <div className="space-y-2">
-                <Label>Eventos</Label>
+                <Label>Quando notificar?</Label>
                 <div className="space-y-2">
                   {WEBHOOK_EVENTS.map((ev) => (
                     <label key={ev.value} className="flex items-center gap-2 text-sm cursor-pointer">

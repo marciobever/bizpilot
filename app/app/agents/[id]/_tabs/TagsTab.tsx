@@ -43,8 +43,8 @@ export function TagsTab({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Tags e Variáveis</CardTitle>
-        <CardDescription>Defina parâmetros e marcadores dinâmicos que serão enviados no payload JSON do WhatsApp à sua automação externa.</CardDescription>
+        <CardTitle>Dados Dinâmicos</CardTitle>
+        <CardDescription>Defina marcadores e valores que o bot usa para personalizar atendimentos e conectar com suas automações externas.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-8">
         <div className="space-y-4">
@@ -82,11 +82,11 @@ export function TagsTab({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-2xl">
             <div className="space-y-1">
-              <Label htmlFor="var-key" className="text-xs text-muted-foreground">Chave (Key)</Label>
+              <Label htmlFor="var-key" className="text-xs text-muted-foreground">Nome da variável</Label>
               <Input id="var-key" placeholder="Ex: link_calendly" value={newVarKey} onChange={(e) => setNewVarKey(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))} className="font-mono text-xs" />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="var-val" className="text-xs text-muted-foreground">Valor (Value)</Label>
+              <Label htmlFor="var-val" className="text-xs text-muted-foreground">Valor</Label>
               <div className="flex gap-2">
                 <Input
                   id="var-val"
@@ -117,8 +117,8 @@ export function TagsTab({
         </div>
 
         <div className="p-4 bg-muted/60 border rounded-lg text-xs leading-relaxed text-muted-foreground">
-          <div className="font-semibold text-foreground mb-1">Como esses dados são enviados:</div>
-          Estes valores são exportados no formato JSON sob o campo <code className="bg-secondary px-1 py-0.5 rounded text-brand-400 font-mono">config.tags</code> e <code className="bg-secondary px-1 py-0.5 rounded text-brand-400 font-mono">config.variables</code> junto com os demais dados do agente.
+          <div className="font-semibold text-foreground mb-1">Como funciona:</div>
+          Tags e variáveis são enviados automaticamente junto com os dados do bot para qualquer automação externa que você conectar (Zapier, Make, webhooks, etc.).
         </div>
       </CardContent>
     </Card>

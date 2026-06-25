@@ -30,10 +30,10 @@ export const INTEGRATIONS_META = [
   },
   {
     id: "webhook",
-    name: "Webhooks Customizados",
-    description: "Acione ações externas quando a IA qualificar ou converter um lead.",
+    name: "Notificações Externas",
+    description: "Avise outros sistemas automaticamente quando o bot qualificar ou fechar uma venda.",
     icon: Webhook,
-    category: "Desenvolvedores",
+    category: "Automações",
     color: "text-foreground",
     bgClass: "bg-secondary border-border",
   },
