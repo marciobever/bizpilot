@@ -1,5 +1,5 @@
 "use client";
-import { Send, Loader2, Wand2, Check, SkipForward, Sparkles, Pencil, RefreshCw, Lock, Plus, ShieldAlert } from "lucide-react";
+import { Send, Loader2, Wand2, Check, SkipForward, Sparkles, Pencil, RefreshCw, Lock, Plus, ShieldAlert, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { cn } from "@/lib/utils";
 import { SAFETY_RULES_DISPLAY } from "@/lib/agentTemplates";
 import type { Stage } from "../_hooks/useWizardFlow";
-import type { Sector } from "@/lib/agentTemplates";
+import type { Sector, AgentFunction } from "@/lib/agentTemplates";
 
 interface Props {
   stage: Stage;
@@ -25,6 +25,12 @@ interface Props {
   limitationSuggestions: string[];
   selectedLimitations: string[];
   draftCustomRule: string; setDraftCustomRule: (v: string) => void;
+  customFunctions: AgentFunction[];
+  draftCustomFunction: string; setDraftCustomFunction: (v: string) => void;
+  generatingFunction: boolean;
+  functionGenError: string;
+  addCustomFunction: () => void;
+  removeCustomFunction: (id: string) => void;
   greeting: string; setGreeting: (v: string) => void;
   systemPrompt: string; setSystemPrompt: (v: string) => void;
   agentName: string; niche: string; role: string; tone: string;
@@ -56,6 +62,8 @@ export function StagePanel(props: Props) {
     selectedSector, selectedFunctions, draftName, setDraftName, draftNiche, setDraftNiche,
     greetingOptions, loadingGreetings, greetingError, writingOwn, setWritingOwn, draftGreeting, setDraftGreeting,
     limitationSuggestions, selectedLimitations, draftCustomRule, setDraftCustomRule,
+    customFunctions, draftCustomFunction, setDraftCustomFunction,
+    generatingFunction, functionGenError, addCustomFunction, removeCustomFunction,
     greeting, setGreeting, systemPrompt, setSystemPrompt, agentName, niche, role, tone, isCustom, creating,
     SECTORS, CUSTOM_SECTOR, TONE_OPTIONS, functionLabels,
     selectSector, toggleFunction, confirmFunctions, submitCustom,
@@ -103,20 +111,67 @@ export function StagePanel(props: Props) {
       )}
 
       {stage === "functions" && selectedSector && (
-        <div className="space-y-3">
-          <div className="flex flex-wrap gap-2">
-            {selectedSector.functions.map((fn) => {
-              const active = selectedFunctions.includes(fn.id);
-              return (
-                <button key={fn.id} type="button" onClick={() => toggleFunction(fn.id)}
-                  className={cn("inline-flex items-center gap-1.5 px-3 py-2 rounded-full border text-sm transition-all",
-                    active ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border bg-card hover:border-brand-500/50 hover:bg-brand-500/5")}>
-                  {active ? <Check className="h-3.5 w-3.5" /> : <span>{fn.emoji}</span>}
-                  {fn.label}
-                </button>
-              );
-            })}
+        <div className="space-y-4">
+          {/* Funções pré-definidas do setor */}
+          {selectedSector.functions.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {selectedSector.functions.map((fn) => {
+                const active = selectedFunctions.includes(fn.id);
+                return (
+                  <button key={fn.id} type="button" onClick={() => toggleFunction(fn.id)}
+                    className={cn("inline-flex items-center gap-1.5 px-3 py-2 rounded-full border text-sm transition-all",
+                      active ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border bg-card hover:border-brand-500/50 hover:bg-brand-500/5")}>
+                    {active ? <Check className="h-3.5 w-3.5" /> : <span>{fn.emoji}</span>}
+                    {fn.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Funções customizadas geradas pela IA */}
+          {customFunctions.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {customFunctions.map((fn) => {
+                const active = selectedFunctions.includes(fn.id);
+                return (
+                  <span key={fn.id} className={cn("inline-flex items-center gap-1 pl-2 pr-1 py-1.5 rounded-full border text-sm transition-all",
+                    active ? "border-brand-500 bg-brand-500/10 text-brand-300" : "border-border bg-card text-muted-foreground")}>
+                    <button type="button" onClick={() => toggleFunction(fn.id)} className="inline-flex items-center gap-1.5">
+                      {active ? <Check className="h-3.5 w-3.5" /> : <span>{fn.emoji}</span>}
+                      {fn.label}
+                    </button>
+                    <button type="button" onClick={() => removeCustomFunction(fn.id)}
+                      className="ml-1 text-muted-foreground hover:text-destructive transition-colors">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Campo para criar função personalizada com IA */}
+          <div className="rounded-lg border border-dashed border-border bg-secondary/20 p-3 space-y-2">
+            <p className="text-xs text-muted-foreground font-medium">Não encontrou o que precisa? Descreva em português e a IA converte:</p>
+            <div className="flex gap-2">
+              <Input
+                placeholder="Ex: perguntar o CPF antes de consultar pedido..."
+                value={draftCustomFunction}
+                onChange={(e) => setDraftCustomFunction(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustomFunction(); } }}
+                disabled={generatingFunction}
+                className="text-sm"
+              />
+              <Button size="sm" variant="outline" onClick={addCustomFunction}
+                disabled={generatingFunction || !draftCustomFunction.trim()} className="shrink-0 gap-1.5">
+                {generatingFunction ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                {generatingFunction ? "" : "Converter"}
+              </Button>
+            </div>
+            {functionGenError && <p className="text-xs text-red-400">{functionGenError}</p>}
           </div>
+
           <Button onClick={confirmFunctions} className="gap-2">Continuar <Send className="h-4 w-4" /></Button>
         </div>
       )}

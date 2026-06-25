@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TOOL_DEFINITIONS, executeTool } from "./tools";
+import { TOOL_DEFINITIONS, executeTool, getUserPlan } from "./tools";
+import { PLAN_LABEL, type PlanId } from "@/lib/plans";
 
 const SYSTEM_PROMPT = `Você é o assistente do BizPilot — sistema de bots de WhatsApp para empresas brasileiras.
 Você responde dúvidas E também pode fazer configurações diretamente pelo chat.
@@ -37,9 +38,17 @@ Conectar WhatsApp via Meta Cloud API: precisa de Phone Number ID, Access Token e
 Base de Conhecimento: onde o bot aprende sobre a empresa. Pode ser texto, URL ou importar site inteiro.
 Instruções do Bot: roteiro e personalidade. Use templates ou gere com IA.
 Limites e Regras: barreiras que o bot nunca ultrapassa.
-Funcionalidades (plano Profissional): Voz e Áudio, Memória de Dados, Ações Externas.
-Integrações: Calendário, Pagamentos (Pix/Mercado Pago/Stripe), E-mail (bot envia emails durante conversa), Notificações Externas (Zapier/Make).
-Planos: Básico, Profissional R$79,99/mês, Avançado R$119,99/mês.
+Funcionalidades (plano Profissional): Voz e Áudio, Memória de Dados, Ações Externas, E-mail, Pagamentos, Notificações Externas.
+Funcionalidades (plano Avançado): Calendário, Banco de Dados Externo, Instagram, Facebook.
+Integrações: Calendário (Avançado), Pagamentos - Pix/Mercado Pago/Stripe (Profissional), E-mail (Profissional, bot envia durante conversa), Notificações Externas - Zapier/Make (Profissional).
+Planos: Básico (grátis), Profissional R$79,99/mês, Avançado R$119,99/mês.
+
+REGRAS DE PLANO (CRÍTICO):
+- Verifique o plano do usuário no CONTEXTO ATUAL antes de sugerir qualquer funcionalidade
+- Se o plano for "basico": NÃO ofereça nem explique como configurar Voz, Memória, Ações Externas, E-mail, Pagamentos, Webhooks, Calendário, Instagram ou Facebook
+- Se o plano for "profissional": NÃO ofereça Calendário, Banco de Dados Externo, Instagram ou Facebook
+- Quando o usuário perguntar sobre feature bloqueada: informe que requer upgrade e diga o plano necessário
+- NUNCA configure algo que o plano não permite
 
 Problemas comuns:
 - Bot não responde: verificar se WhatsApp está conectado na aba Canais e se o agente foi salvo
@@ -89,9 +98,13 @@ export async function POST(req: NextRequest) {
   const userId = context?.userId || "";
   const agentId = context?.agentId || "";
 
+  const userPlan = userId ? await getUserPlan(userId) : "basico";
+  const planLabel = PLAN_LABEL[(userPlan as PlanId)] ?? userPlan;
+
   const contextNote = [
     agentId ? `agentId do bot atual: ${agentId}` : "Usuário não está em nenhum bot específico agora.",
     userId ? `userId: ${userId}` : "",
+    `Plano do usuário: ${userPlan} (${planLabel}) — respeite rigorosamente as restrições de plano.`,
   ].filter(Boolean).join(" | ");
 
   const systemMsg = { role: "system", content: `${SYSTEM_PROMPT}\n\nCONTEXTO ATUAL: ${contextNote}` };
@@ -109,7 +122,7 @@ export async function POST(req: NextRequest) {
 
       for (const call of assistantMsg.tool_calls || []) {
         const args = JSON.parse(call.function.arguments || "{}");
-        const result = await executeTool(call.function.name, args, userId);
+        const result = await executeTool(call.function.name, args, userId, userPlan);
         oaiMessages.push({ role: "tool", content: result, tool_call_id: call.id });
       }
 

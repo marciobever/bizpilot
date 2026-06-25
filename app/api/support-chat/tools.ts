@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { ingestKnowledgeEntry } from "@/lib/knowledge";
+import { planAllows, PLAN_LABEL, type PlanId } from "@/lib/plans";
 
 function getDb() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -90,11 +91,41 @@ async function verifyOwnership(db: ReturnType<typeof getDb>, agentId: string, us
   return data?.user_id === userId;
 }
 
+// Cada tool mapeada para a feature de plano que ela representa
+const TOOL_FEATURE_MAP: Record<string, string> = {
+  enable_voice: "voice",
+  enable_memory: "memory",
+  enable_webhook: "webhook",
+  enable_email: "email",
+  enable_payments: "payments",
+  enable_calendar: "calendar",
+  enable_instagram: "instagram",
+  enable_facebook: "facebook",
+};
+
+function upgradeMsg(feature: string, userPlan: string): string {
+  const needed = PLAN_LABEL[feature as PlanId] ?? "superior";
+  const current = PLAN_LABEL[(userPlan as PlanId)] ?? userPlan;
+  return `Essa funcionalidade exige o plano ${needed}. Seu plano atual é ${current}. Faça upgrade em Configurações > Plano.`;
+}
+
+export async function getUserPlan(userId: string): Promise<string> {
+  const db = getDb();
+  const { data } = await db.from("profiles").select("plan").eq("id", userId).single();
+  return data?.plan || "basico";
+}
+
 export async function executeTool(
   name: string,
   args: Record<string, string>,
-  userId: string
+  userId: string,
+  userPlan: string
 ): Promise<string> {
+  const featureRequired = TOOL_FEATURE_MAP[name];
+  if (featureRequired && !planAllows(userPlan, featureRequired)) {
+    return upgradeMsg(featureRequired, userPlan);
+  }
+
   const db = getDb();
 
   if (name === "list_agents") {

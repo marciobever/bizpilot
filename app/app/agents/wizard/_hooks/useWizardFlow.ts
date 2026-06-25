@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import {
-  SECTORS, composeSystemPrompt, aggregateLimitations, sectorHasDataRecords, type Sector,
+  SECTORS, composeSystemPrompt, aggregateLimitations, sectorHasDataRecords, type Sector, type AgentFunction,
   UNIVERSAL_BUSINESS_RULES,
 } from "@/lib/agentTemplates";
 import type { ChatMsg } from "./useTypewriter";
@@ -78,10 +78,18 @@ export function useWizardFlow({ pushUser, pushBot, setBotTyping, addBotMessageDi
   const [selectedLimitations, setSelectedLimitations] = useState<string[]>([]);
   const [draftCustomRule, setDraftCustomRule] = useState("");
 
+  const [customFunctions, setCustomFunctions] = useState<AgentFunction[]>([]);
+  const [draftCustomFunction, setDraftCustomFunction] = useState("");
+  const [generatingFunction, setGeneratingFunction] = useState(false);
+  const [functionGenError, setFunctionGenError] = useState("");
+
   const isCustom = selectedSector?.id === "custom";
 
-  const functionLabels = () =>
-    (selectedSector?.functions || []).filter((f) => selectedFunctions.includes(f.id)).map((f) => f.label);
+  const functionLabels = () => {
+    const sectorLabels = (selectedSector?.functions || []).filter((f) => selectedFunctions.includes(f.id)).map((f) => f.label);
+    const customLabels = customFunctions.filter((f) => selectedFunctions.includes(f.id)).map((f) => f.label);
+    return [...sectorLabels, ...customLabels];
+  };
 
   const selectSector = (sector: Sector) => {
     setSelectedSector(sector);
@@ -95,6 +103,39 @@ export function useWizardFlow({ pushUser, pushBot, setBotTyping, addBotMessageDi
 
   const toggleFunction = (id: string) =>
     setSelectedFunctions((prev) => prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]);
+
+  const addCustomFunction = async () => {
+    const text = draftCustomFunction.trim();
+    if (!text || generatingFunction) return;
+    setGeneratingFunction(true);
+    setFunctionGenError("");
+    try {
+      const res = await fetch("/api/agents/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          field: "generate_function",
+          description: text,
+          context: { agentName, role, niche, tone, sector: selectedSector?.label },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      const fn: AgentFunction = { id: `custom_${Date.now()}`, label: data.label, emoji: data.emoji, prompt: data.prompt };
+      setCustomFunctions((prev) => [...prev, fn]);
+      setSelectedFunctions((prev) => [...prev, fn.id]);
+      setDraftCustomFunction("");
+    } catch (e: any) {
+      setFunctionGenError(e.message || "Erro ao gerar. Tente descrever de outra forma.");
+    } finally {
+      setGeneratingFunction(false);
+    }
+  };
+
+  const removeCustomFunction = (id: string) => {
+    setCustomFunctions((prev) => prev.filter((f) => f.id !== id));
+    setSelectedFunctions((prev) => prev.filter((fid) => fid !== id));
+  };
 
   const confirmFunctions = () => {
     if (!selectedSector) return;
@@ -150,18 +191,34 @@ export function useWizardFlow({ pushUser, pushBot, setBotTyping, addBotMessageDi
     return `${selectedSector?.intro || ""}${fns.length ? ` O agente realiza: ${fns.join(", ")}.` : ""}`.trim();
   };
 
-  const buildCustomPrompt = () =>
-    `Você é ${agentName}, ${role} de ${niche || "nossa empresa"}.
+  const buildCustomPrompt = () => {
+    const toneLines: Record<string, string> = {
+      "Profissional e Direto": "Linguagem formal, objetiva e direta. Sem emojis. Frases curtas.",
+      "Amigável e Empático": "Tom caloroso. Use o nome do cliente. Reconheça sentimentos antes de resolver. Até 1 emoji por mensagem.",
+      "Descontraído (Usa Emojis)": "Tom leve e descontraído. Use 1-2 emojis por mensagem. Gírias leves são bem-vindas.",
+      "Técnico e Especialista": "Vocabulário técnico preciso. Sem emojis. Fundamentado em dados e processos.",
+    };
+    return `Você é ${agentName}, ${role} de ${niche || "nossa empresa"}.
 
 === SUA MISSÃO ===
 ${customPurpose || "Atender os clientes com excelência, tirando dúvidas e ajudando no que precisarem."}
 
-=== COMO SE COMUNICAR ===
-- Tom de voz: ${tone}.
-- Responda de forma clara e objetiva, usando o nome do cliente quando possível.
+=== TOM DE COMUNICAÇÃO ===
+${toneLines[tone] || `Tom de voz: ${tone}.`}
+Responda de forma clara e objetiva, usando o nome do cliente quando possível.
+
+=== FLUXO DE CONVERSA ===
+Faça sempre uma pergunta por vez. Confirme o entendimento antes de agir. Mensagens curtas — não escreva parágrafos longos.
+
+=== QUANDO NÃO SOUBER ===
+Se não souber a resposta, diga que vai verificar com a equipe. NUNCA invente informações.
+
+=== ATENDIMENTO HUMANO ===
+Se o cliente pedir para falar com uma pessoa, acione o atendimento humano imediatamente.
 
 === SOBRE O NEGÓCIO ===
-Use a ferramenta buscar_conhecimento para consultar informações do negócio cadastradas na Base de Conhecimento (aba "Arquivos RAG"). Não invente informações que não estiverem lá.`;
+Use SEMPRE a ferramenta buscar_conhecimento antes de responder sobre produtos, serviços, preços ou processos da empresa. Não invente informações que não estiverem lá.`;
+  };
 
   const selectTone = (t: string) => {
     setTone(t);
@@ -172,7 +229,7 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
 
   const generateGreetings = async (toneArg?: string) => {
     if (!selectedSector) return;
-    setSystemPrompt(isCustom ? buildCustomPrompt() : composeSystemPrompt(selectedSector, selectedFunctions, agentName, role, niche));
+    setSystemPrompt(isCustom ? buildCustomPrompt() : composeSystemPrompt(selectedSector, selectedFunctions, agentName, role, niche, toneArg || tone, customFunctions));
     setGreetingOptions([]);
     setWritingOwn(false);
     setGreetingError("");
@@ -244,7 +301,7 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
   const handleCreate = async () => {
     if (!user || !selectedSector) return;
     setCreating(true);
-    const finalPrompt = systemPrompt.trim() || (isCustom ? buildCustomPrompt() : composeSystemPrompt(selectedSector, selectedFunctions, agentName, role, niche));
+    const finalPrompt = systemPrompt.trim() || (isCustom ? buildCustomPrompt() : composeSystemPrompt(selectedSector, selectedFunctions, agentName, role, niche, tone, customFunctions));
     const agentType = TYPE_BY_SECTOR[selectedSector.id] || "atendimento";
     const limitations = selectedLimitations.length > 0 ? selectedLimitations : (isCustom ? selectedSector.baseLimitations : aggregateLimitations(selectedSector, selectedFunctions));
     const dataRecords = isCustom ? false : sectorHasDataRecords(selectedSector, selectedFunctions);
@@ -279,10 +336,13 @@ Use a ferramenta buscar_conhecimento para consultar informações do negócio ca
     greetingOptions, loadingGreetings, greetingError,
     writingOwn, setWritingOwn, draftGreeting, setDraftGreeting,
     limitationSuggestions, selectedLimitations, draftCustomRule, setDraftCustomRule,
+    customFunctions, draftCustomFunction, setDraftCustomFunction,
+    generatingFunction, functionGenError,
     isCustom, SECTORS, CUSTOM_SECTOR, TONE_OPTIONS, functionLabels,
     selectSector, toggleFunction, confirmFunctions, submitCustom,
     submitName, submitNiche, selectTone, generateGreetings,
     pickGreeting, confirmOwnGreeting, skipGreeting,
     toggleLimitation, addCustomRule, confirmLimitations, handleCreate,
+    addCustomFunction, removeCustomFunction,
   };
 }

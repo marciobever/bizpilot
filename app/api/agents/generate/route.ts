@@ -13,6 +13,16 @@ Regras:
 - Não use markdown, asteriscos nem aspas dentro do texto da saudação.`;
 
 const SYSTEM_PROMPTS: Record<string, string> = {
+  generate_function: `Você é especialista em criar instruções para bots de atendimento via WhatsApp.
+O usuário vai descrever em linguagem natural o que quer que o bot faça. Sua tarefa é:
+1. Criar um label curto (2-4 palavras) para identificar essa função
+2. Escolher um emoji adequado
+3. Escrever um bloco de instruções no formato "=== TITULO ===" seguido das instruções objetivas em português do Brasil, explicando como o bot deve executar essa função, o que perguntar, como agir e quais limites respeitar.
+
+As instruções devem ser práticas, específicas e prontas para uso num system prompt de WhatsApp.
+
+Responda APENAS com JSON válido, sem texto fora dele, no formato exato:
+{"label": "Nome da Função", "emoji": "🎯", "prompt": "=== NOME DA FUNÇÃO ===\\nInstruções objetivas aqui..."}`,
   greeting: `Você é um especialista em copywriting para atendimento via WhatsApp. Escreva UMA mensagem de saudação que um agente de IA usará para INICIAR conversas — é a primeira impressão do negócio.
 
 ${GREETING_RULES}
@@ -59,9 +69,9 @@ function parseGreetingOptions(raw: string): string[] {
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const { field, description, context } = body as {
-    field: 'greeting' | 'greetings' | 'instructions';
+    field: 'greeting' | 'greetings' | 'instructions' | 'generate_function';
     description: string;
-    context?: { agentName?: string; role?: string; niche?: string; tone?: string };
+    context?: { agentName?: string; role?: string; niche?: string; tone?: string; sector?: string };
   };
 
   if (!field || !SYSTEM_PROMPTS[field]) {
@@ -77,6 +87,7 @@ export async function POST(req: NextRequest) {
     ctx.role ? `Cargo/função: ${ctx.role}` : null,
     ctx.niche ? `Empresa/nicho: ${ctx.niche}` : null,
     ctx.tone ? `Tom de voz: ${ctx.tone}` : null,
+    ctx.sector ? `Setor do negócio: ${ctx.sector}` : null,
   ].filter(Boolean).join('\n');
 
   const userMessage = [
@@ -111,6 +122,17 @@ export async function POST(req: NextRequest) {
       const options = parseGreetingOptions(text);
       if (!options.length) return NextResponse.json({ error: 'Não consegui gerar as opções de saudação.' }, { status: 502 });
       return NextResponse.json({ options });
+    }
+
+    if (field === 'generate_function') {
+      try {
+        const cleaned = text.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+        if (!parsed.label || !parsed.prompt) throw new Error('Resposta incompleta');
+        return NextResponse.json({ label: parsed.label, emoji: parsed.emoji || '⚙️', prompt: parsed.prompt });
+      } catch {
+        return NextResponse.json({ error: 'Não consegui gerar a função. Tente descrever de outra forma.' }, { status: 502 });
+      }
     }
 
     return NextResponse.json({ text });

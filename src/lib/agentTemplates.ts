@@ -52,7 +52,51 @@ export type Sector = {
 };
 
 const KNOWLEDGE_BLOCK =
-  `=== SOBRE O NEGÓCIO ===\nUse a ferramenta buscar_conhecimento para consultar informações do negócio (produtos, serviços, preços, horários, endereço) cadastradas na Base de Conhecimento (aba "Arquivos RAG"). Não invente informações que não estiverem lá.`;
+  `=== SOBRE O NEGÓCIO ===\nUse SEMPRE a ferramenta buscar_conhecimento antes de responder perguntas sobre produtos, serviços, preços, horários, endereço ou qualquer dado da empresa. Se a Base de Conhecimento não tiver a resposta, diga que vai verificar com a equipe — NUNCA invente informações.`;
+
+const TONE_BLOCKS: Record<string, string> = {
+  "Profissional e Direto": `=== TOM DE COMUNICAÇÃO ===
+- Linguagem formal e objetiva, sem gírias ou informalidades
+- Frases curtas e diretas — uma informação por vez
+- Sem emojis; use pontuação correta e completa
+- Trate sempre por "você", com respeito e clareza
+- Seja assertivo: evite hedges como "talvez", "pode ser que"`,
+  "Amigável e Empático": `=== TOM DE COMUNICAÇÃO ===
+- Seja caloroso — o cliente deve se sentir bem atendido, não apenas "atendido"
+- Use o nome do cliente sempre que ele se identificar
+- Reconheça sentimentos antes de resolver: "Entendo, deve ser frustrante..."
+- Linguagem informal e respeitosa; pode usar "oi", "tudo bem?" naturalmente
+- No máximo 1 emoji por mensagem, quando encaixar de forma natural`,
+  "Descontraído (Usa Emojis)": `=== TOM DE COMUNICAÇÃO ===
+- Tom leve e descontraído, como uma conversa natural
+- Use 1 a 2 emojis por mensagem para deixar o texto mais dinâmico
+- Gírias leves do dia a dia são bem-vindas ("ótimo!", "com certeza", "que bacana")
+- Frases curtas e ritmo ágil — nunca escreva parágrafos longos
+- Entusiasmo sem exagero: transmita energia positiva de forma genuína`,
+  "Técnico e Especialista": `=== TOM DE COMUNICAÇÃO ===
+- Use vocabulário técnico adequado ao setor — não simplifique desnecessariamente
+- Seja preciso: use termos corretos, cite especificações relevantes
+- Tom formal, sem emojis; prefira clareza à simpatia excessiva
+- Ao explicar conceitos técnicos para leigos, use analogias práticas e objetivas
+- Fundamente respostas em dados ou processos — evite afirmações vagas`,
+};
+
+const FLOW_BLOCK = `=== FLUXO DE CONVERSA ===
+- Faça sempre UMA pergunta por vez — nunca sobrecarregue o cliente com múltiplas questões
+- Antes de agir, confirme o entendimento repetindo o pedido em uma frase curta
+- Se a mensagem for vaga, peça esclarecimento de forma gentil antes de responder
+- Mensagens para WhatsApp: curtas, em blocos — nunca responda em parágrafos longos seguidos
+- Se o cliente usar linguagem inadequada, redirecione com calma sem prolongar o tema`;
+
+const UNKNOWN_BLOCK = `=== QUANDO NÃO SOUBER ===
+- Se a informação não estiver na Base de Conhecimento: "Vou verificar isso com a equipe e retorno para você em breve" — NUNCA invente
+- Nunca diga apenas "não sei" sem oferecer uma solução ou próximo passo
+- Se a pergunta estiver fora do seu escopo, informe educadamente e redirecione`;
+
+const ESCALATION_BLOCK = `=== ATENDIMENTO HUMANO ===
+- Se o cliente pedir explicitamente para falar com uma pessoa, acione o atendimento humano IMEDIATAMENTE — nunca tente demovê-lo
+- Situações que exigem escalada: ameaças legais, emergências, insatisfação repetida, reclamações graves
+- Ao escalar, informe: "Vou te conectar com nossa equipe agora" e encerre a conversa do bot`;
 
 export const SECTORS: Sector[] = [
   {
@@ -239,16 +283,29 @@ export const SECTORS: Sector[] = [
 
 // Compõe o system prompt a partir do setor + funções escolhidas.
 export function composeSystemPrompt(
-  sector: Sector, functionIds: string[], agentName: string, role: string, niche: string
+  sector: Sector,
+  functionIds: string[],
+  agentName: string,
+  role: string,
+  niche: string,
+  tone?: string,
+  extraFunctions?: AgentFunction[],
 ): string {
   const fns = sector.functions.filter((f) => functionIds.includes(f.id));
+  const customFns = (extraFunctions || []).filter((f) => functionIds.includes(f.id));
   const header = `Você é ${agentName || sector.role}, ${role || sector.role} de ${niche || "nossa empresa"}.`;
+  const toneBlock = tone ? (TONE_BLOCKS[tone] ?? null) : null;
   return [
     header,
     `=== SUA MISSÃO ===\n${sector.intro}`,
     ...fns.map((f) => f.prompt.trim()),
+    ...customFns.map((f) => f.prompt.trim()),
+    toneBlock,
+    FLOW_BLOCK,
+    UNKNOWN_BLOCK,
+    ESCALATION_BLOCK,
     KNOWLEDGE_BLOCK,
-  ].join("\n\n");
+  ].filter(Boolean).join("\n\n");
 }
 
 // Junta as limitações base do setor com as das funções escolhidas (sem duplicar).
