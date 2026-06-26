@@ -81,7 +81,7 @@ export default function AgentWizard() {
       </div>
 
       <div className="h-px bg-[#1e1e20] overflow-hidden shrink-0 mb-4">
-        <div className="h-full bg-emerald-500 transition-all duration-700" style={{ width: `${progressPct}%` }} />
+        <div className="h-full bg-brand-500 transition-all duration-700" style={{ width: `${progressPct}%` }} />
       </div>
 
       {/* Terminal window */}
@@ -113,7 +113,7 @@ export default function AgentWizard() {
                       <div key={li} className="h-2" />
                     ) : (
                       <div key={li} className="flex gap-3 leading-6">
-                        <span className={li === 0 ? "text-emerald-400 shrink-0" : "w-4 shrink-0"}>
+                        <span className={li === 0 ? "text-brand-400 shrink-0" : "w-4 shrink-0"}>
                           {li === 0 ? "❯" : ""}
                         </span>
                         <span className={isLastMsg ? "text-[#d4d4d4]" : "text-[#555]"}>{line}</span>
@@ -125,7 +125,7 @@ export default function AgentWizard() {
             } else {
               return (
                 <div key={m.id} className="flex gap-3 leading-5 mb-3 animate-in fade-in-0 duration-200">
-                  <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                  <Check className="h-3.5 w-3.5 text-brand-500 shrink-0 mt-0.5" />
                   <span className="text-[#444] italic text-xs">{m.text}</span>
                 </div>
               );
@@ -134,8 +134,8 @@ export default function AgentWizard() {
 
           {botTyping && !flow.creating && (
             <div className="flex gap-3 leading-6 mb-4 animate-in fade-in-0 duration-150">
-              <span className="text-emerald-400 shrink-0">❯</span>
-              <span className="inline-block w-2 h-[18px] bg-emerald-400/60 animate-pulse" />
+              <span className="text-brand-400 shrink-0">❯</span>
+              <span className="inline-block w-2 h-[18px] bg-brand-400/60 animate-pulse" />
             </div>
           )}
 
@@ -143,14 +143,14 @@ export default function AgentWizard() {
             <div className="mt-2 space-y-2">
               {CREATION_LINES.slice(0, creationStep).map((line, i) => (
                 <div key={i} className="flex gap-3 animate-in fade-in-0 slide-in-from-left-2 duration-300">
-                  <Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                  <Check className="h-3.5 w-3.5 text-brand-500 shrink-0 mt-0.5" />
                   <span className="text-[#555] text-xs">{line}</span>
                 </div>
               ))}
               {creationStep < CREATION_LINES.length && (
                 <div className="flex gap-3 leading-6">
-                  <span className="text-emerald-400">❯</span>
-                  <span className="inline-block w-2 h-[18px] bg-emerald-400/60 animate-pulse" />
+                  <span className="text-brand-400">❯</span>
+                  <span className="inline-block w-2 h-[18px] bg-brand-400/60 animate-pulse" />
                 </div>
               )}
             </div>
