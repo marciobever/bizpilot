@@ -80,27 +80,13 @@ export default function AgentWizard() {
         </div>
       </div>
 
-      <div className="h-px bg-[#1e1e20] overflow-hidden shrink-0 mb-4">
-        <div className="h-full bg-brand-500 transition-all duration-700" style={{ width: `${progressPct}%` }} />
+      <div className="h-1 rounded-full bg-secondary overflow-hidden shrink-0 mb-4">
+        <div className="h-full bg-brand-500 transition-all duration-500 rounded-full" style={{ width: `${progressPct}%` }} />
       </div>
 
-      {/* Terminal window */}
-      <div className="flex-1 flex flex-col overflow-hidden rounded-xl border border-[#1e1e20] bg-[#0c0c0e] shadow-2xl min-h-0">
-        {/* macOS title bar */}
-        <div className="flex items-center gap-2 px-4 py-3 bg-[#111113] border-b border-[#1e1e20] shrink-0">
-          <div className="flex gap-1.5">
-            <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-            <span className="h-3 w-3 rounded-full bg-[#ffbd2e]" />
-            <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-          </div>
-          <span className="flex-1 text-center text-[11px] text-[#3a3a3a] font-mono select-none">
-            bizpilot — criar agente
-          </span>
-          <div className="w-[52px]" />
-        </div>
-
+      <div className="flex-1 flex flex-col overflow-hidden rounded-xl border border-border bg-card min-h-0">
         {/* Transcript */}
-        <div className="flex-1 overflow-auto p-5 font-mono text-sm min-h-0">
+        <div className="flex-1 overflow-auto p-4 font-mono text-sm space-y-0.5 min-h-0">
           {messages.map((m, idx) => {
             const isLastMsg = idx === messages.length - 1;
             if (m.role === "bot") {
@@ -116,7 +102,7 @@ export default function AgentWizard() {
                         <span className={li === 0 ? "text-brand-400 shrink-0" : "w-4 shrink-0"}>
                           {li === 0 ? "❯" : ""}
                         </span>
-                        <span className={isLastMsg ? "text-[#d4d4d4]" : "text-[#555]"}>{line}</span>
+                        <span className={isLastMsg ? "text-foreground" : "text-muted-foreground"}>{line}</span>
                       </div>
                     )
                   )}
@@ -126,7 +112,7 @@ export default function AgentWizard() {
               return (
                 <div key={m.id} className="flex gap-3 leading-5 mb-3 animate-in fade-in-0 duration-200">
                   <Check className="h-3.5 w-3.5 text-brand-500 shrink-0 mt-0.5" />
-                  <span className="text-[#444] italic text-xs">{m.text}</span>
+                  <span className="text-muted-foreground italic text-xs">{m.text}</span>
                 </div>
               );
             }
@@ -144,7 +130,7 @@ export default function AgentWizard() {
               {CREATION_LINES.slice(0, creationStep).map((line, i) => (
                 <div key={i} className="flex gap-3 animate-in fade-in-0 slide-in-from-left-2 duration-300">
                   <Check className="h-3.5 w-3.5 text-brand-500 shrink-0 mt-0.5" />
-                  <span className="text-[#555] text-xs">{line}</span>
+                  <span className="text-muted-foreground text-xs">{line}</span>
                 </div>
               ))}
               {creationStep < CREATION_LINES.length && (
@@ -161,7 +147,7 @@ export default function AgentWizard() {
 
         {/* Input area */}
         {!botTyping && !flow.creating && (
-          <div className="border-t border-[#1e1e20] bg-[#0a0a0c] p-4">
+          <div className="border-t border-border p-4">
             <StagePanel {...flow} />
           </div>
         )}
