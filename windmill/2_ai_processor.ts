@@ -442,7 +442,9 @@ async function searchShopeeProducts(termo: string, quantidade: number, subIds: s
   const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   const lim = Math.min(Math.max(1, Math.floor(quantidade) || 5), 5);
   try {
-    const data = await shopeeSignedRequest({ query: `query { productOfferV2(keyword: "${esc(termo)}", limit: ${lim}) { nodes { itemId shopId productName priceMin priceMax imageUrl commissionRate productLink } } }` }, appId, secret);
+    // sortType: 1 = relevância (traz o produto buscado de verdade; o padrão prioriza
+    // ofertas por comissão e enche de acessórios irrelevantes).
+    const data = await shopeeSignedRequest({ query: `query { productOfferV2(keyword: "${esc(termo)}", limit: ${lim}, sortType: 1) { nodes { itemId shopId productName priceMin priceMax imageUrl commissionRate productLink } } }` }, appId, secret);
     const nodes: any[] = data?.productOfferV2?.nodes || [];
     if (!nodes.length) return { ok: true, products: [] };
 

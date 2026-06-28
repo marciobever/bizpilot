@@ -122,7 +122,8 @@ async function signedRequest(body: object, creds: Creds): Promise<any> {
 
 // Passo 1 — busca: 1 query, até `limit` ofertas para o termo.
 async function searchProducts(keyword: string, limit: number, creds: Creds): Promise<AffiliateProduct[]> {
-  const query = `query { productOfferV2(keyword: "${escapeGql(keyword)}", limit: ${limit}) { nodes { ${OFFER_FIELDS} } } }`;
+  // sortType: 1 = relevância (o padrão prioriza comissão e enche de acessórios).
+  const query = `query { productOfferV2(keyword: "${escapeGql(keyword)}", limit: ${limit}, sortType: 1) { nodes { ${OFFER_FIELDS} } } }`;
   const data = await signedRequest({ query }, creds);
   const nodes: any[] = data?.productOfferV2?.nodes || [];
   return nodes.map((n) => ({
