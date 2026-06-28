@@ -27,10 +27,11 @@ export async function POST(req: Request) {
     const instanceId: string = createData.data?.id ?? '';
 
     // 2. Conecta (inicia QR) e configura webhook — tudo em um único POST
+    // subscribe: nomes dos eventos no evolution-go (CONNECTION, não CONNECTION_UPDATE)
     await fetch(`${EVOLUTION_API_URL}/instance/connect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: token },
-      body: JSON.stringify({ webhookUrl: WINDMILL_WEBHOOK_URL, events: ['MESSAGE', 'CONNECTION_UPDATE'] }),
+      body: JSON.stringify({ webhookUrl: WINDMILL_WEBHOOK_URL, subscribe: ['MESSAGE', 'CONNECTION'] }),
     });
 
     // 3. Persiste token + instanceId no config do agente (Supabase)

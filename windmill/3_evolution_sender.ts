@@ -308,14 +308,11 @@ async function sendReactionEvolution(
   remoteJid: string, messageId: string, emoji: string
 ): Promise<void> {
   try {
-    await fetch(`${EVOLUTION_API_URL}/send/reaction`, {
+    // evolution-go: POST /message/react com { id, number, reaction }
+    await fetch(`${EVOLUTION_API_URL}/message/react`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: instanceToken },
-      body: JSON.stringify({
-        number: remoteJid,
-        key: { remoteJid, fromMe: false, id: messageId },
-        reaction: emoji,
-      }),
+      body: JSON.stringify({ id: messageId, number: remoteJid, reaction: emoji }),
     });
   } catch { /* reação é best-effort */ }
 }

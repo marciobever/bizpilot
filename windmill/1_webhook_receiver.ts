@@ -10,28 +10,40 @@ const DEBOUNCE_MS = 5000;
 
 // ─── Helpers de mídia (OCR / leitura de imagens e documentos) ────────────────
 
-// evolution-go usa token por instância; endpoint /media/download (sem instanceName na URL).
-// O instanceToken vem do payload do webhook e é passado via EVOLUTION_API_KEY aqui só
-// para downloads durante o processamento inline; o token real fica em instanceToken.
+// evolution-go: quando WEBHOOK_FILES=true (padrão), o base64 já vem no payload.
+// Caso contrário, usa /message/downloadimage com os metadados de criptografia da mensagem.
+// msgObj = o objeto de tipo (ex: audioMessage, imageMessage, documentMessage).
 async function downloadMedia(
-  messageId: string, EVOLUTION_API_URL: string, instanceToken: string
+  msgObj: any, EVOLUTION_API_URL: string, instanceToken: string
 ): Promise<string | null> {
+  // Caminho rápido: base64 já está no payload (WEBHOOK_FILES=true)
+  if (msgObj?.base64) return msgObj.base64;
+
+  // Sem metadados suficientes para download
+  if (!msgObj?.url && !msgObj?.directPath) return null;
+
   try {
-    const res = await fetch(`${EVOLUTION_API_URL}/media/download`, {
+    const res = await fetch(`${EVOLUTION_API_URL}/message/downloadimage`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: instanceToken },
-      body: JSON.stringify({ messageId }),
+      body: JSON.stringify({
+        url: msgObj.url,
+        directPath: msgObj.directPath,
+        mediaKey: msgObj.mediaKey,
+        fileEncSHA256: msgObj.fileEncSHA256,
+        fileSHA256: msgObj.fileSHA256,
+        fileLength: msgObj.fileLength,
+        mimetype: msgObj.mimetype,
+      }),
     });
     if (!res.ok) {
-      console.error(`downloadMedia: Evolution API ${res.status}: ${await res.text()}`);
+      console.error(`downloadMedia: ${res.status}: ${(await res.text()).slice(0, 200)}`);
       return null;
     }
-    const media = await res.json();
-    const b64 = media?.base64 || media?.data?.base64 || null;
-    if (!b64) console.error(`downloadMedia: resposta sem base64: ${JSON.stringify(media).slice(0, 300)}`);
-    return b64;
+    const data = await res.json();
+    return data?.image || data?.base64 || data?.data?.base64 || null;
   } catch (e: any) {
-    console.error(`downloadMedia: erro: ${e.message}`);
+    console.error(`downloadMedia: ${e.message}`);
     return null;
   }
 }
@@ -204,12 +216,9 @@ export async function main(payload: any) {
     // já entrega o áudio em base64 (msg.audioMessage.base64).
     wasAudio = true;
     try {
-      let b64: string | null = msg.audioMessage?.base64 || null;
-      let mimetype = msg.audioMessage?.mimetype || "audio/mp4";
-      if (!b64 && messageId) {
-        b64 = await downloadMedia(messageId, EVOLUTION_API_URL, instanceToken || EVOLUTION_API_KEY);
-        if (b64) mimetype = "audio/mp4";
-      }
+      const audioObj = msg.audioMessage || msg.pttMessage || {};
+      let b64: string | null = await downloadMedia(audioObj, EVOLUTION_API_URL, instanceToken || EVOLUTION_API_KEY);
+      let mimetype = audioObj.mimetype || "audio/ogg";
       if (b64) {
         const buf = Buffer.from(b64, "base64");
         const blob = new Blob([buf], { type: mimetype });
@@ -238,8 +247,8 @@ export async function main(payload: any) {
     incomingMessage = caption || "[Cliente enviou uma imagem]";
     messageType = "image";
     if (OPENAI_API_KEY) {
-      // Meta: base64 já vem no payload. Evolution: precisa baixar via API.
-      const base64 = msg.imageMessage.base64 || (messageId ? await downloadMedia(messageId, EVOLUTION_API_URL, instanceToken || EVOLUTION_API_KEY) : null);
+      // Meta: base64 já vem no payload. Evolution-go: base64 no payload (WEBHOOK_FILES=true) ou download.
+      const base64 = await downloadMedia(msg.imageMessage, EVOLUTION_API_URL, instanceToken || EVOLUTION_API_KEY);
       if (base64) {
         const analysis = await analyzeImage(base64, msg.imageMessage.mimetype, caption, OPENAI_API_KEY);
         if (analysis) {
@@ -259,8 +268,8 @@ export async function main(payload: any) {
     incomingMessage = caption || `[Cliente enviou um documento: ${fileName}]`;
     messageType = "document";
     if (OPENAI_API_KEY) {
-      // Meta: base64 já vem no payload. Evolution: precisa baixar via API.
-      const base64 = msg.documentMessage.base64 || (messageId ? await downloadMedia(messageId, EVOLUTION_API_URL, instanceToken || EVOLUTION_API_KEY) : null);
+      // Meta: base64 já vem no payload. Evolution-go: base64 no payload (WEBHOOK_FILES=true) ou download.
+      const base64 = await downloadMedia(msg.documentMessage, EVOLUTION_API_URL, instanceToken || EVOLUTION_API_KEY);
       if (base64) {
         let analysis = "";
         if (mimetype.startsWith("image/")) analysis = await analyzeImage(base64, mimetype, caption, OPENAI_API_KEY);
