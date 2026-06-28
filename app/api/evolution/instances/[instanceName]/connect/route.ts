@@ -1,18 +1,21 @@
 import { NextResponse } from 'next/server';
-import { findFullInstanceName } from '../../../utils';
+import { resolveInstanceToken } from '../../../utils';
 
 export async function GET(req: Request, context: any) {
   try {
     const { instanceName } = await context.params;
-    const resolvedInstanceName = await findFullInstanceName(instanceName);
     const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
-    const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
 
-    const response = await fetch(`${EVOLUTION_API_URL}/instance/connect/${resolvedInstanceName}`, {
-      headers: { 'apikey': EVOLUTION_API_KEY || '' }
+    const creds = await resolveInstanceToken(instanceName);
+    if (!creds) return NextResponse.json({ error: 'Instância não encontrada' }, { status: 404 });
+
+    const res = await fetch(`${EVOLUTION_API_URL}/instance/qr`, {
+      headers: { apikey: creds.token },
     });
-    const data = await response.json();
-    return NextResponse.json(data);
+    const data = await res.json();
+    const qrcode: string = data?.data?.Qrcode ?? '';
+    // base64 é um data URI completo (data:image/png;base64,...) — o frontend usa direto como src
+    return NextResponse.json({ base64: qrcode, instance: { state: 'connecting', qr: qrcode } });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

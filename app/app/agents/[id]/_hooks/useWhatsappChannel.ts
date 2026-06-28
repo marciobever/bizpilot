@@ -76,11 +76,7 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
       const res = await fetch("/api/evolution/instances", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          instanceName: finalInstanceName,
-          webhookUrl:
-            "https://windmill.seureview.com.br/api/w/foodsnap/jobs/run/f/u/bevervansomarcio/synapse_bot?token=vHf6OR2Op9k6rbZvc0upAAa0XpHMlpJu",
-        }),
+        body: JSON.stringify({ instanceName: finalInstanceName, agentId: id }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro desconhecido ao criar instância");

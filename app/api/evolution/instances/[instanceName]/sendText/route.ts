@@ -1,28 +1,21 @@
 import { NextResponse } from 'next/server';
-import { findFullInstanceName } from '../../../utils';
+import { resolveInstanceToken } from '../../../utils';
 
 export async function POST(req: Request, context: any) {
   try {
     const { instanceName } = await context.params;
-    const resolvedInstanceName = await findFullInstanceName(instanceName);
     const { number, text } = await req.json();
     const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
-    const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
 
-    const response = await fetch(`${EVOLUTION_API_URL}/message/sendText/${resolvedInstanceName}`, {
+    const creds = await resolveInstanceToken(instanceName);
+    if (!creds) return NextResponse.json({ error: 'Instância não encontrada' }, { status: 404 });
+
+    const res = await fetch(`${EVOLUTION_API_URL}/send/text`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': EVOLUTION_API_KEY || ''
-      },
-      body: JSON.stringify({
-         number: number,
-         text: text,
-         textMessage: { text: text },
-         options: { delay: 0, presence: "composing" }
-      })
+      headers: { 'Content-Type': 'application/json', apikey: creds.token },
+      body: JSON.stringify({ number, text, delay: 0 }),
     });
-    const data = await response.json();
+    const data = await res.json();
     return NextResponse.json(data);
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
