@@ -519,56 +519,52 @@ async function sendAffiliateCarousel(products: ShopeeProduct[], evoUrl: string, 
   }
 }
 
-// Fallback: envia cada produto como imagem separada + lista interativa ao final.
+// Formata comissão: Shopee retorna decimal (0.07 = 7%) ou inteiro (7 = 7%)
+function fmtCommission(rate: string | null): string {
+  if (!rate) return '';
+  const n = parseFloat(rate);
+  if (isNaN(n) || n === 0) return '';
+  const pct = n < 1 ? Math.round(n * 100) : Math.round(n);
+  return ` · ${pct}% comissão`;
+}
+
+// Envia cada produto como imagem com caption formatado + menu numerado ao final.
+// Lista interativa (/send/list) não renderiza no celular via whatsmeow.
 async function sendAffiliateCardsFallback(products: ShopeeProduct[], evoUrl: string, evoKey: string, jid: string): Promise<void> {
   const headers = { 'Content-Type': 'application/json', apikey: evoKey };
+  const nums = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
+
   for (let i = 0; i < products.length; i++) {
     const p = products[i];
     const link = p.affiliateLink || p.productUrl;
-    const caption = `${i + 1}. ${p.productName}\n💰 ${p.priceLabel}${p.commissionRate ? ` · comissão ${p.commissionRate}` : ''}\n🔗 ${link}`;
+    const caption = `${nums[i] ?? `${i + 1}.`} *${p.productName}*\n💰 ${p.priceLabel}${fmtCommission(p.commissionRate)}\n🔗 ${link}`;
     try {
       if (p.imageUrl) {
         await fetch(`${evoUrl}/send/media`, {
           method: 'POST', headers,
-          body: JSON.stringify({ number: jid, type: 'image', url: p.imageUrl, caption, delay: 600 }),
+          body: JSON.stringify({ number: jid, type: 'image', url: p.imageUrl, caption, delay: 500 }),
         });
       } else {
         await fetch(`${evoUrl}/send/text`, {
           method: 'POST', headers,
-          body: JSON.stringify({ number: jid, text: caption, delay: 600 }),
+          body: JSON.stringify({ number: jid, text: caption, linkPreview: false, delay: 500 }),
         });
       }
     } catch (e: any) {
       console.error('sendAffiliateCardsFallback:', e?.message);
     }
   }
-  // Lista interativa ao final
-  const rows = products.map((p, i) => ({ id: `prod_${i + 1}`, title: `${i + 1}. ${p.productName.slice(0, 22)}`, description: p.priceLabel }));
-  try {
-    const res = await fetch(`${evoUrl}/send/list`, {
-      method: 'POST', headers,
-      body: JSON.stringify({
-        number: jid,
-        title: 'Qual você quer divulgar?',
-        description: 'Toque em "Ver opções" e escolha o produto.',
-        buttonText: 'Ver opções',
-        sections: [{ title: 'Ofertas', rows }],
-        delay: 800,
-      }),
-    });
-    if (res.ok) return;
-    console.error(`sendAffiliateList: ${res.status} ${(await res.text()).slice(0, 300)}`);
-  } catch (e: any) {
-    console.error('sendAffiliateList:', e?.message);
-  }
-  // Último fallback: texto numerado
+
+  // Menu numerado com emoji — funciona em qualquer celular
+  const lines = products.map((p, i) => `${nums[i] ?? `${i + 1}.`} ${p.productName.slice(0, 45)}`);
+  const menu = `*Qual você quer publicar?* 👇\n\n${lines.join('\n')}\n\nResponda com o número e monto o post na hora! 🚀`;
   try {
     await fetch(`${evoUrl}/send/text`, {
       method: 'POST', headers,
-      body: JSON.stringify({ number: jid, text: `Qual você quer divulgar?\n\nResponda com o número (1 a ${products.length}).`, linkPreview: false, delay: 800 }),
+      body: JSON.stringify({ number: jid, text: menu, linkPreview: false, delay: 800 }),
     });
   } catch (e: any) {
-    console.error('sendAffiliateList[text]:', e?.message);
+    console.error('sendAffiliateMenu:', e?.message);
   }
 }
 
