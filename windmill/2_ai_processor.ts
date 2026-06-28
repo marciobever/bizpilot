@@ -776,39 +776,16 @@ async function notifyHandoff(
       return '';
     };
     const evoUrl = await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_URL', 'u/bevervansomarcio/EVOLUTION_API_URL');
-    const evoKey = await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_KEY', 'u/bevervansomarcio/EVOLUTION_API_KEY');
+    // evolution-go: token por instância (não a chave admin global)
+    const evoKey = channelInfo?.instanceToken || await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_KEY', 'u/bevervansomarcio/EVOLUTION_API_KEY');
     if (!evoUrl || !evoKey) { console.error('[handoff] EVOLUTION_API_URL/KEY não resolvidos via getVariable.'); return 'sem-creds'; }
 
-    // Resolve o JID real no WhatsApp (corrige a questão do 9º dígito no Brasil:
-    // o Evolution às vezes remove/mantém o 9 errado). Pergunta o número canônico.
-    let sendNumber = `${handoffPhone}@s.whatsapp.net`;
-    try {
-      const vr = await fetch(`${evoUrl}/chat/whatsappNumbers/${instanceName}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', apikey: evoKey },
-        body: JSON.stringify({ numbers: [handoffPhone] }),
-      });
-      if (vr.ok) {
-        const arr = await vr.json();
-        const entry = Array.isArray(arr) ? arr[0] : (arr?.[0] ?? null);
-        console.log('[handoff] whatsappNumbers:', JSON.stringify(entry));
-        if (entry && entry.exists === false) {
-          console.error(`[handoff] Número ${handoffPhone} NÃO existe no WhatsApp.`);
-          return `numero-inexistente: ${handoffPhone}`;
-        }
-        if (entry && entry.jid) sendNumber = entry.jid;
-      } else {
-        console.error(`[handoff] whatsappNumbers falhou (${vr.status}); usando número como informado.`);
-      }
-    } catch (e: any) {
-      console.error('[handoff] verificação de número falhou:', e?.message || e);
-    }
-
-    console.log(`[handoff] Enviando aviso via Evolution: instance=${instanceName} → ${sendNumber}`);
-    const r = await fetch(`${evoUrl}/message/sendText/${instanceName}`, {
+    const sendNumber = `${handoffPhone}@s.whatsapp.net`;
+    console.log(`[handoff] Enviando aviso via Evolution: → ${sendNumber}`);
+    const r = await fetch(`${evoUrl}/send/text`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: evoKey },
-      body: JSON.stringify({ number: sendNumber, text, linkPreview: false }),
+      body: JSON.stringify({ number: sendNumber, text, linkPreview: false, delay: 0 }),
     });
     const body = await r.text();
     if (!r.ok) { console.error(`[handoff] Evolution falhou (${r.status}) para ${sendNumber}:`, body); return `evolution ${r.status}: ${body}`; }
@@ -861,7 +838,7 @@ async function executeTool(
 
     // Evolution: envia os 5 cards com foto à parte e pede ao modelo SÓ a lista.
     if (provider === 'evolution') {
-      const { url, key } = await resolveEvolutionCreds();
+      const { url, key } = await resolveEvolutionCreds(config);
       if (url && key) {
         await sendAffiliateCards(products, url, key, instanceName, jid);
         await sendAffiliateList(products, url, key, instanceName, jid);
