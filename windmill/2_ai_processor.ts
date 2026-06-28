@@ -513,34 +513,32 @@ async function sendAffiliateCards(products: ShopeeProduct[], evoUrl: string, evo
 async function sendAffiliateList(products: ShopeeProduct[], evoUrl: string, evoKey: string, instanceName: string, jid: string): Promise<void> {
   const headers = { 'Content-Type': 'application/json', apikey: evoKey };
   const rows = products.map((p, i) => ({ rowId: `prod_${i + 1}`, title: `${i + 1}. ${p.productName.slice(0, 22)}`, description: p.priceLabel }));
-  try {
-    const res = await fetch(`${evoUrl}/message/sendList/${instanceName}`, {
-      method: 'POST', headers,
-      body: JSON.stringify({
-        number: jid,
-        listMessage: {
-          title: 'Qual você quer divulgar?',
-          description: 'Toque em "Ver opções" e escolha o produto.',
-          buttonText: 'Ver opções',
-          footerText: '',
-          sections: [{ title: 'Ofertas', rows }],
-        },
-        options: { delay: 600, presence: 'composing' },
-      }),
-    });
-    if (res.ok) return;
-    console.error('sendAffiliateList: sendList falhou, usando fallback de texto:', (await res.text()).slice(0, 200));
-  } catch (e: any) {
-    console.error('sendAffiliateList:', e?.message);
-  }
-  // Fallback: prompt numerado.
+  const sections = [{ title: 'Ofertas', rows }];
+  const TITLE = 'Qual você quer divulgar?';
+  const DESC = 'Toque em "Ver opções" e escolha o produto.';
+
+  const post = async (label: string, payload: any): Promise<boolean> => {
+    try {
+      const res = await fetch(`${evoUrl}/message/sendList/${instanceName}`, { method: 'POST', headers, body: JSON.stringify(payload) });
+      if (res.ok) return true;
+      console.error(`sendAffiliateList[${label}]: ${res.status} ${(await res.text()).slice(0, 250)}`);
+      return false;
+    } catch (e: any) { console.error(`sendAffiliateList[${label}]:`, e?.message); return false; }
+  };
+
+  // Formato moderno (Evolution v2: campos no topo do body).
+  if (await post('v2', { number: jid, title: TITLE, description: DESC, buttonText: 'Ver opções', footerText: '', sections, delay: 600 })) return;
+  // Formato antigo (wrapper listMessage).
+  if (await post('legacy', { number: jid, listMessage: { title: TITLE, description: DESC, buttonText: 'Ver opções', footerText: '', sections }, options: { delay: 600 } })) return;
+
+  // Fallback final: prompt numerado em texto.
   try {
     await fetch(`${evoUrl}/message/sendText/${instanceName}`, {
       method: 'POST', headers,
-      body: JSON.stringify({ number: jid, text: `Qual você quer divulgar? Responda com o número (1 a ${products.length}).`, linkPreview: false, options: { delay: 600 } }),
+      body: JSON.stringify({ number: jid, text: `${TITLE} Responda com o número (1 a ${products.length}).`, linkPreview: false, options: { delay: 600 } }),
     });
   } catch (e: any) {
-    console.error('sendAffiliateList fallback:', e?.message);
+    console.error('sendAffiliateList[text]:', e?.message);
   }
 }
 
@@ -837,7 +835,7 @@ async function transferToHuman(
 
 async function executeTool(
   toolCall: any, config: any, agentId: string, supabase: any, openaiKey: string, appBaseUrl: string,
-  leadId: string, conversationId: string, sideEffects: { imageUrl?: string; reaction?: string; fileUrl?: string; fileName?: string }, userId: string,
+  leadId: string, conversationId: string, sideEffects: { imageUrl?: string; reaction?: string; fileUrl?: string; fileName?: string; handled?: boolean; affiliateNote?: string }, userId: string,
   channelInfo: any, instanceName: string, leadName: string, leadPhone: string
 ): Promise<string> {
   const name: string = toolCall.function.name;
@@ -867,8 +865,12 @@ async function executeTool(
       if (url && key) {
         await sendAffiliateCards(products, url, key, instanceName, jid);
         await sendAffiliateList(products, url, key, instanceName, jid);
-        const ref = products.map((p, i) => `${i + 1}. ${p.productName} | ${p.priceLabel} | ${p.affiliateLink || p.productUrl}`).join('\n');
-        return `Os ${products.length} produtos e a lista de escolha JÁ foram enviados ao cliente (fotos + lista interativa). NÃO reliste os produtos e NÃO use marcadores como [[LISTA]]. Responda APENAS com uma frase curta convidando o cliente a escolher na lista (ou responder o número) o produto que quer divulgar.\nQuando ele escolher (pelo número/nome), use os dados abaixo para montar a legenda de divulgação na rede que ele pedir:\n${ref}`;
+        // Tudo já foi enviado direto (cards + lista). Suprime a fala do modelo p/ não
+        // duplicar e guarda o contexto dos produtos p/ o próximo turno (a legenda).
+        sideEffects.handled = true;
+        sideEffects.affiliateNote = 'Produtos enviados ao cliente para ele escolher qual divulgar:\n' +
+          products.map((p, i) => `${i + 1}. ${p.productName} | ${p.priceLabel} | ${p.affiliateLink || p.productUrl}`).join('\n');
+        return 'Cards e lista de escolha enviados ao cliente.';
       }
     }
 
@@ -1303,7 +1305,7 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
 
   const modelToUse = config.model || 'gpt-5.4-mini';
   let responseText = 'Desculpe, não consegui processar sua mensagem no momento.';
-  const sideEffects: { imageUrl?: string; reaction?: string; fileUrl?: string; fileName?: string } = {};
+  const sideEffects: { imageUrl?: string; reaction?: string; fileUrl?: string; fileName?: string; handled?: boolean; affiliateNote?: string } = {};
 
   if (!modelToUse.includes('gemini') && finalOpenAiKey) {
     const tools = buildOpenAITools(config, hasKnowledge, hasPayments && !!appBaseUrl, hasCalendar && !!appBaseUrl, hasDataRecords, hasExternalDb && !!appBaseUrl, hasEmail && !!appBaseUrl, hasAffiliate, hasMediaFiles ? mediaFiles : []);
@@ -1383,6 +1385,17 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
     });
   } else {
     responseText = '[ERRO]: Nenhuma chave de IA configurada.';
+  }
+
+  // ── Afiliados: a tool já enviou cards + lista direto pela Evolution. Não manda
+  // mensagem extra (evita duplicar) e guarda o contexto dos produtos para o próximo
+  // turno (montar a legenda quando o cliente escolher).
+  if (sideEffects.handled) {
+    if (sideEffects.affiliateNote) {
+      await supabase.from('messages').insert({ conversation_id: conversation.id, sender_type: 'agent', content: sideEffects.affiliateNote });
+      await supabase.from('conversations').update({ last_message_at: new Date().toISOString() }).eq('id', conversation.id);
+    }
+    return buildReturn(false, remoteJid, instanceName, '', null, wasAudio, channelInfo, agentData, config, lead, senderName, phoneNumber, conversation, isNewConversation);
   }
 
   // ── Persiste resposta ─────────────────────────────────────────────────────
