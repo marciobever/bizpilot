@@ -508,8 +508,7 @@ async function sendAffiliateCards(products: ShopeeProduct[], evoUrl: string, evo
 }
 
 // Envia a lista interativa "Qual você quer divulgar?" (1 linha por produto) direto
-// pela Evolution. Se a Evolution não suportar sendList, cai num prompt de texto
-// numerado — o cliente responde o número e o fluxo segue igual.
+// pela Evolution Go. Formato oficial: campos no nível raiz (sem wrapper listMessage).
 async function sendAffiliateList(products: ShopeeProduct[], evoUrl: string, evoKey: string, instanceName: string, jid: string): Promise<void> {
   const headers = { 'Content-Type': 'application/json', apikey: evoKey };
   const rows = products.map((p, i) => ({ rowId: `prod_${i + 1}`, title: `${i + 1}. ${p.productName.slice(0, 22)}`, description: p.priceLabel }));
@@ -517,25 +516,22 @@ async function sendAffiliateList(products: ShopeeProduct[], evoUrl: string, evoK
   const TITLE = 'Qual você quer divulgar?';
   const DESC = 'Toque em "Ver opções" e escolha o produto.';
 
-  const post = async (label: string, payload: any): Promise<boolean> => {
-    try {
-      const res = await fetch(`${evoUrl}/message/sendList/${instanceName}`, { method: 'POST', headers, body: JSON.stringify(payload) });
-      if (res.ok) return true;
-      console.error(`sendAffiliateList[${label}]: ${res.status} ${(await res.text()).slice(0, 250)}`);
-      return false;
-    } catch (e: any) { console.error(`sendAffiliateList[${label}]:`, e?.message); return false; }
-  };
+  try {
+    const res = await fetch(`${evoUrl}/message/sendList/${instanceName}`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ number: jid, title: TITLE, description: DESC, buttonText: 'Ver opções', footerText: '', sections, delay: 600 }),
+    });
+    if (res.ok) return;
+    console.error(`sendAffiliateList: ${res.status} ${(await res.text()).slice(0, 300)}`);
+  } catch (e: any) {
+    console.error('sendAffiliateList:', e?.message);
+  }
 
-  // Formato moderno (Evolution v2: campos no topo do body).
-  if (await post('v2', { number: jid, title: TITLE, description: DESC, buttonText: 'Ver opções', footerText: '', sections, delay: 600 })) return;
-  // Formato antigo (wrapper listMessage).
-  if (await post('legacy', { number: jid, listMessage: { title: TITLE, description: DESC, buttonText: 'Ver opções', footerText: '', sections }, options: { delay: 600 } })) return;
-
-  // Fallback final: prompt numerado em texto.
+  // Fallback: prompt numerado em texto simples.
   try {
     await fetch(`${evoUrl}/message/sendText/${instanceName}`, {
       method: 'POST', headers,
-      body: JSON.stringify({ number: jid, text: `${TITLE} Responda com o número (1 a ${products.length}).`, linkPreview: false, options: { delay: 600 } }),
+      body: JSON.stringify({ number: jid, text: `${TITLE}\n\nResponda com o número (1 a ${products.length}).`, linkPreview: false, delay: 600 }),
     });
   } catch (e: any) {
     console.error('sendAffiliateList[text]:', e?.message);
