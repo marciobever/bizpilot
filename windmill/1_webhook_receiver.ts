@@ -143,19 +143,27 @@ export async function main(payload: any) {
     return { process: false, reason: `Evento ignorado (recebido: ${payload.event}).` };
   }
 
+  // Loga payload completo para debug de estrutura (remover após confirmar)
+  console.log("PAYLOAD_DEBUG:", JSON.stringify(payload, null, 2).slice(0, 2000));
+
   // evolution-go usa instanceName; Baileys usava instance
   const instanceName = payload.instanceName || payload.instance || "";
   const instanceToken: string = payload.instanceToken || "";
-  const remoteJid = payload.data?.key?.remoteJid;
-  const fromMe = payload.data?.key?.fromMe;
-  const messageId = payload.data?.key?.id;
-  const senderName = payload.data?.pushName || "Usuário";
+
+  // Tenta múltiplos paths — estrutura pode variar entre versões do evolution-go
+  const key = payload.data?.key || payload.data?.info || {};
+  const remoteJid = key.remoteJid || payload.data?.remoteJid || payload.remoteJid || "";
+  const fromMe = key.fromMe ?? payload.data?.fromMe ?? false;
+  const messageId = key.id || payload.data?.messageId || payload.data?.id || "";
+  const senderName = payload.data?.pushName || payload.data?.senderName || "Usuário";
 
   if (fromMe) return { process: false, reason: "Mensagem ignorada (fromMe: true)." };
-  if (!remoteJid) return { process: false, reason: "remoteJid não encontrado no payload." };
+  if (!remoteJid) return { process: false, reason: `remoteJid não encontrado no payload. Keys: ${JSON.stringify(Object.keys(payload.data || {}))}` };
 
   // Documentos enviados com legenda chegam encapsulados em documentWithCaptionMessage.
-  const msg = payload.data?.message?.documentWithCaptionMessage?.message || payload.data?.message || {};
+  // evolution-go pode enviar a mensagem em data.message ou data.body ou diretamente em data
+  const rawMsg = payload.data?.message || payload.data?.body || {};
+  const msg = rawMsg?.documentWithCaptionMessage?.message || rawMsg || {};
   let incomingMessage = "";
   let messageType = "text";
   let wasAudio = false;
