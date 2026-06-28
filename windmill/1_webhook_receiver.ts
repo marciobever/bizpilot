@@ -143,26 +143,31 @@ export async function main(payload: any) {
     return { process: false, reason: `Evento ignorado (recebido: ${payload.event}).` };
   }
 
-  // Loga payload completo para debug de estrutura (remover após confirmar)
-  console.log("PAYLOAD_DEBUG:", JSON.stringify(payload, null, 2).slice(0, 2000));
-
   // evolution-go usa instanceName; Baileys usava instance
   const instanceName = payload.instanceName || payload.instance || "";
   const instanceToken: string = payload.instanceToken || "";
 
-  // Tenta múltiplos paths — estrutura pode variar entre versões do evolution-go
-  const key = payload.data?.key || payload.data?.info || {};
-  const remoteJid = key.remoteJid || payload.data?.remoteJid || payload.remoteJid || "";
-  const fromMe = key.fromMe ?? payload.data?.fromMe ?? false;
-  const messageId = key.id || payload.data?.messageId || payload.data?.id || "";
-  const senderName = payload.data?.pushName || payload.data?.senderName || "Usuário";
+  // evolution-go (whatsmeow): metadados em data.Info (PascalCase), corpo em data.Message
+  // Baileys (Node.js):        metadados em data.key (camelCase), corpo em data.message
+  const info = payload.data?.Info || payload.data?.key || {};
+  console.log("INFO_DEBUG:", JSON.stringify(info).slice(0, 500));
+  console.log("MESSAGE_DEBUG:", JSON.stringify(payload.data?.Message || payload.data?.message || {}).slice(0, 500));
+
+  // Chat pode ser string "55119@s.whatsapp.net" ou objeto whatsmeow {User, Server, ...}
+  const chatJid = info.Chat ?? info.remoteJid ?? "";
+  const remoteJid: string = typeof chatJid === "string"
+    ? chatJid
+    : (chatJid?.User && chatJid?.Server ? `${chatJid.User}@${chatJid.Server}` : "");
+  const fromMe: boolean = info.IsFromMe ?? info.fromMe ?? false;
+  const messageId: string = info.ID || info.id || "";
+  const senderName: string = info.PushName || payload.data?.pushName || "Usuário";
 
   if (fromMe) return { process: false, reason: "Mensagem ignorada (fromMe: true)." };
-  if (!remoteJid) return { process: false, reason: `remoteJid não encontrado no payload. Keys: ${JSON.stringify(Object.keys(payload.data || {}))}` };
+  if (!remoteJid) return { process: false, reason: `remoteJid não encontrado. info keys: ${JSON.stringify(Object.keys(info))}` };
 
   // Documentos enviados com legenda chegam encapsulados em documentWithCaptionMessage.
-  // evolution-go pode enviar a mensagem em data.message ou data.body ou diretamente em data
-  const rawMsg = payload.data?.message || payload.data?.body || {};
+  // evolution-go: corpo em data.Message; Baileys: data.message
+  const rawMsg = payload.data?.Message || payload.data?.message || {};
   const msg = rawMsg?.documentWithCaptionMessage?.message || rawMsg || {};
   let incomingMessage = "";
   let messageType = "text";
