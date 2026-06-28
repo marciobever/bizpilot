@@ -217,6 +217,8 @@ export async function main(payload: any) {
     wasAudio = true;
     try {
       const audioObj = msg.audioMessage || msg.pttMessage || {};
+      console.log("AUDIO_OBJ_KEYS:", JSON.stringify(Object.keys(audioObj)));
+      console.log("AUDIO_OBJ:", JSON.stringify(audioObj).slice(0, 500));
       let b64: string | null = await downloadMedia(audioObj, EVOLUTION_API_URL, instanceToken || EVOLUTION_API_KEY);
       let mimetype = audioObj.mimetype || "audio/ogg";
       if (b64) {
