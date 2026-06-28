@@ -482,10 +482,38 @@ async function resolveEvolutionCreds(agentConfig?: any): Promise<{ url: string; 
   } catch { return { url: '', key: '' }; }
 }
 
-// Envia cada produto como um card (foto + legenda com nome/preço/comissão/link)
-// direto pela Evolution. O pipeline normal manda 1 msg só, então o carrossel de
-// 5 cards é feito aqui à parte. Best-effort: falha de um card não derruba os outros.
-async function sendAffiliateCards(products: ShopeeProduct[], evoUrl: string, evoKey: string, _instanceName: string, jid: string): Promise<void> {
+// Envia os produtos como carousel interativo (evolution-go /send/carousel).
+// Cada card tem foto, nome/preço e botão reply para o cliente escolher qual divulgar.
+// Se o carousel falhar (sem imagem, formato inválido), cai em imagens separadas.
+async function sendAffiliateCarousel(products: ShopeeProduct[], evoUrl: string, evoKey: string, jid: string): Promise<boolean> {
+  const headers = { 'Content-Type': 'application/json', apikey: evoKey };
+  try {
+    const cards = products.map((p, i) => {
+      const link = p.affiliateLink || p.productUrl;
+      const body = `${p.productName.slice(0, 60)}${p.commissionRate ? `\n💰 ${p.priceLabel} · comissão ${p.commissionRate}` : `\n💰 ${p.priceLabel}`}`;
+      const card: any = {
+        body: { text: body },
+        footer: { text: link.slice(0, 60) },
+        buttons: [{ type: 'reply', reply: { id: `prod_${i + 1}`, title: 'Divulgar este' } }],
+      };
+      if (p.imageUrl) card.header = { type: 'image', image: { url: p.imageUrl } };
+      return card;
+    });
+    const res = await fetch(`${evoUrl}/send/carousel`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ number: jid, title: 'Qual você quer divulgar?', cards, delay: 600 }),
+    });
+    if (res.ok) return true;
+    console.error(`sendAffiliateCarousel: ${res.status} ${(await res.text()).slice(0, 300)}`);
+    return false;
+  } catch (e: any) {
+    console.error('sendAffiliateCarousel:', e?.message);
+    return false;
+  }
+}
+
+// Fallback: envia cada produto como imagem separada + lista interativa ao final.
+async function sendAffiliateCardsFallback(products: ShopeeProduct[], evoUrl: string, evoKey: string, jid: string): Promise<void> {
   const headers = { 'Content-Type': 'application/json', apikey: evoKey };
   for (let i = 0; i < products.length; i++) {
     const p = products[i];
@@ -493,7 +521,6 @@ async function sendAffiliateCards(products: ShopeeProduct[], evoUrl: string, evo
     const caption = `${i + 1}. ${p.productName}\n💰 ${p.priceLabel}${p.commissionRate ? ` · comissão ${p.commissionRate}` : ''}\n🔗 ${link}`;
     try {
       if (p.imageUrl) {
-        // evolution-go: /send/media — campos: url, type, caption, delay (sem mediatype/mimetype)
         await fetch(`${evoUrl}/send/media`, {
           method: 'POST', headers,
           body: JSON.stringify({ number: jid, type: 'image', url: p.imageUrl, caption, delay: 600 }),
@@ -505,37 +532,33 @@ async function sendAffiliateCards(products: ShopeeProduct[], evoUrl: string, evo
         });
       }
     } catch (e: any) {
-      console.error('sendAffiliateCards:', e?.message);
+      console.error('sendAffiliateCardsFallback:', e?.message);
     }
   }
-}
-
-// Envia a lista interativa "Qual você quer divulgar?" (1 linha por produto) direto
-// pela Evolution Go. Formato oficial: campos no nível raiz (sem wrapper listMessage).
-async function sendAffiliateList(products: ShopeeProduct[], evoUrl: string, evoKey: string, _instanceName: string, jid: string): Promise<void> {
-  const headers = { 'Content-Type': 'application/json', apikey: evoKey };
-  const rows = products.map((p, i) => ({ rowId: `prod_${i + 1}`, title: `${i + 1}. ${p.productName.slice(0, 22)}`, description: p.priceLabel }));
-  const sections = [{ title: 'Ofertas', rows }];
-  const TITLE = 'Qual você quer divulgar?';
-  const DESC = 'Toque em "Ver opções" e escolha o produto.';
-
+  // Lista interativa ao final
+  const rows = products.map((p, i) => ({ id: `prod_${i + 1}`, title: `${i + 1}. ${p.productName.slice(0, 22)}`, description: p.priceLabel }));
   try {
-    // evolution-go: /send/list — campos no nível raiz, sem instanceName na URL
     const res = await fetch(`${evoUrl}/send/list`, {
       method: 'POST', headers,
-      body: JSON.stringify({ number: jid, title: TITLE, description: DESC, buttonText: 'Ver opções', footerText: '', sections, delay: 600 }),
+      body: JSON.stringify({
+        number: jid,
+        title: 'Qual você quer divulgar?',
+        description: 'Toque em "Ver opções" e escolha o produto.',
+        buttonText: 'Ver opções',
+        sections: [{ title: 'Ofertas', rows }],
+        delay: 800,
+      }),
     });
     if (res.ok) return;
     console.error(`sendAffiliateList: ${res.status} ${(await res.text()).slice(0, 300)}`);
   } catch (e: any) {
     console.error('sendAffiliateList:', e?.message);
   }
-
-  // Fallback: prompt numerado em texto simples.
+  // Último fallback: texto numerado
   try {
-    await fetch(`${evoUrl}/message/sendText/${instanceName}`, {
+    await fetch(`${evoUrl}/send/text`, {
       method: 'POST', headers,
-      body: JSON.stringify({ number: jid, text: `${TITLE}\n\nResponda com o número (1 a ${products.length}).`, linkPreview: false, delay: 600 }),
+      body: JSON.stringify({ number: jid, text: `Qual você quer divulgar?\n\nResponda com o número (1 a ${products.length}).`, linkPreview: false, delay: 800 }),
     });
   } catch (e: any) {
     console.error('sendAffiliateList[text]:', e?.message);
@@ -836,14 +859,12 @@ async function executeTool(
     const provider = config.whatsapp?.provider || 'evolution';
     const jid = leadPhone.includes('@') ? leadPhone : `${leadPhone}@s.whatsapp.net`;
 
-    // Evolution: envia os 5 cards com foto à parte e pede ao modelo SÓ a lista.
+    // Evolution: tenta carousel primeiro (1 msg), fallback em cards + lista separados.
     if (provider === 'evolution') {
       const { url, key } = await resolveEvolutionCreds(config);
       if (url && key) {
-        await sendAffiliateCards(products, url, key, instanceName, jid);
-        await sendAffiliateList(products, url, key, instanceName, jid);
-        // Tudo já foi enviado direto (cards + lista). Suprime a fala do modelo p/ não
-        // duplicar e guarda o contexto dos produtos p/ o próximo turno (a legenda).
+        const carouselOk = await sendAffiliateCarousel(products, url, key, jid);
+        if (!carouselOk) await sendAffiliateCardsFallback(products, url, key, jid);
         sideEffects.handled = true;
         sideEffects.affiliateNote = 'Produtos enviados ao cliente para ele escolher qual divulgar:\n' +
           products.map((p, i) => `${i + 1}. ${p.productName} | ${p.priceLabel} | ${p.affiliateLink || p.productUrl}`).join('\n');
