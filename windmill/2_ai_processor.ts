@@ -507,6 +507,43 @@ async function sendAffiliateCards(products: ShopeeProduct[], evoUrl: string, evo
   }
 }
 
+// Envia a lista interativa "Qual você quer divulgar?" (1 linha por produto) direto
+// pela Evolution. Se a Evolution não suportar sendList, cai num prompt de texto
+// numerado — o cliente responde o número e o fluxo segue igual.
+async function sendAffiliateList(products: ShopeeProduct[], evoUrl: string, evoKey: string, instanceName: string, jid: string): Promise<void> {
+  const headers = { 'Content-Type': 'application/json', apikey: evoKey };
+  const rows = products.map((p, i) => ({ rowId: `prod_${i + 1}`, title: `${i + 1}. ${p.productName.slice(0, 22)}`, description: p.priceLabel }));
+  try {
+    const res = await fetch(`${evoUrl}/message/sendList/${instanceName}`, {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        number: jid,
+        listMessage: {
+          title: 'Qual você quer divulgar?',
+          description: 'Toque em "Ver opções" e escolha o produto.',
+          buttonText: 'Ver opções',
+          footerText: '',
+          sections: [{ title: 'Ofertas', rows }],
+        },
+        options: { delay: 600, presence: 'composing' },
+      }),
+    });
+    if (res.ok) return;
+    console.error('sendAffiliateList: sendList falhou, usando fallback de texto:', (await res.text()).slice(0, 200));
+  } catch (e: any) {
+    console.error('sendAffiliateList:', e?.message);
+  }
+  // Fallback: prompt numerado.
+  try {
+    await fetch(`${evoUrl}/message/sendText/${instanceName}`, {
+      method: 'POST', headers,
+      body: JSON.stringify({ number: jid, text: `Qual você quer divulgar? Responda com o número (1 a ${products.length}).`, linkPreview: false, options: { delay: 600 } }),
+    });
+  } catch (e: any) {
+    console.error('sendAffiliateList fallback:', e?.message);
+  }
+}
+
 async function generatePaymentLink(args: any, agentId: string, appBaseUrl: string, sideEffects: { imageUrl?: string }): Promise<string> {
   try {
     const res = await fetch(`${appBaseUrl}/api/payments/create-link`, {
@@ -829,10 +866,9 @@ async function executeTool(
       const { url, key } = await resolveEvolutionCreds();
       if (url && key) {
         await sendAffiliateCards(products, url, key, instanceName, jid);
-        const rows = products.map((p, i) => `${i + 1}. ${p.productName.slice(0, 22)}`).join(' | ');
-        const lista = `[[LISTA: Qual você quer divulgar? || Ofertas | ${rows} ]]`;
+        await sendAffiliateList(products, url, key, instanceName, jid);
         const ref = products.map((p, i) => `${i + 1}. ${p.productName} | ${p.priceLabel} | ${p.affiliateLink || p.productUrl}`).join('\n');
-        return `Os ${products.length} produtos JÁ foram enviados ao cliente com foto e link de afiliado. NÃO repita os produtos em texto. Sua resposta agora deve ser EXATAMENTE e somente esta lista interativa:\n${lista}\nQuando o cliente escolher um item (pelo número), use os dados abaixo para montar a legenda de divulgação na rede que ele pedir:\n${ref}`;
+        return `Os ${products.length} produtos e a lista de escolha JÁ foram enviados ao cliente (fotos + lista interativa). NÃO reliste os produtos e NÃO use marcadores como [[LISTA]]. Responda APENAS com uma frase curta convidando o cliente a escolher na lista (ou responder o número) o produto que quer divulgar.\nQuando ele escolher (pelo número/nome), use os dados abaixo para montar a legenda de divulgação na rede que ele pedir:\n${ref}`;
       }
     }
 
