@@ -866,12 +866,11 @@ async function executeTool(
     const provider = config.whatsapp?.provider || 'evolution';
     const jid = leadPhone.includes('@') ? leadPhone : `${leadPhone}@s.whatsapp.net`;
 
-    // Evolution: tenta carousel primeiro (1 msg), fallback em cards + lista separados.
+    // Evolution: imagens separadas + lista interativa (carousel só renderiza no desktop).
     if (provider === 'evolution') {
       const { url, key } = await resolveEvolutionCreds(config);
       if (url && key) {
-        const carouselOk = await sendAffiliateCarousel(products, url, key, jid);
-        if (!carouselOk) await sendAffiliateCardsFallback(products, url, key, jid);
+        await sendAffiliateCardsFallback(products, url, key, jid);
         sideEffects.handled = true;
         sideEffects.affiliateNote = 'Produtos enviados ao cliente para ele escolher qual divulgar:\n' +
           products.map((p, i) => `${i + 1}. ${p.productName} | ${p.priceLabel} | ${p.affiliateLink || p.productUrl}`).join('\n');
