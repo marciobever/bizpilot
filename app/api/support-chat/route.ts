@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
 
       for (const call of assistantMsg.tool_calls || []) {
         const args = JSON.parse(call.function.arguments || "{}");
-        const result = await executeTool(call.function.name, args, userId, userPlan);
+        const result = await executeTool(call.function.name, args, userId);
         oaiMessages.push({ role: "tool", content: result, tool_call_id: call.id });
       }
 
