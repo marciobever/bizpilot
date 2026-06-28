@@ -35,6 +35,7 @@ export const TYPE_BY_SECTOR: Record<string, string> = {
   clinica: "saúde",
   ecommerce: "e-commerce",
   financeiro: "financeiro",
+  afiliados: "afiliados",
   custom: "personalizado",
 };
 

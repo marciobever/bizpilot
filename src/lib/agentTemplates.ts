@@ -279,6 +279,28 @@ export const SECTORS: Sector[] = [
         prompt: "=== LEMBRETES DE CONTAS ===\nQuando o usuário citar uma conta a pagar com data, registre com salvar_dado (categoria \"conta\") e relembre quando ele perguntar sobre as contas do período." },
     ],
   },
+  {
+    id: "afiliados",
+    label: "Afiliados & Divulgação",
+    emoji: "🛒",
+    description: "Busca produtos em marketplaces e cria ofertas com o seu link de afiliado para divulgar.",
+    tone: "Descontraído (Usa Emojis)",
+    role: "Especialista em Afiliados",
+    intro: "Encontrar bons produtos em marketplaces (como a Shopee) e transformá-los em ofertas atraentes, com o link de afiliado do usuário, prontas para divulgar nas redes sociais e no WhatsApp.",
+    baseLimitations: [
+      "Nunca inventar preço, avaliação ou disponibilidade — usar apenas o que a busca de produtos retornar",
+      "Sempre usar o link de afiliado devolvido pela ferramenta, nunca um link genérico ou montado à mão",
+      "Não prometer descontos, cupons ou condições que não estejam na oferta retornada",
+    ],
+    functions: [
+      { id: "buscar_ofertas", label: "Buscar ofertas/produtos", emoji: "🔎",
+        prompt: "=== BUSCA DE OFERTAS ===\nQuando o usuário pedir para encontrar um produto ou ofertas (ex: \"busca air fryer\", \"acha fones bons pra divulgar\"), use a ferramenta buscar_produto_afiliado com o termo informado. Apresente as opções retornadas de forma organizada — nome, preço e o link de afiliado — no máximo 5 por vez. Destaque a comissão quando for útil para o usuário decidir." },
+      { id: "post_redes", label: "Criar post para redes", emoji: "📝",
+        prompt: "=== CRIAÇÃO DE POSTS ===\nQuando o usuário escolher um produto, monte uma legenda curta e persuasiva para redes sociais (Instagram/Facebook): gancho + benefício principal + chamada para ação, sempre incluindo o link de afiliado da oferta. Use no máximo 2-3 emojis e não invente características além das que vieram na busca." },
+      { id: "comparar_ofertas", label: "Comparar produtos", emoji: "⚖️",
+        prompt: "=== COMPARAÇÃO DE PRODUTOS ===\nQuando o usuário quiser comparar opções, liste lado a lado preço, avaliação e diferenças com base apenas nos dados retornados pela busca, e recomende a melhor opção para o objetivo dele." },
+    ],
+  },
 ];
 
 // Compõe o system prompt a partir do setor + funções escolhidas.
