@@ -20,6 +20,7 @@ function Integrations() {
     calendarForm, setCalendarForm, calendarMsg,
     externalDbForm, setExternalDbForm, externalDbMsg,
     emailForm, setEmailForm, emailMsg,
+    affiliateForm, setAffiliateForm, affiliateMsg,
     getStatus, openModal, handleDisconnectIntegration, handleConnectIntegration,
   } = useIntegrations();
 
@@ -101,6 +102,7 @@ function Integrations() {
           calendarForm={calendarForm} setCalendarForm={setCalendarForm} calendarMsg={calendarMsg}
           externalDbForm={externalDbForm} setExternalDbForm={setExternalDbForm} externalDbMsg={externalDbMsg}
           emailForm={emailForm} setEmailForm={setEmailForm} emailMsg={emailMsg}
+          affiliateForm={affiliateForm} setAffiliateForm={setAffiliateForm} affiliateMsg={affiliateMsg}
           onClose={() => setActiveModal(null)}
           onDisconnect={handleDisconnectIntegration}
           onSubmit={handleConnectIntegration}

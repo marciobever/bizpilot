@@ -42,6 +42,8 @@ export function useIntegrations() {
     templateId: "minimal", brandColor: "#6366f1",
   });
   const [emailMsg, setEmailMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [affiliateForm, setAffiliateForm] = useState({ provider: "shopee", appId: "", secret: "" });
+  const [affiliateMsg, setAffiliateMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -104,6 +106,7 @@ export function useIntegrations() {
     setCalendarMsg(null);
     setExternalDbMsg(null);
     setEmailMsg(null);
+    setAffiliateMsg(null);
     if (id === "webhook") {
       const cfg = statusMap.webhook?.config || {};
       setWebhookForm({ url: cfg.url || "", secret: cfg.secret || "", events: cfg.events || [] });
@@ -144,6 +147,9 @@ export function useIntegrations() {
         user: cfg.user || "", pass: cfg.pass ? "••••••••••••" : "",
         templateId: validTemplate, brandColor: cfg.brandColor || "#6366f1",
       });
+    } else if (id === "affiliate") {
+      const cfg = statusMap.affiliate?.config || {};
+      setAffiliateForm({ provider: cfg.provider || "shopee", appId: cfg.app_id || "", secret: cfg.secret ? "••••••••••••" : "" });
     }
   };
 
@@ -281,6 +287,18 @@ export function useIntegrations() {
         if (!data.success) { setEmailMsg({ ok: false, text: data.error || "Credencial inválida." }); return; }
         await upsertIntegration("email", "E-mail", "connected", { provider, apiKey: finalApiKey, fromEmail, fromName, templateId, brandColor });
         setActiveModal(null);
+      } else if (id === "affiliate") {
+        const provider = affiliateForm.provider;
+        const existing = statusMap.affiliate?.config || {};
+        setAffiliateMsg(null);
+        if (provider !== "shopee") { setAffiliateMsg({ ok: false, text: "Esse marketplace ainda não está disponível. Em breve!" }); return; }
+        const appId = affiliateForm.appId.trim();
+        const secretInput = affiliateForm.secret.trim();
+        const finalSecret = secretInput.startsWith("•") ? existing.secret : secretInput;
+        if (!appId || !finalSecret) { setAffiliateMsg({ ok: false, text: "Informe o App ID e a App Secret da Shopee Afiliados." }); return; }
+        // Campos app_id/secret batem com o que o bot lê em integrations.config.
+        await upsertIntegration("affiliate", "Afiliados", "connected", { provider, app_id: appId, secret: finalSecret });
+        setActiveModal(null);
       }
     } finally {
       setSavingIntegration(false);
@@ -295,6 +313,7 @@ export function useIntegrations() {
     calendarForm, setCalendarForm, calendarMsg,
     externalDbForm, setExternalDbForm, externalDbMsg,
     emailForm, setEmailForm, emailMsg,
+    affiliateForm, setAffiliateForm, affiliateMsg,
     getStatus, openModal, handleDisconnectIntegration, handleConnectIntegration,
   };
 }

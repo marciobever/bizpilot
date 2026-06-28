@@ -1,4 +1,4 @@
-import { MessageCircle, Webhook, Link as LinkIcon, Database, CalendarDays, Mail } from "lucide-react";
+import { MessageCircle, Webhook, Link as LinkIcon, Database, CalendarDays, Mail, ShoppingBag } from "lucide-react";
 
 export const INTEGRATIONS_META = [
   {
@@ -73,6 +73,22 @@ export const INTEGRATIONS_META = [
     color: "text-amber-500",
     bgClass: "bg-amber-500/10 border-amber-500/20",
   },
+  {
+    id: "affiliate",
+    name: "Afiliados",
+    description: "O agente busca produtos (Shopee) e devolve ofertas já com o seu link de afiliado durante a conversa.",
+    icon: ShoppingBag,
+    category: "Monetização",
+    color: "text-orange-500",
+    bgClass: "bg-orange-500/10 border-orange-500/20",
+  },
+];
+
+// Marketplaces de afiliados. Shopee ativo; Amazon e Mercado Livre entram depois.
+export const AFFILIATE_PROVIDERS: { value: string; label: string; available: boolean }[] = [
+  { value: "shopee", label: "Shopee Afiliados", available: true },
+  { value: "amazon", label: "Amazon Associates (em breve)", available: false },
+  { value: "mercadolivre", label: "Mercado Livre (em breve)", available: false },
 ];
 
 export const WEBHOOK_EVENTS = [

@@ -78,7 +78,7 @@ const buildTtsText = (t: string) =>
 
 // ─── Tools: construção e execução ─────────────────────────────────────────────
 
-function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boolean, hasCalendar: boolean, hasDataRecords: boolean, hasExternalDb: boolean, hasEmail: boolean, mediaFiles: { name: string; description: string; url: string }[]): any[] {
+function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boolean, hasCalendar: boolean, hasDataRecords: boolean, hasExternalDb: boolean, hasEmail: boolean, hasAffiliate: boolean, mediaFiles: { name: string; description: string; url: string }[]): any[] {
   const tools: any[] = [];
 
   const handoffContacts: { name: string; phone: string }[] = Array.isArray(config.handoffContacts) ? config.handoffContacts.filter((c: any) => c?.phone) : [];
@@ -291,6 +291,24 @@ function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boole
     });
   }
 
+  if (hasAffiliate) {
+    tools.push({
+      type: 'function',
+      function: {
+        name: 'buscar_produto_afiliado',
+        description: 'Busca produtos na Shopee e retorna até 5 opções com link de afiliado (nome, preço, comissão, imagem). Use quando o cliente pedir indicação/recomendação de produto, ou pedir para buscar/encontrar um produto para comprar ou para divulgar/publicar como oferta.',
+        parameters: {
+          type: 'object',
+          properties: {
+            termo: { type: 'string', description: 'O que buscar (ex: "air fryer", "facas de cozinha").' },
+            quantidade: { type: 'number', description: 'Quantos produtos retornar (1 a 5). Padrão 5.' },
+          },
+          required: ['termo'],
+        },
+      },
+    });
+  }
+
   if (mediaFiles.length > 0) {
     const filesList = mediaFiles.map((f) => `"${f.name}"${f.description ? ` (${f.description})` : ''}`).join(', ');
     tools.push({
@@ -375,6 +393,71 @@ async function searchKnowledge(
     return chunks.map((c: any) => c.chunk_text).join('\n\n---\n\n');
   } catch {
     return '';
+  }
+}
+
+// ── Afiliados Shopee (add-on) ─────────────────────────────────────────────────
+// Espelha o script standalone 5_shopee_affiliate.ts (mantido p/ cron/testes).
+// Ponte com a Affiliate Open API: busca produtos + gera link de afiliado curto.
+const SHOPEE_GRAPHQL = 'https://open-api.affiliate.shopee.com.br/graphql';
+
+async function shopeeSignedRequest(body: object, appId: string, secret: string): Promise<any> {
+  const { createHash } = await import('crypto');
+  const payload = JSON.stringify(body);                       // string assinada = corpo enviado
+  const ts = Math.floor(Date.now() / 1000);
+  const sig = createHash('sha256').update(`${appId}${ts}${payload}${secret}`).digest('hex');
+  const res = await fetch(SHOPEE_GRAPHQL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `SHA256 Credential=${appId}, Timestamp=${ts}, Signature=${sig}` },
+    body: payload,
+  });
+  const text = await res.text();
+  let json: any;
+  try { json = JSON.parse(text); } catch { throw new Error(`Shopee respondeu não-JSON (HTTP ${res.status})`); }
+  if (json.errors?.length) throw new Error(`Shopee: ${JSON.stringify(json.errors).slice(0, 200)}`);
+  return json.data || {};
+}
+
+async function searchShopeeAffiliate(termo: string, quantidade: number, subIds: string[], appId?: string, secret?: string): Promise<string> {
+  if (!termo.trim()) return 'Informe o que o cliente quer buscar.';
+  if (!appId || !secret) return 'Integração de afiliados não configurada (preencha as credenciais Shopee na config do BizPilot).';
+
+  const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const lim = Math.min(Math.max(1, Math.floor(quantidade) || 5), 5);
+  const fmtPrice = (min: any, max: any) => {
+    const f = (v: any) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : null; };
+    const a = f(min), b = f(max);
+    return a && b && a !== b ? `${a} a ${b}` : (a || b || 'preço indisponível');
+  };
+
+  try {
+    // 1) busca até `lim` ofertas
+    const data = await shopeeSignedRequest({ query: `query { productOfferV2(keyword: "${esc(termo)}", limit: ${lim}) { nodes { itemId shopId productName priceMin priceMax imageUrl shopName ratingStar sales commissionRate productLink } } }` }, appId, secret);
+    const nodes: any[] = data?.productOfferV2?.nodes || [];
+    if (!nodes.length) return `Nenhum produto encontrado para "${termo}".`;
+
+    const products = nodes.map((n) => ({
+      productName: n.productName || '',
+      priceMin: n.priceMin, priceMax: n.priceMax,
+      imageUrl: n.imageUrl || null,
+      commissionRate: n.commissionRate || null,
+      productUrl: n.productLink || `https://shopee.com.br/product/${n.shopId}/${n.itemId}`,
+      affiliateLink: null as string | null,
+    }));
+
+    // 2) gera os shortlinks de afiliado em batch (subIds no campo oficial)
+    const subArg = subIds.slice(0, 5).map((s) => `"${esc(s)}"`).join(', ');
+    const parts = products.map((p, i) => `m${i}: generateShortLink(input: { originUrl: "${esc(p.productUrl)}"${subArg ? `, subIds: [${subArg}]` : ''} }) { shortLink }`);
+    const linkData = await shopeeSignedRequest({ query: `mutation { ${parts.join('\n')} }` }, appId, secret);
+    products.forEach((p, i) => { p.affiliateLink = linkData?.[`m${i}`]?.shortLink || null; });
+
+    // texto bruto p/ a IA reescrever pro cliente
+    const lines = products.map((p, i) =>
+      `${i + 1}. ${p.productName} — ${fmtPrice(p.priceMin, p.priceMax)}${p.commissionRate ? ` (comissão ${p.commissionRate})` : ''}\nLink: ${p.affiliateLink || p.productUrl}${p.imageUrl ? `\nImagem: ${p.imageUrl}` : ''}`
+    );
+    return `Encontrei ${products.length} produto(s) para "${termo}":\n\n${lines.join('\n\n')}\n\nApresente as opções de forma organizada (nome, preço e link). Pergunte se o cliente quer comprar ou publicar alguma delas.`;
+  } catch (e: any) {
+    return `Não consegui buscar na Shopee agora: ${e.message}`;
   }
 }
 
@@ -682,6 +765,14 @@ async function executeTool(
     return searchKnowledge(args.query || '', agentId, supabase, openaiKey, userId, conversationId);
   }
 
+  if (name === 'buscar_produto_afiliado') {
+    // Credenciais do próprio usuário (BizPilot → integrations.config) + subIds
+    // de rastreamento: agente + canal (até 5).
+    const creds = config.affiliateShopee || {};
+    const subIds = [agentId, 'whatsapp'].filter(Boolean);
+    return searchShopeeAffiliate(String(args.termo || ''), Number(args.quantidade) || 5, subIds, creds.app_id, creds.secret);
+  }
+
   if (name === 'gerar_link_pagamento') {
     return generatePaymentLink(args, agentId, appBaseUrl, sideEffects);
   }
@@ -958,6 +1049,16 @@ export async function main(
     .select('status').eq('user_id', userId).eq('provider', 'email').maybeSingle();
   const hasEmail = emailIntegration?.status === 'connected';
 
+  // ── Afiliados (add-on pago Shopee) ────────────────────────────────────────
+  // Add-on independente do tier: liga quando a integração 'affiliate' está
+  // conectada. As credenciais Shopee (app_id/secret) são do PRÓPRIO usuário,
+  // configuradas no BizPilot e salvas em integrations.config — não há variável
+  // global. Anexamos ao config p/ a tool usar, sem inchar a assinatura.
+  const { data: affiliateIntegration } = await supabase.from('integrations')
+    .select('status, config').eq('user_id', userId).eq('provider', 'affiliate').maybeSingle();
+  const hasAffiliate = affiliateIntegration?.status === 'connected';
+  config.affiliateShopee = hasAffiliate ? (affiliateIntegration?.config || null) : null;
+
   // ── Arquivos para envio (catálogos, tabelas de preço, contratos, etc.) ────
 
   const mediaFiles: { name: string; description: string; url: string }[] = config.mediaFiles || [];
@@ -1101,7 +1202,7 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
   const sideEffects: { imageUrl?: string; reaction?: string; fileUrl?: string; fileName?: string } = {};
 
   if (!modelToUse.includes('gemini') && finalOpenAiKey) {
-    const tools = buildOpenAITools(config, hasKnowledge, hasPayments && !!appBaseUrl, hasCalendar && !!appBaseUrl, hasDataRecords, hasExternalDb && !!appBaseUrl, hasEmail && !!appBaseUrl, hasMediaFiles ? mediaFiles : []);
+    const tools = buildOpenAITools(config, hasKnowledge, hasPayments && !!appBaseUrl, hasCalendar && !!appBaseUrl, hasDataRecords, hasExternalDb && !!appBaseUrl, hasEmail && !!appBaseUrl, hasAffiliate, hasMediaFiles ? mediaFiles : []);
     const messages: any[] = [
       { role: 'system', content: aiSystemInstruction },
       ...cleanHistory.map((m: any) => ({

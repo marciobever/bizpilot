@@ -1,13 +1,13 @@
 "use client";
 import React from "react";
-import { X, MessageCircle, CalendarDays, Database, Mail, Webhook, Loader2, AlertCircle } from "lucide-react";
+import { X, MessageCircle, CalendarDays, Database, Mail, Webhook, ShoppingBag, Loader2, AlertCircle } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
 import {
   INTEGRATIONS_META, WEBHOOK_EVENTS, PAYMENT_PROVIDERS,
-  CALENDAR_PROVIDERS, EXTERNAL_DB_PROVIDERS, SMTP_PRESETS, EMAIL_API_PROVIDERS, EMAIL_TEMPLATES,
+  CALENDAR_PROVIDERS, EXTERNAL_DB_PROVIDERS, SMTP_PRESETS, EMAIL_API_PROVIDERS, EMAIL_TEMPLATES, AFFILIATE_PROVIDERS,
 } from "../_constants";
 
 interface Props {
@@ -32,6 +32,9 @@ interface Props {
   emailForm: { provider: string; apiKey: string; fromEmail: string; fromName: string; smtpPreset: string; host: string; port: string; secure: boolean; user: string; pass: string; templateId: string; brandColor: string };
   setEmailForm: (v: any) => void;
   emailMsg: { ok: boolean; text: string } | null;
+  affiliateForm: { provider: string; appId: string; secret: string };
+  setAffiliateForm: (v: any) => void;
+  affiliateMsg: { ok: boolean; text: string } | null;
   onClose: () => void;
   onDisconnect: (id: string) => void;
   onSubmit: (e: React.FormEvent, id: string) => void;
@@ -43,6 +46,7 @@ const MODAL_ICONS: Record<string, React.ReactNode> = {
   calendar: <CalendarDays className="h-5 w-5 text-violet-500" />,
   external_db: <Database className="h-5 w-5 text-cyan-500" />,
   email: <Mail className="h-5 w-5 text-amber-500" />,
+  affiliate: <ShoppingBag className="h-5 w-5 text-orange-500" />,
 };
 
 const MODAL_ICON_BG: Record<string, string> = {
@@ -51,6 +55,7 @@ const MODAL_ICON_BG: Record<string, string> = {
   calendar: "bg-violet-500/10 border-violet-500/20",
   external_db: "bg-cyan-500/10 border-cyan-500/20",
   email: "bg-amber-500/10 border-amber-500/20",
+  affiliate: "bg-orange-500/10 border-orange-500/20",
 };
 
 export function IntegrationModal({
@@ -61,12 +66,13 @@ export function IntegrationModal({
   calendarForm, setCalendarForm, calendarMsg,
   externalDbForm, setExternalDbForm, externalDbMsg,
   emailForm, setEmailForm, emailMsg,
+  affiliateForm, setAffiliateForm, affiliateMsg,
   onClose, onDisconnect, onSubmit,
 }: Props) {
   const meta = INTEGRATIONS_META.find((i) => i.id === activeModal);
   const icon = MODAL_ICONS[activeModal] || <Webhook className="h-5 w-5 text-foreground" />;
   const iconBg = MODAL_ICON_BG[activeModal] || "bg-secondary border-border";
-  const isConnectable = ["webhook", "payments", "instagram", "facebook", "calendar", "external_db", "email"].includes(activeModal);
+  const isConnectable = ["webhook", "payments", "instagram", "facebook", "calendar", "external_db", "email", "affiliate"].includes(activeModal);
   const isConnected = isConnectable && statusMap[activeModal]?.status === "connected";
   const isGoogleSubmit = activeModal === "calendar" && calendarForm.provider === "google";
 
@@ -383,8 +389,35 @@ export function IntegrationModal({
             </>
           )}
 
+          {/* ── Afiliados ── */}
+          {activeModal === "affiliate" && (
+            <>
+              <div className="p-4 bg-secondary border border-border rounded-lg text-sm">
+                Conecte sua conta de afiliado e o agente ganha a ferramenta <code>buscar_produto_afiliado</code>: ele busca produtos e devolve ofertas já com o seu link de afiliado durante a conversa.
+              </div>
+              <div className="space-y-2">
+                <Label>Marketplace</Label>
+                <select value={affiliateForm.provider} onChange={(e) => setAffiliateForm({ ...affiliateForm, provider: e.target.value })} className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                  {AFFILIATE_PROVIDERS.map((p) => <option key={p.value} value={p.value} disabled={!p.available}>{p.label}</option>)}
+                </select>
+              </div>
+              {affiliateForm.provider === "shopee" && (
+                <>
+                  <div className="p-3 bg-secondary/50 border border-border rounded-lg text-xs text-muted-foreground space-y-1.5">
+                    <p>1. Acesse a <a href="https://affiliate.shopee.com.br/open_api" target="_blank" rel="noopener noreferrer" className="text-brand-400 underline">Shopee Affiliate Open API</a>.</p>
+                    <p>2. Copie o seu App ID e a App Secret (Chave).</p>
+                    <p>3. Cole abaixo — as comissões são atribuídas à sua conta.</p>
+                  </div>
+                  <div className="space-y-2"><Label>App ID</Label><Input placeholder="18xxxxxxxxx" value={affiliateForm.appId} onChange={(e) => setAffiliateForm({ ...affiliateForm, appId: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>App Secret (Chave)</Label><Input type="password" value={affiliateForm.secret} onChange={(e) => setAffiliateForm({ ...affiliateForm, secret: e.target.value })} /></div>
+                </>
+              )}
+              {affiliateMsg && <div className={`flex items-start gap-2 text-sm p-3 rounded-lg ${affiliateMsg.ok ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}><AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />{affiliateMsg.text}</div>}
+            </>
+          )}
+
           {/* ── Unknown / Coming soon ── */}
-          {!["webhook", "payments", "instagram", "facebook", "calendar", "external_db", "email"].includes(activeModal) && (
+          {!["webhook", "payments", "instagram", "facebook", "calendar", "external_db", "email", "affiliate"].includes(activeModal) && (
             <div className="p-4 bg-secondary border border-border rounded-lg text-sm">
               Configurações detalhadas para este módulo serão liberadas em breve.
             </div>
