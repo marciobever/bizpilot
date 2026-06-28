@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { graphUrl, getMetaConfig } from '../../meta/utils';
-import { findFullInstanceName } from '../../evolution/utils';
+import { resolveInstanceToken } from '../../evolution/utils';
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -36,15 +36,16 @@ async function sendReminder(agentConfig: any, agentId: string, phone: string, te
   }
 
   const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
-  const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
-  if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) throw new Error('Evolution API não configurada.');
+  if (!EVOLUTION_API_URL) throw new Error('Evolution API não configurada.');
 
-  const instanceName = await findFullInstanceName(`agent_${agentId}`);
+  const creds = await resolveInstanceToken(`agent_${agentId}`);
+  if (!creds) throw new Error('Instância Evolution não encontrada para este agente.');
+
   const number = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
-  const res = await fetch(`${EVOLUTION_API_URL}/message/sendText/${instanceName}`, {
+  const res = await fetch(`${EVOLUTION_API_URL}/send/text`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: EVOLUTION_API_KEY },
-    body: JSON.stringify({ number, text, options: { delay: 0, presence: 'composing' } }),
+    headers: { 'Content-Type': 'application/json', apikey: creds.token },
+    body: JSON.stringify({ number, text, delay: 0 }),
   });
   if (!res.ok) throw new Error(`Erro ao enviar pela Evolution: ${await res.text()}`);
 }
