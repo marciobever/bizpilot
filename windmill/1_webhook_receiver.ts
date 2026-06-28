@@ -150,8 +150,6 @@ export async function main(payload: any) {
   // evolution-go (whatsmeow): metadados em data.Info (PascalCase), corpo em data.Message
   // Baileys (Node.js):        metadados em data.key (camelCase), corpo em data.message
   const info = payload.data?.Info || payload.data?.key || {};
-  console.log("INFO_DEBUG:", JSON.stringify(info).slice(0, 500));
-  console.log("MESSAGE_DEBUG:", JSON.stringify(payload.data?.Message || payload.data?.message || {}).slice(0, 500));
 
   // Chat pode ser string "55119@s.whatsapp.net" ou objeto whatsmeow {User, Server, ...}
   const chatJid = info.Chat ?? info.remoteJid ?? "";
