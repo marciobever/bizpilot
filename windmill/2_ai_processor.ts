@@ -418,48 +418,90 @@ async function shopeeSignedRequest(body: object, appId: string, secret: string):
   return json.data || {};
 }
 
-async function searchShopeeAffiliate(termo: string, quantidade: number, subIds: string[], appId?: string, secret?: string): Promise<string> {
-  if (!termo.trim()) return 'Informe o que o cliente quer buscar.';
-  if (!appId || !secret) return 'Integração de afiliados não configurada (preencha as credenciais Shopee na config do BizPilot).';
+type ShopeeProduct = {
+  productName: string;
+  priceLabel: string;
+  commissionRate: string | null;
+  imageUrl: string | null;
+  productUrl: string;
+  affiliateLink: string | null;
+};
+
+function fmtPriceBRL(min: any, max: any): string {
+  const f = (v: any) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : null; };
+  const a = f(min), b = f(max);
+  return a && b && a !== b ? `${a} a ${b}` : (a || b || 'preço indisponível');
+}
+
+// Busca produtos na Shopee + gera o link de afiliado de cada um. Retorna dados
+// estruturados (a apresentação fica a cargo de quem chama).
+async function searchShopeeProducts(termo: string, quantidade: number, subIds: string[], appId?: string, secret?: string): Promise<{ ok: boolean; products: ShopeeProduct[]; error?: string }> {
+  if (!termo.trim()) return { ok: false, products: [], error: 'Informe o que o cliente quer buscar.' };
+  if (!appId || !secret) return { ok: false, products: [], error: 'Integração de afiliados não configurada (preencha as credenciais Shopee na config do BizPilot).' };
 
   const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   const lim = Math.min(Math.max(1, Math.floor(quantidade) || 5), 5);
-  const fmtPrice = (min: any, max: any) => {
-    const f = (v: any) => { const n = Number(v); return Number.isFinite(n) && n > 0 ? n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : null; };
-    const a = f(min), b = f(max);
-    return a && b && a !== b ? `${a} a ${b}` : (a || b || 'preço indisponível');
-  };
-
   try {
-    // 1) busca até `lim` ofertas
-    const data = await shopeeSignedRequest({ query: `query { productOfferV2(keyword: "${esc(termo)}", limit: ${lim}) { nodes { itemId shopId productName priceMin priceMax imageUrl shopName ratingStar sales commissionRate productLink } } }` }, appId, secret);
+    const data = await shopeeSignedRequest({ query: `query { productOfferV2(keyword: "${esc(termo)}", limit: ${lim}) { nodes { itemId shopId productName priceMin priceMax imageUrl commissionRate productLink } } }` }, appId, secret);
     const nodes: any[] = data?.productOfferV2?.nodes || [];
-    if (!nodes.length) return `Nenhum produto encontrado para "${termo}".`;
+    if (!nodes.length) return { ok: true, products: [] };
 
-    const products = nodes.map((n) => ({
+    const products: ShopeeProduct[] = nodes.map((n) => ({
       productName: n.productName || '',
-      priceMin: n.priceMin, priceMax: n.priceMax,
-      imageUrl: n.imageUrl || null,
+      priceLabel: fmtPriceBRL(n.priceMin, n.priceMax),
       commissionRate: n.commissionRate || null,
+      imageUrl: n.imageUrl || null,
       productUrl: n.productLink || `https://shopee.com.br/product/${n.shopId}/${n.itemId}`,
-      affiliateLink: null as string | null,
+      affiliateLink: null,
     }));
 
-    // 2) gera os shortlinks de afiliado em batch (subIds no campo oficial).
-    // Shopee rejeita subId com hífen/caractere especial (erro 11001) — então
-    // sanitiza para alfanumérico (ex.: UUID do agente vira só letras/números).
+    // subIds no campo oficial; sanitiza p/ alfanumérico (Shopee rejeita hífen — erro 11001).
     const subArg = subIds.map((s) => String(s).replace(/[^a-zA-Z0-9_]/g, '')).filter(Boolean).slice(0, 5).map((s) => `"${s}"`).join(', ');
     const parts = products.map((p, i) => `m${i}: generateShortLink(input: { originUrl: "${esc(p.productUrl)}"${subArg ? `, subIds: [${subArg}]` : ''} }) { shortLink }`);
     const linkData = await shopeeSignedRequest({ query: `mutation { ${parts.join('\n')} }` }, appId, secret);
     products.forEach((p, i) => { p.affiliateLink = linkData?.[`m${i}`]?.shortLink || null; });
 
-    // texto bruto p/ a IA reescrever pro cliente
-    const lines = products.map((p, i) =>
-      `${i + 1}. ${p.productName} — ${fmtPrice(p.priceMin, p.priceMax)}${p.commissionRate ? ` (comissão ${p.commissionRate})` : ''}\nLink: ${p.affiliateLink || p.productUrl}${p.imageUrl ? `\nImagem: ${p.imageUrl}` : ''}`
-    );
-    return `Encontrei ${products.length} produto(s) para "${termo}":\n\n${lines.join('\n\n')}\n\nApresente as opções de forma organizada (nome, preço e link). Pergunte se o cliente quer comprar ou publicar alguma delas.`;
+    return { ok: true, products };
   } catch (e: any) {
-    return `Não consegui buscar na Shopee agora: ${e.message}`;
+    return { ok: false, products: [], error: `Não consegui buscar na Shopee agora: ${e.message}` };
+  }
+}
+
+// Resolve as credenciais da Evolution (mesmo padrão dos outros pontos do script).
+async function resolveEvolutionCreds(): Promise<{ url: string; key: string }> {
+  try {
+    const { getVariable } = await import('windmill-client');
+    const tryGet = async (...paths: string[]) => { for (const p of paths) { try { const v = await getVariable(p); if (v) return v; } catch {} } return ''; };
+    const url = await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_URL', 'u/bevervansomarcio/EVOLUTION_API_URL');
+    const key = await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_KEY', 'u/bevervansomarcio/EVOLUTION_API_KEY');
+    return { url, key };
+  } catch { return { url: '', key: '' }; }
+}
+
+// Envia cada produto como um card (foto + legenda com nome/preço/comissão/link)
+// direto pela Evolution. O pipeline normal manda 1 msg só, então o carrossel de
+// 5 cards é feito aqui à parte. Best-effort: falha de um card não derruba os outros.
+async function sendAffiliateCards(products: ShopeeProduct[], evoUrl: string, evoKey: string, instanceName: string, jid: string): Promise<void> {
+  const headers = { 'Content-Type': 'application/json', apikey: evoKey };
+  for (let i = 0; i < products.length; i++) {
+    const p = products[i];
+    const link = p.affiliateLink || p.productUrl;
+    const caption = `${i + 1}. ${p.productName}\n💰 ${p.priceLabel}${p.commissionRate ? ` · comissão ${p.commissionRate}` : ''}\n🔗 ${link}`;
+    try {
+      if (p.imageUrl) {
+        await fetch(`${evoUrl}/message/sendMedia/${instanceName}`, {
+          method: 'POST', headers,
+          body: JSON.stringify({ number: jid, mediatype: 'image', mimetype: 'image/jpeg', fileName: `produto${i + 1}.jpg`, media: p.imageUrl, caption, delay: 600 }),
+        });
+      } else {
+        await fetch(`${evoUrl}/message/sendText/${instanceName}`, {
+          method: 'POST', headers,
+          body: JSON.stringify({ number: jid, text: caption, linkPreview: false, options: { delay: 600 } }),
+        });
+      }
+    } catch (e: any) {
+      console.error('sendAffiliateCards:', e?.message);
+    }
   }
 }
 
@@ -771,8 +813,30 @@ async function executeTool(
     // Credenciais do próprio usuário (BizPilot → integrations.config) + subIds
     // de rastreamento: agente + canal (até 5).
     const creds = config.affiliateShopee || {};
+    const termo = String(args.termo || '');
     const subIds = [agentId, 'whatsapp'].filter(Boolean);
-    return searchShopeeAffiliate(String(args.termo || ''), Number(args.quantidade) || 5, subIds, creds.app_id, creds.secret);
+    const { ok, products, error } = await searchShopeeProducts(termo, Number(args.quantidade) || 5, subIds, creds.app_id, creds.secret);
+    if (!ok) return error || 'Não consegui buscar agora.';
+    if (!products.length) return `Nenhum produto encontrado para "${termo}". Sugira ao cliente tentar um termo diferente.`;
+
+    const provider = config.whatsapp?.provider || 'evolution';
+    const jid = leadPhone.includes('@') ? leadPhone : `${leadPhone}@s.whatsapp.net`;
+
+    // Evolution: envia os 5 cards com foto à parte e pede ao modelo SÓ a lista.
+    if (provider === 'evolution') {
+      const { url, key } = await resolveEvolutionCreds();
+      if (url && key) {
+        await sendAffiliateCards(products, url, key, instanceName, jid);
+        const rows = products.map((p, i) => `${i + 1}. ${p.productName.slice(0, 22)}`).join(' | ');
+        const lista = `[[LISTA: Qual você quer divulgar? || Ofertas | ${rows} ]]`;
+        const ref = products.map((p, i) => `${i + 1}. ${p.productName} | ${p.priceLabel} | ${p.affiliateLink || p.productUrl}`).join('\n');
+        return `Os ${products.length} produtos JÁ foram enviados ao cliente com foto e link de afiliado. NÃO repita os produtos em texto. Sua resposta agora deve ser EXATAMENTE e somente esta lista interativa:\n${lista}\nQuando o cliente escolher um item (pelo número), use os dados abaixo para montar a legenda de divulgação na rede que ele pedir:\n${ref}`;
+      }
+    }
+
+    // Fallback (provider Meta ou sem creds Evolution): devolve em texto.
+    const lines = products.map((p, i) => `${i + 1}. ${p.productName} — ${p.priceLabel}${p.commissionRate ? ` (comissão ${p.commissionRate})` : ''}\nLink: ${p.affiliateLink || p.productUrl}`);
+    return `Encontrei ${products.length} produto(s) para "${termo}":\n\n${lines.join('\n\n')}\n\nApresente de forma organizada e pergunte qual o cliente quer divulgar.`;
   }
 
   if (name === 'gerar_link_pagamento') {

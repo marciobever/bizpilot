@@ -294,7 +294,7 @@ export const SECTORS: Sector[] = [
     ],
     functions: [
       { id: "buscar_ofertas", label: "Buscar ofertas/produtos", emoji: "🔎",
-        prompt: "=== BUSCA DE OFERTAS ===\nQuando o usuário pedir para encontrar um produto ou ofertas (ex: \"busca air fryer\", \"acha fones bons pra divulgar\"), use a ferramenta buscar_produto_afiliado com o termo informado. Apresente as opções retornadas de forma organizada — nome, preço e o link de afiliado — no máximo 5 por vez. Destaque a comissão quando for útil para o usuário decidir." },
+        prompt: "=== BUSCA DE OFERTAS ===\nQuando o usuário pedir para encontrar um produto ou ofertas (ex: \"busca air fryer\", \"acha fones bons pra divulgar\"), use a ferramenta buscar_produto_afiliado com o termo informado. Os produtos são enviados automaticamente ao cliente com foto e link de afiliado — NÃO os reliste em texto. Apenas siga a instrução retornada pela ferramenta (em geral, enviar uma lista para o cliente escolher qual divulgar)." },
       { id: "post_redes", label: "Criar post para redes", emoji: "📝",
         prompt: "=== CRIAÇÃO DE POSTS ===\nQuando o usuário escolher um produto, monte uma legenda curta e persuasiva para redes sociais (Instagram/Facebook): gancho + benefício principal + chamada para ação, sempre incluindo o link de afiliado da oferta. Use no máximo 2-3 emojis e não invente características além das que vieram na busca." },
       { id: "comparar_ofertas", label: "Comparar produtos", emoji: "⚖️",
