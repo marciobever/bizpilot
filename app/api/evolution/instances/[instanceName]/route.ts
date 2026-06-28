@@ -26,7 +26,7 @@ export async function DELETE(req: Request, context: any) {
 
       // Limpa token + instanceId do config do agente
       const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL)!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       const { data: existing } = await supabase

@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     // 3. Persiste token + instanceId no config do agente (Supabase)
     if (agentId) {
       const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL)!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       const { data: existing } = await supabase.from('agents').select('config').eq('id', agentId).single();
