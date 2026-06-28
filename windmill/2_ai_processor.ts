@@ -490,18 +490,25 @@ async function sendAffiliateCarousel(products: ShopeeProduct[], evoUrl: string, 
   try {
     const cards = products.map((p, i) => {
       const link = p.affiliateLink || p.productUrl;
-      const body = `${p.productName.slice(0, 60)}${p.commissionRate ? `\n💰 ${p.priceLabel} · comissão ${p.commissionRate}` : `\n💰 ${p.priceLabel}`}`;
-      const card: any = {
-        body: { text: body },
-        footer: { text: link.slice(0, 60) },
-        buttons: [{ type: 'reply', reply: { id: `prod_${i + 1}`, title: 'Divulgar este' } }],
+      const bodyText = p.commissionRate
+        ? `${p.productName.slice(0, 50)}\n💰 ${p.priceLabel} · comissão ${p.commissionRate}`
+        : `${p.productName.slice(0, 60)}\n💰 ${p.priceLabel}`;
+      return {
+        header: { imageUrl: p.imageUrl || '' },
+        body: { text: bodyText },
+        footer: link.slice(0, 60),
+        buttons: [{ type: 'REPLY', id: `prod_${i + 1}`, displayText: 'Divulgar este' }],
       };
-      if (p.imageUrl) card.header = { type: 'image', image: { url: p.imageUrl } };
-      return card;
     });
     const res = await fetch(`${evoUrl}/send/carousel`, {
       method: 'POST', headers,
-      body: JSON.stringify({ number: jid, title: 'Qual você quer divulgar?', cards, delay: 600 }),
+      body: JSON.stringify({
+        number: jid,
+        body: 'Encontrei esses produtos para você divulgar 👇',
+        footer: 'Toque em "Divulgar este" para escolher',
+        cards,
+        delay: 600,
+      }),
     });
     if (res.ok) return true;
     console.error(`sendAffiliateCarousel: ${res.status} ${(await res.text()).slice(0, 300)}`);
