@@ -147,7 +147,9 @@ async function searchProducts(keyword: string, limit: number, creds: Creds): Pro
 // query-params colados na URL — assim a Shopee atribui de verdade.
 async function attachAffiliateLinks(products: AffiliateProduct[], subIds: string[], creds: Creds): Promise<void> {
   if (!products.length) return;
-  const subList = subIds.slice(0, 5).map((s) => `"${escapeGql(s)}"`).join(", ");
+  // Shopee rejeita subId com hífen/caractere especial (erro 11001) — sanitiza
+  // para alfanumérico antes de enviar.
+  const subList = subIds.map((s) => String(s).replace(/[^a-zA-Z0-9_]/g, "")).filter(Boolean).slice(0, 5).map((s) => `"${s}"`).join(", ");
   const subArg = subList ? `, subIds: [${subList}]` : "";
   const parts = products.map((p, i) =>
     `m${i}: generateShortLink(input: { originUrl: "${escapeGql(p.productUrl)}"${subArg} }) { shortLink }`

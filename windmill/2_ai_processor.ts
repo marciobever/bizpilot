@@ -445,8 +445,10 @@ async function searchShopeeAffiliate(termo: string, quantidade: number, subIds: 
       affiliateLink: null as string | null,
     }));
 
-    // 2) gera os shortlinks de afiliado em batch (subIds no campo oficial)
-    const subArg = subIds.slice(0, 5).map((s) => `"${esc(s)}"`).join(', ');
+    // 2) gera os shortlinks de afiliado em batch (subIds no campo oficial).
+    // Shopee rejeita subId com hífen/caractere especial (erro 11001) — então
+    // sanitiza para alfanumérico (ex.: UUID do agente vira só letras/números).
+    const subArg = subIds.map((s) => String(s).replace(/[^a-zA-Z0-9_]/g, '')).filter(Boolean).slice(0, 5).map((s) => `"${s}"`).join(', ');
     const parts = products.map((p, i) => `m${i}: generateShortLink(input: { originUrl: "${esc(p.productUrl)}"${subArg ? `, subIds: [${subArg}]` : ''} }) { shortLink }`);
     const linkData = await shopeeSignedRequest({ query: `mutation { ${parts.join('\n')} }` }, appId, secret);
     products.forEach((p, i) => { p.affiliateLink = linkData?.[`m${i}`]?.shortLink || null; });
