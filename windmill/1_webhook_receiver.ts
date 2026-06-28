@@ -10,14 +10,17 @@ const DEBOUNCE_MS = 5000;
 
 // ─── Helpers de mídia (OCR / leitura de imagens e documentos) ────────────────
 
+// evolution-go usa token por instância; endpoint /media/download (sem instanceName na URL).
+// O instanceToken vem do payload do webhook e é passado via EVOLUTION_API_KEY aqui só
+// para downloads durante o processamento inline; o token real fica em instanceToken.
 async function downloadMedia(
-  messageId: string, EVOLUTION_API_URL: string, EVOLUTION_API_KEY: string, instanceName: string
+  messageId: string, EVOLUTION_API_URL: string, instanceToken: string
 ): Promise<string | null> {
   try {
-    const res = await fetch(`${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${instanceName}`, {
+    const res = await fetch(`${EVOLUTION_API_URL}/media/download`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY },
-      body: JSON.stringify({ message: { key: { id: messageId } } }),
+      headers: { "Content-Type": "application/json", apikey: instanceToken },
+      body: JSON.stringify({ messageId }),
     });
     if (!res.ok) {
       console.error(`downloadMedia: Evolution API ${res.status}: ${await res.text()}`);
@@ -135,11 +138,14 @@ export async function main(payload: any) {
   } catch (e) { console.warn("windmill-client indisponível:", e); }
 
   const eventName = (payload.event || "").toLowerCase();
-  if (eventName !== "messages.upsert") {
+  // evolution-go envia "MESSAGE"; Baileys enviava "messages.upsert"
+  if (eventName !== "messages.upsert" && eventName !== "message") {
     return { process: false, reason: `Evento ignorado (recebido: ${payload.event}).` };
   }
 
-  const instanceName = payload.instance;
+  // evolution-go usa instanceName; Baileys usava instance
+  const instanceName = payload.instanceName || payload.instance || "";
+  const instanceToken: string = payload.instanceToken || "";
   const remoteJid = payload.data?.key?.remoteJid;
   const fromMe = payload.data?.key?.fromMe;
   const messageId = payload.data?.key?.id;
@@ -190,19 +196,8 @@ export async function main(payload: any) {
       let b64: string | null = msg.audioMessage?.base64 || null;
       let mimetype = msg.audioMessage?.mimetype || "audio/mp4";
       if (!b64 && messageId) {
-        const mediaRes = await fetch(
-          `${EVOLUTION_API_URL}/chat/getBase64FromMediaMessage/${instanceName}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY },
-            body: JSON.stringify({ message: { key: { id: messageId } }, convertToMp4: true }),
-          }
-        );
-        if (mediaRes.ok) {
-          const media = await mediaRes.json();
-          b64 = media?.base64 || media?.data?.base64 || null;
-          mimetype = "audio/mp4";
-        }
+        b64 = await downloadMedia(messageId, EVOLUTION_API_URL, instanceToken || EVOLUTION_API_KEY);
+        if (b64) mimetype = "audio/mp4";
       }
       if (b64) {
         const buf = Buffer.from(b64, "base64");
@@ -233,7 +228,7 @@ export async function main(payload: any) {
     messageType = "image";
     if (OPENAI_API_KEY) {
       // Meta: base64 já vem no payload. Evolution: precisa baixar via API.
-      const base64 = msg.imageMessage.base64 || (messageId ? await downloadMedia(messageId, EVOLUTION_API_URL, EVOLUTION_API_KEY, instanceName) : null);
+      const base64 = msg.imageMessage.base64 || (messageId ? await downloadMedia(messageId, EVOLUTION_API_URL, instanceToken || EVOLUTION_API_KEY) : null);
       if (base64) {
         const analysis = await analyzeImage(base64, msg.imageMessage.mimetype, caption, OPENAI_API_KEY);
         if (analysis) {
@@ -254,7 +249,7 @@ export async function main(payload: any) {
     messageType = "document";
     if (OPENAI_API_KEY) {
       // Meta: base64 já vem no payload. Evolution: precisa baixar via API.
-      const base64 = msg.documentMessage.base64 || (messageId ? await downloadMedia(messageId, EVOLUTION_API_URL, EVOLUTION_API_KEY, instanceName) : null);
+      const base64 = msg.documentMessage.base64 || (messageId ? await downloadMedia(messageId, EVOLUTION_API_URL, instanceToken || EVOLUTION_API_KEY) : null);
       if (base64) {
         let analysis = "";
         if (mimetype.startsWith("image/")) analysis = await analyzeImage(base64, mimetype, caption, OPENAI_API_KEY);
@@ -336,6 +331,7 @@ export async function main(payload: any) {
   return {
     process: true,
     instanceName,
+    instanceToken,
     remoteJid,
     senderName,
     incomingMessage,

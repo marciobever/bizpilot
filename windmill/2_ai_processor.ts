@@ -469,13 +469,15 @@ async function searchShopeeProducts(termo: string, quantidade: number, subIds: s
   }
 }
 
-// Resolve as credenciais da Evolution (mesmo padrão dos outros pontos do script).
-async function resolveEvolutionCreds(): Promise<{ url: string; key: string }> {
+// Resolve URL + token da Evolution. No evolution-go o token é por instância
+// (vem do config do agente). A chave global é fallback para debug.
+async function resolveEvolutionCreds(agentConfig?: any): Promise<{ url: string; key: string }> {
   try {
     const { getVariable } = await import('windmill-client');
     const tryGet = async (...paths: string[]) => { for (const p of paths) { try { const v = await getVariable(p); if (v) return v; } catch {} } return ''; };
     const url = await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_URL', 'u/bevervansomarcio/EVOLUTION_API_URL');
-    const key = await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_KEY', 'u/bevervansomarcio/EVOLUTION_API_KEY');
+    const instanceToken = agentConfig?.whatsapp?.instanceToken;
+    const key = instanceToken || await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_KEY', 'u/bevervansomarcio/EVOLUTION_API_KEY');
     return { url, key };
   } catch { return { url: '', key: '' }; }
 }
@@ -483,7 +485,7 @@ async function resolveEvolutionCreds(): Promise<{ url: string; key: string }> {
 // Envia cada produto como um card (foto + legenda com nome/preço/comissão/link)
 // direto pela Evolution. O pipeline normal manda 1 msg só, então o carrossel de
 // 5 cards é feito aqui à parte. Best-effort: falha de um card não derruba os outros.
-async function sendAffiliateCards(products: ShopeeProduct[], evoUrl: string, evoKey: string, instanceName: string, jid: string): Promise<void> {
+async function sendAffiliateCards(products: ShopeeProduct[], evoUrl: string, evoKey: string, _instanceName: string, jid: string): Promise<void> {
   const headers = { 'Content-Type': 'application/json', apikey: evoKey };
   for (let i = 0; i < products.length; i++) {
     const p = products[i];
@@ -491,14 +493,15 @@ async function sendAffiliateCards(products: ShopeeProduct[], evoUrl: string, evo
     const caption = `${i + 1}. ${p.productName}\n💰 ${p.priceLabel}${p.commissionRate ? ` · comissão ${p.commissionRate}` : ''}\n🔗 ${link}`;
     try {
       if (p.imageUrl) {
-        await fetch(`${evoUrl}/message/sendMedia/${instanceName}`, {
+        // evolution-go: /send/media — campos: url, type, caption, delay (sem mediatype/mimetype)
+        await fetch(`${evoUrl}/send/media`, {
           method: 'POST', headers,
-          body: JSON.stringify({ number: jid, mediatype: 'image', mimetype: 'image/jpeg', fileName: `produto${i + 1}.jpg`, media: p.imageUrl, caption, delay: 600 }),
+          body: JSON.stringify({ number: jid, type: 'image', url: p.imageUrl, caption, delay: 600 }),
         });
       } else {
-        await fetch(`${evoUrl}/message/sendText/${instanceName}`, {
+        await fetch(`${evoUrl}/send/text`, {
           method: 'POST', headers,
-          body: JSON.stringify({ number: jid, text: caption, linkPreview: false, options: { delay: 600 } }),
+          body: JSON.stringify({ number: jid, text: caption, delay: 600 }),
         });
       }
     } catch (e: any) {
@@ -509,7 +512,7 @@ async function sendAffiliateCards(products: ShopeeProduct[], evoUrl: string, evo
 
 // Envia a lista interativa "Qual você quer divulgar?" (1 linha por produto) direto
 // pela Evolution Go. Formato oficial: campos no nível raiz (sem wrapper listMessage).
-async function sendAffiliateList(products: ShopeeProduct[], evoUrl: string, evoKey: string, instanceName: string, jid: string): Promise<void> {
+async function sendAffiliateList(products: ShopeeProduct[], evoUrl: string, evoKey: string, _instanceName: string, jid: string): Promise<void> {
   const headers = { 'Content-Type': 'application/json', apikey: evoKey };
   const rows = products.map((p, i) => ({ rowId: `prod_${i + 1}`, title: `${i + 1}. ${p.productName.slice(0, 22)}`, description: p.priceLabel }));
   const sections = [{ title: 'Ofertas', rows }];
@@ -517,7 +520,8 @@ async function sendAffiliateList(products: ShopeeProduct[], evoUrl: string, evoK
   const DESC = 'Toque em "Ver opções" e escolha o produto.';
 
   try {
-    const res = await fetch(`${evoUrl}/message/sendList/${instanceName}`, {
+    // evolution-go: /send/list — campos no nível raiz, sem instanceName na URL
+    const res = await fetch(`${evoUrl}/send/list`, {
       method: 'POST', headers,
       body: JSON.stringify({ number: jid, title: TITLE, description: DESC, buttonText: 'Ver opções', footerText: '', sections, delay: 600 }),
     });
@@ -1016,7 +1020,7 @@ export async function main(
   }
 
   const supabase = createClient(finalSupabaseUrl, finalSupabaseRoleKey);
-  const { instanceName, incomingMessage, senderName, remoteJid, provider, metaPhoneNumberId, messageType, wasAudio, messageId } = webhook_data;
+  const { instanceName, instanceToken, incomingMessage, senderName, remoteJid, provider, metaPhoneNumberId, messageType, wasAudio, messageId } = webhook_data;
   const isMeta = provider === 'meta';
 
   // ── Resolução do agente ───────────────────────────────────────────────────
@@ -1100,6 +1104,8 @@ export async function main(
   const channelProvider = isMeta ? 'meta' : (waConfig.provider || 'evolution');
   const channelInfo = {
     provider: channelProvider,
+    // token por instância do evolution-go (vem do webhook ou do config do agente)
+    instanceToken: waConfig.instanceToken || instanceToken || '',
     meta: channelProvider === 'meta' ? {
       phoneNumberId: metaPhoneNumberId || waConfig.meta?.phoneNumberId,
       accessToken: waConfig.meta?.accessToken,

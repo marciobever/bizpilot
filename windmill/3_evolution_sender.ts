@@ -178,12 +178,13 @@ async function sendMeta(
   throw new Error(`Meta API error: ${JSON.stringify(data)}`);
 }
 
-// ─── Envio Evolution API (QR Code / não-oficial) ─────────────────────────────
+// ─── Envio Evolution Go (whatsmeow / QR Code) ────────────────────────────────
+// evolution-go: token por instância (não global); sem instanceName na URL;
+// body sem wrapper "options: {}", campos delay/presence na raiz.
 
 async function sendEvolution(
   EVOLUTION_API_URL: string,
-  EVOLUTION_API_KEY: string,
-  instanceName: string,
+  instanceToken: string,
   remoteJid: string,
   textBody: string,
   buttons: string[] | null,
@@ -194,20 +195,19 @@ async function sendEvolution(
   fileUrl?: string | null,
   fileName?: string | null
 ): Promise<any> {
-  const headers = { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY };
+  const headers = { "Content-Type": "application/json", apikey: instanceToken };
 
   // Arquivo/documento (ex: catálogo, tabela de preços) tem prioridade máxima.
   // Se o envio falhar, cai no fallback de texto simples abaixo.
   if (fileUrl) {
-    const res = await fetch(`${EVOLUTION_API_URL}/message/sendMedia/${instanceName}`, {
+    const res = await fetch(`${EVOLUTION_API_URL}/send/media`, {
       method: "POST", headers,
       body: JSON.stringify({
         number: remoteJid,
-        mediatype: "document",
-        mimetype: "application/octet-stream",
-        fileName: fileName || "arquivo",
-        media: fileUrl,
+        type: "document",
+        url: fileUrl,
         caption: textBody,
+        fileName: fileName || "arquivo",
         delay: typingDelay,
       }),
     });
@@ -219,14 +219,12 @@ async function sendEvolution(
   // Se o envio da mídia falhar, cai no fallback de texto simples abaixo
   // para garantir que o cliente receba ao menos o código Pix.
   if (imageUrl) {
-    const res = await fetch(`${EVOLUTION_API_URL}/message/sendMedia/${instanceName}`, {
+    const res = await fetch(`${EVOLUTION_API_URL}/send/media`, {
       method: "POST", headers,
       body: JSON.stringify({
         number: remoteJid,
-        mediatype: "image",
-        mimetype: "image/png",
-        fileName: "pix-qrcode.png",
-        media: imageUrl,
+        type: "image",
+        url: imageUrl,
         caption: textBody,
         delay: typingDelay,
       }),
@@ -236,9 +234,8 @@ async function sendEvolution(
   }
 
   // Áudio tem prioridade sobre interativos.
-  // Evolution API v2: audio é base64 puro (sem prefixo data:URI), delay na raiz.
   if (audioBase64) {
-    const res = await fetch(`${EVOLUTION_API_URL}/message/sendWhatsAppAudio/${instanceName}`, {
+    const res = await fetch(`${EVOLUTION_API_URL}/send/audio`, {
       method: "POST", headers,
       body: JSON.stringify({
         number: remoteJid,
@@ -251,57 +248,52 @@ async function sendEvolution(
   }
 
   if (buttons && buttons.length > 0) {
-    const res = await fetch(`${EVOLUTION_API_URL}/message/sendButtons/${instanceName}`, {
+    const res = await fetch(`${EVOLUTION_API_URL}/send/button`, {
       method: "POST", headers,
       body: JSON.stringify({
         number: remoteJid,
-        buttonMessage: {
-          text: textBody,
-          buttons: buttons.map((b, i) => ({
-            buttonId: `btn_${i}`,
-            buttonText: { displayText: b },
-            type: 1,
-          })),
-          footerText: "",
-        },
-        options: { delay: typingDelay, presence: "composing" },
+        title: "",
+        description: textBody,
+        footer: "",
+        buttons: buttons.map((b, i) => ({ id: `${i}`, text: b.substring(0, 20) })),
+        delay: typingDelay,
       }),
     });
     // Se a Evolution não suportar botões, cai no fallback de texto
     if (res.ok) return res.json().catch(() => null);
+    console.error(`Evolution button error (fallback to text): ${await res.text()}`);
   }
 
   if (list) {
-    const res = await fetch(`${EVOLUTION_API_URL}/message/sendList/${instanceName}`, {
+    const res = await fetch(`${EVOLUTION_API_URL}/send/list`, {
       method: "POST", headers,
       body: JSON.stringify({
         number: remoteJid,
-        listMessage: {
-          title: list.title,
-          description: textBody,
-          buttonText: "Ver opções",
-          footerText: "",
-          sections: list.sections.map((s) => ({
-            title: s.title,
-            rows: s.rows.map((r, i) => ({ rowId: `row_${i}`, title: r, description: "" })),
-          })),
-        },
-        options: { delay: typingDelay, presence: "composing" },
+        title: list.title,
+        description: textBody,
+        buttonText: "Ver opções",
+        footer: "",
+        sections: list.sections.map((s) => ({
+          title: s.title,
+          rows: s.rows.map((r, i) => ({ id: `row_${i}`, title: r, description: "" })),
+        })),
+        delay: typingDelay,
       }),
     });
     if (res.ok) return res.json().catch(() => null);
+    console.error(`Evolution list error (fallback to text): ${await res.text()}`);
   }
 
   // Texto simples (fallback e caso padrão)
   // linkPreview: false evita o card grande de preview ocupando a tela,
   // especialmente quando a mensagem tem mais de um link (ex: vários imóveis).
-  const res = await fetch(`${EVOLUTION_API_URL}/message/sendText/${instanceName}`, {
+  const res = await fetch(`${EVOLUTION_API_URL}/send/text`, {
     method: "POST", headers,
     body: JSON.stringify({
       number: remoteJid,
       text: textBody,
       linkPreview: false,
-      options: { delay: typingDelay, presence: "composing" },
+      delay: typingDelay,
     }),
   });
   if (!res.ok) throw new Error(`Evolution API error: ${await res.text()}`);
@@ -312,14 +304,15 @@ async function sendEvolution(
 // Best-effort: falha aqui nunca deve impedir o envio da mensagem principal.
 
 async function sendReactionEvolution(
-  EVOLUTION_API_URL: string, EVOLUTION_API_KEY: string, instanceName: string,
+  EVOLUTION_API_URL: string, instanceToken: string,
   remoteJid: string, messageId: string, emoji: string
 ): Promise<void> {
   try {
-    await fetch(`${EVOLUTION_API_URL}/message/sendReaction/${instanceName}`, {
+    await fetch(`${EVOLUTION_API_URL}/send/reaction`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", apikey: EVOLUTION_API_KEY },
+      headers: { "Content-Type": "application/json", apikey: instanceToken },
       body: JSON.stringify({
+        number: remoteJid,
         key: { remoteJid, fromMe: false, id: messageId },
         reaction: emoji,
       }),
@@ -391,15 +384,18 @@ export async function main(
     };
   }
 
-  // ── Evolution API ───────────────────────────────────────────────────────────
+  // ── Evolution Go ─────────────────────────────────────────────────────────────
   if (!remoteJid || !instanceName) {
     return { success: false, reason: "remoteJid ou instanceName ausente." };
   }
 
-  if (reaction && messageId) await sendReactionEvolution(EVOLUTION_API_URL, EVOLUTION_API_KEY, instanceName, remoteJid, messageId, reaction);
+  // Token por instância (evolution-go). Fallback para a chave global só em dev.
+  const instanceToken: string = channel.instanceToken || EVOLUTION_API_KEY || "";
+
+  if (reaction && messageId) await sendReactionEvolution(EVOLUTION_API_URL, instanceToken, remoteJid, messageId, reaction);
 
   const result = await sendEvolution(
-    EVOLUTION_API_URL, EVOLUTION_API_KEY, instanceName,
+    EVOLUTION_API_URL, instanceToken,
     remoteJid, textBody, buttons, list, audioBase64 || null, typingDelay, imageUrl || null, fileUrl || null, fileName || null
   );
 
