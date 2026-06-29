@@ -287,7 +287,7 @@ export default function AgentConfig() {
     { id: "tags", label: "Dados Dinâmicos", icon: FileText },
     { id: "knowledge", label: "Base de Conhecimento", icon: Database },
     { id: "channels", label: "Canais", icon: Zap },
-    ...(isAfiliados ? [{ id: "afiliados", label: "Grupos de Oferta", icon: Users }] : []),
+    ...(isAfiliados ? [{ id: "afiliados", label: "Afiliados", icon: Users }] : []),
   ];
 
   return (

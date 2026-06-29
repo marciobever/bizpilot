@@ -413,6 +413,10 @@ export function IntegrationModal({
                 </>
               )}
               {affiliateMsg && <div className={`flex items-start gap-2 text-sm p-3 rounded-lg ${affiliateMsg.ok ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}><AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />{affiliateMsg.text}</div>}
+              <div className="p-3 bg-brand-500/5 border border-brand-500/20 rounded-lg text-xs text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground">Próximo passo: configurar grupos de publicação</p>
+                <p>Após salvar as credenciais, acesse cada agente afiliado → aba <strong>Afiliados</strong> para selecionar os grupos do WhatsApp onde o bot vai publicar as ofertas.</p>
+              </div>
             </>
           )}
 

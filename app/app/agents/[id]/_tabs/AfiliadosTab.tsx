@@ -1,10 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Users, RefreshCw, Search, CheckCircle2, Circle, AlertCircle } from "lucide-react";
+import { Users, RefreshCw, Search, CheckCircle2, Circle, AlertCircle, ShoppingBag, ArrowRight, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
+import Link from "next/link";
 
 interface Group { id: string; name: string; participants: number; }
 
@@ -15,10 +18,29 @@ interface Props {
 }
 
 export function AfiliadosTab({ agentId, affiliateGroups, setAffiliateGroups }: Props) {
+  const { user } = useAuth();
   const [available, setAvailable] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [shopeeConnected, setShopeeConnected] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (user) checkShopeeConnection();
+  }, [user]);
+
+  useEffect(() => { fetchGroups(); }, [agentId]);
+
+  const checkShopeeConnection = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("integrations")
+      .select("status")
+      .eq("user_id", user.id)
+      .eq("provider", "affiliate")
+      .maybeSingle();
+    setShopeeConnected(data?.status === "connected");
+  };
 
   const fetchGroups = async () => {
     setLoading(true);
@@ -34,8 +56,6 @@ export function AfiliadosTab({ agentId, affiliateGroups, setAffiliateGroups }: P
       setLoading(false);
     }
   };
-
-  useEffect(() => { fetchGroups(); }, [agentId]);
 
   const isSelected = (id: string) => affiliateGroups.some((g) => g.id === id);
 
@@ -54,14 +74,57 @@ export function AfiliadosTab({ agentId, affiliateGroups, setAffiliateGroups }: P
 
   return (
     <div className="space-y-6">
+      {/* Status da integração Shopee */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShoppingBag className="h-5 w-5 text-orange-500" />
+            Conta de Afiliados
+          </CardTitle>
+          <CardDescription>
+            Credenciais Shopee usadas para buscar produtos e gerar links com sua comissão.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {shopeeConnected === null ? (
+            <div className="text-sm text-muted-foreground">Verificando conexão...</div>
+          ) : shopeeConnected ? (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-emerald-500">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                Shopee Afiliados conectado
+              </div>
+              <Link href="/app/automations">
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                  Gerenciar <ArrowRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-amber-500">
+                <XCircle className="h-4 w-4 shrink-0" />
+                Shopee não conectado
+              </div>
+              <Link href="/app/automations">
+                <Button size="sm" className="gap-1.5 text-xs bg-brand-500 hover:bg-brand-600 text-white">
+                  Conectar agora <ArrowRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Grupos de publicação */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5 text-brand-500" />
-            Grupos de Oferta WhatsApp
+            Grupos de Publicação
           </CardTitle>
           <CardDescription>
-            Selecione até 3 grupos onde o bot poderá publicar ofertas de afiliados. O botão "📢 Publicar em Grupos" aparece em cada produto encontrado na busca.
+            Selecione até 3 grupos onde o bot poderá publicar ofertas. O botão "📢 Publicar em Grupos" aparece em cada produto encontrado.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -82,7 +145,6 @@ export function AfiliadosTab({ agentId, affiliateGroups, setAffiliateGroups }: P
             </div>
           )}
 
-          {/* Aviso limite */}
           {affiliateGroups.length >= 3 && (
             <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 rounded-md">
               <AlertCircle className="h-4 w-4 shrink-0" />
@@ -90,7 +152,6 @@ export function AfiliadosTab({ agentId, affiliateGroups, setAffiliateGroups }: P
             </div>
           )}
 
-          {/* Busca + refresh */}
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -101,7 +162,6 @@ export function AfiliadosTab({ agentId, affiliateGroups, setAffiliateGroups }: P
             </Button>
           </div>
 
-          {/* Lista de grupos disponíveis */}
           {error ? (
             <div className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">{error}</div>
           ) : loading ? (
@@ -140,7 +200,7 @@ export function AfiliadosTab({ agentId, affiliateGroups, setAffiliateGroups }: P
           )}
 
           <p className="text-xs text-muted-foreground">
-            O bot só publica nos grupos quando o usuário tocar em "📢 Publicar em Grupos" após uma busca de produto.
+            O bot só publica quando o usuário tocar em "📢 Publicar em Grupos" após uma busca de produto.
           </p>
         </CardContent>
       </Card>
