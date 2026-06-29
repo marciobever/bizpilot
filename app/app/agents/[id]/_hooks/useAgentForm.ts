@@ -42,7 +42,7 @@ export function useAgentForm(isNew: boolean) {
   const [variables, setVariables] = useState<{ key: string; value: string }[]>([]);
   const [newVarKey, setNewVarKey] = useState("");
   const [newVarValue, setNewVarValue] = useState("");
-  const [userPlan, setUserPlan] = useState<"basico" | "profissional" | "avancado">("basico");
+  const [userPlan, setUserPlan] = useState<"starter" | "pro" | "business">("starter");
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
 
@@ -63,7 +63,10 @@ export function useAgentForm(isNew: boolean) {
       .eq("id", user.id)
       .single()
       .then(({ data }) => {
-        if (data?.plan) setUserPlan(data.plan);
+        if (!data?.plan) return;
+        // Normaliza nomes antigos
+        const p = data.plan === "basico" ? "starter" : data.plan === "profissional" ? "pro" : data.plan === "avancado" ? "business" : data.plan;
+        setUserPlan(p as "starter" | "pro" | "business");
       });
   }, [user]);
 

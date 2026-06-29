@@ -12,9 +12,9 @@ function getServiceSupabase() {
 // Mapeia o Price ID do Stripe de volta para o valor de profiles.plan.
 function planFromPriceId(priceId: string | undefined): string | null {
   if (!priceId) return null;
-  if (priceId === process.env.STRIPE_PRICE_BASICO) return 'basico';
-  if (priceId === process.env.STRIPE_PRICE_PROFISSIONAL) return 'profissional';
-  if (priceId === process.env.STRIPE_PRICE_AVANCADO) return 'avancado';
+  if (priceId === process.env.STRIPE_PRICE_STARTER      || priceId === process.env.STRIPE_PRICE_BASICO)       return 'starter';
+  if (priceId === process.env.STRIPE_PRICE_PRO          || priceId === process.env.STRIPE_PRICE_PROFISSIONAL) return 'pro';
+  if (priceId === process.env.STRIPE_PRICE_BUSINESS     || priceId === process.env.STRIPE_PRICE_AVANCADO)     return 'business';
   return null;
 }
 
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
         const sub = event.data.object as Stripe.Subscription;
         await supabase.from('profiles').update({
           subscription_status: 'canceled',
-          plan: 'basico',
+          plan: 'starter',
         }).eq('stripe_customer_id', sub.customer as string);
         break;
       }

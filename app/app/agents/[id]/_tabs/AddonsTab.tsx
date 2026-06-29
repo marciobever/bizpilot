@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/Badge";
 import type { AgentTool, MediaFile } from "../_types";
 
 interface Props {
-  userPlan: "basico" | "profissional" | "avancado";
+  userPlan: "starter" | "pro" | "business";
   voiceEnabled: boolean;
   setVoiceEnabled: (v: boolean) => void;
   voiceVoice: string;
@@ -60,7 +60,7 @@ export function AddonsTab({
 }: Props) {
   const navigate = useRouter();
 
-  if (userPlan === "basico") {
+  if (userPlan === "starter") {
     return (
       <Card className="border-brand-500/30 bg-brand-500/5">
         <CardHeader>

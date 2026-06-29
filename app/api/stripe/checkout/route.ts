@@ -9,11 +9,16 @@ function getServiceSupabase() {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-// Mapeia o plano (mesmos valores de profiles.plan) para o Price ID criado no Stripe.
+// Mapeia o plano para o Price ID criado no Stripe.
+// Aceita nomes novos (starter/pro/business) e antigos (basico/profissional/avancado).
 const PLAN_PRICE_IDS: Record<string, string | undefined> = {
-  basico: process.env.STRIPE_PRICE_BASICO,
-  profissional: process.env.STRIPE_PRICE_PROFISSIONAL,
-  avancado: process.env.STRIPE_PRICE_AVANCADO,
+  starter:      process.env.STRIPE_PRICE_STARTER,
+  pro:          process.env.STRIPE_PRICE_PRO,
+  business:     process.env.STRIPE_PRICE_BUSINESS,
+  // aliases legados
+  basico:       process.env.STRIPE_PRICE_STARTER,
+  profissional: process.env.STRIPE_PRICE_PRO,
+  avancado:     process.env.STRIPE_PRICE_BUSINESS,
 };
 
 export async function POST(req: NextRequest) {

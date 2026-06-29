@@ -48,7 +48,11 @@ export function useIntegrations() {
   useEffect(() => {
     if (user) {
       fetchIntegrations();
-      supabase.from("profiles").select("plan").eq("id", user.id).single().then(({ data }) => setPlan(data?.plan || "basico"));
+      supabase.from("profiles").select("plan").eq("id", user.id).single().then(({ data }) => {
+        const p = data?.plan;
+        const normalized = p === "basico" ? "starter" : p === "profissional" ? "pro" : p === "avancado" ? "business" : (p || "starter");
+        setPlan(normalized);
+      });
     } else {
       setLoading(false);
     }
