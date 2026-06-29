@@ -52,7 +52,7 @@ export type Sector = {
 };
 
 const KNOWLEDGE_BLOCK =
-  `=== SOBRE O NEGÓCIO ===\nUse SEMPRE a ferramenta buscar_conhecimento antes de responder perguntas sobre produtos, serviços, preços, horários, endereço ou qualquer dado da empresa. Se a Base de Conhecimento não tiver a resposta, diga que vai verificar com a equipe — NUNCA invente informações.`;
+  `=== BASE DE CONHECIMENTO (OBRIGATÓRIO) ===\nAntes de responder qualquer pergunta sobre serviços, produtos, preços, horários, endereço ou qualquer dado do negócio, você DEVE chamar a ferramenta buscar_conhecimento. Isso é obrigatório — nunca responda sem tentar a ferramenta primeiro. Só use "Vou verificar com a equipe" se a ferramenta retornar sem resultado. NUNCA invente informações.`;
 
 const TONE_BLOCKS: Record<string, string> = {
   "Profissional e Direto": `=== TOM DE COMUNICAÇÃO ===
@@ -89,7 +89,7 @@ const FLOW_BLOCK = `=== FLUXO DE CONVERSA ===
 - Se o cliente usar linguagem inadequada, redirecione com calma sem prolongar o tema`;
 
 const UNKNOWN_BLOCK = `=== QUANDO NÃO SOUBER ===
-- Se a informação não estiver na Base de Conhecimento: "Vou verificar isso com a equipe e retorno para você em breve" — NUNCA invente
+- SOMENTE após chamar buscar_conhecimento e não encontrar resposta: "Vou verificar isso com a equipe e retorno para você em breve" — NUNCA use esta frase sem ter tentado a ferramenta primeiro
 - Nunca diga apenas "não sei" sem oferecer uma solução ou próximo passo
 - Se a pergunta estiver fora do seu escopo, informe educadamente e redirecione`;
 

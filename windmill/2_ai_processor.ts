@@ -171,7 +171,7 @@ function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boole
       type: 'function',
       function: {
         name: 'buscar_conhecimento',
-        description: 'Busca informações na base de conhecimento do negócio: produtos, serviços, políticas, preços, FAQs. O resultado é texto bruto da base — nunca copie e cole literalmente, reescreva de forma natural e formatada para o cliente.',
+        description: 'CHAME SEMPRE esta ferramenta ANTES de responder qualquer pergunta sobre serviços, produtos, preços, horários, endereço, políticas ou qualquer informação do negócio. Só diga "vou verificar com a equipe" se esta ferramenta retornar vazia ou sem resposta relevante. O resultado é texto bruto — nunca copie literalmente, reescreva de forma natural e completa para o cliente.',
         parameters: {
           type: 'object',
           properties: { query: { type: 'string', description: 'O que você precisa saber' } },
