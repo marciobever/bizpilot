@@ -127,7 +127,10 @@ export function PlanoTab({
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="text-lg font-bold">{currentPlan.name}</h3>
-                    <Badge variant="success">{subscriptionStatus === "canceled" ? "Cancelado" : "Ativo"}</Badge>
+                    {subscriptionStatus === "active" && <Badge variant="success">Ativo</Badge>}
+                    {subscriptionStatus === "canceled" && <Badge variant="destructive">Cancelado</Badge>}
+                    {subscriptionStatus === "past_due" && <Badge variant="destructive">Pagamento pendente</Badge>}
+                    {(!subscriptionStatus || subscriptionStatus === "incomplete") && <Badge variant="secondary">Sem assinatura</Badge>}
                   </div>
                   <p className="text-muted-foreground text-sm">
                     <span className="text-2xl font-bold text-foreground">{currentPlan.price}</span>{currentPlan.period}

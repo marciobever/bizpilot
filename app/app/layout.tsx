@@ -48,7 +48,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { theme, toggleTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [subscriptionActive, setSubscriptionActive] = useState<boolean | null>(null);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -61,7 +61,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!user) return;
     supabase.from("profiles").select("subscription_status").eq("id", user.id).single()
       .then(({ data }) => {
-        setSubscriptionActive(data?.subscription_status === "active");
+        setSubscriptionStatus(data?.subscription_status ?? null);
       });
   }, [user]);
 
@@ -206,7 +206,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )}
           </div>
         </header>
-        {subscriptionActive === false && !location.startsWith("/app/checkout") && (
+        {(subscriptionStatus === "canceled" || subscriptionStatus === "past_due") && !location.startsWith("/app/checkout") && (
           <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2.5 flex items-center gap-3 text-sm">
             <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
             <span className="text-amber-200 flex-1">
