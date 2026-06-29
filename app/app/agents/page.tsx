@@ -79,7 +79,7 @@ export default function Agents() {
           <p className="text-muted-foreground">Crie e gerencie sua equipe de inteligência artificial.</p>
         </div>
         <Button asChild className="bg-brand-500 hover:bg-brand-600 text-white gap-2">
-          <Link href="/app/agents/wizard">
+          <Link href="/app/agents/new">
             <Plus className="h-4 w-4" />
             Novo Agente
           </Link>
@@ -101,7 +101,7 @@ export default function Agents() {
               Você ainda não criou nenhuma inteligência artificial. Crie seu primeiro agente para começar a automatizar seu atendimento.
             </p>
             <Button asChild variant="outline">
-              <Link href="/app/agents/wizard">
+              <Link href="/app/agents/new">
                 <Plus className="mr-2 h-4 w-4" /> Criar Primeiro Agente
               </Link>
             </Button>
