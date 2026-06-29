@@ -58,7 +58,10 @@ export async function POST(req: NextRequest) {
     if (plan) update.plan = plan;
     if (periodEnd) update.current_period_end = new Date(periodEnd * 1000).toISOString();
 
-    await supabase.from('profiles').update(update).eq('id', userId);
+    const { error: updateError } = await supabase.from('profiles').update(update).eq('id', userId);
+    if (updateError) {
+      return NextResponse.json({ error: `Falha ao gravar assinatura: ${updateError.message}` }, { status: 500 });
+    }
 
     const active = status === 'active' || status === 'trialing';
     return NextResponse.json({ active, status, plan });
