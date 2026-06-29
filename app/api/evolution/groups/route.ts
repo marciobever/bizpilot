@@ -15,13 +15,15 @@ export async function GET(req: Request) {
     const { data: agent } = await supabase.from('agents').select('config').eq('id', agentId).single();
     const instanceToken = agent?.config?.whatsapp?.instanceToken;
     const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
+    const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
 
-    if (!instanceToken || !EVOLUTION_API_URL) {
+    const apiKey = instanceToken || EVOLUTION_API_KEY;
+    if (!apiKey || !EVOLUTION_API_URL) {
       return NextResponse.json({ error: 'WhatsApp não conectado para este agente' }, { status: 400 });
     }
 
     const res = await fetch(`${EVOLUTION_API_URL}/group/list`, {
-      headers: { apikey: instanceToken },
+      headers: { apikey: apiKey },
     });
 
     if (!res.ok) {
