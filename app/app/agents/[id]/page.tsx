@@ -98,14 +98,23 @@ export default function AgentConfig() {
         if (cfg.voice_voice) form.setVoiceVoice(cfg.voice_voice);
         if (cfg.limitations && Array.isArray(cfg.limitations)) form.setLimitations(cfg.limitations);
         if (cfg.ignoreGroups !== undefined) form.setIgnoreGroups(cfg.ignoreGroups);
+        // Busca integração de afiliados antes de derivar capabilities
+        const { data: affInt } = await supabase.from("integrations")
+          .select("status").eq("user_id", data.user_id).eq("provider", "affiliate").maybeSingle();
+        const isAffiliateConnected = affInt?.status === "connected";
+        setHasAffiliateIntegration(isAffiliateConnected);
+
         if (cfg.capabilities) {
-          setCapabilities(cfg.capabilities);
+          // Se integração está conectada mas capabilities.affiliate está false, corrige
+          const caps = { ...cfg.capabilities };
+          if (isAffiliateConnected && !caps.affiliate) caps.affiliate = true;
+          setCapabilities(caps);
         } else {
           // Migração: derivar capabilities do tipo antigo
           const t = data.type || "atendimento";
           setCapabilities({
             dataRecords: ["assistente", "financeiro"].includes(t) || !!cfg.dataRecordsEnabled,
-            affiliate:   ["afiliado", "afiliados"].includes(t),
+            affiliate:   ["afiliado", "afiliados"].includes(t) || isAffiliateConnected,
             commerce:    t === "atendimento",
             handoff:     t === "atendimento",
           });
@@ -124,10 +133,6 @@ export default function AgentConfig() {
         if (cfg.tools && Array.isArray(cfg.tools)) tools.setTools(cfg.tools);
         if (cfg.mediaFiles && Array.isArray(cfg.mediaFiles)) media.setMediaFiles(cfg.mediaFiles);
         if (cfg.affiliateGroups && Array.isArray(cfg.affiliateGroups)) setAffiliateGroups(cfg.affiliateGroups);
-        // Verifica se o add-on de afiliados está ativo para este usuário
-        const { data: affInt } = await supabase.from("integrations")
-          .select("status").eq("user_id", data.user_id).eq("provider", "affiliate").maybeSingle();
-        setHasAffiliateIntegration(affInt?.status === "connected");
         if (cfg.whatsapp) {
           const wa = cfg.whatsapp;
           if (wa.provider === "meta" || wa.provider === "evolution") waChannel.setWhatsappProvider(wa.provider);
