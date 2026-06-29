@@ -1176,6 +1176,31 @@ export async function main(
     .eq('lead_id', lead.id).eq('agent_id', agentData.id).limit(1).maybeSingle();
   let isNewConversation = false;
 
+  // ── Gate de conversas mensais ─────────────────────────────────────────────
+  // Só verifica quando seria uma nova conversa (sem existente ou fechada).
+  if (!conversation || conversation.status === 'closed') {
+    try {
+      const { data: profile } = await supabase.from('profiles').select('plan').eq('id', userId).single();
+      const rawPlan = profile?.plan || 'starter';
+      const pn = rawPlan === 'basico' ? 'starter' : rawPlan === 'profissional' ? 'pro' : rawPlan === 'avancado' ? 'business' : rawPlan;
+      const CONV_LIMITS: Record<string, number> = { starter: 500, pro: 3000, business: -1 };
+      const convLimit = CONV_LIMITS[pn] ?? 500;
+      if (convLimit !== -1) {
+        const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+        const { count } = await supabase.from('conversations')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .gte('created_at', monthStart.toISOString());
+        if ((count || 0) >= convLimit) {
+          console.warn(`[GATE] Limite de ${convLimit} conversas/mês atingido para user ${userId} (plano ${pn}).`);
+          return { send: false, reason: `Limite de conversas mensais atingido (${count}/${convLimit}, plano ${pn}).` };
+        }
+      }
+    } catch (e) {
+      console.warn('[GATE] Erro ao verificar limite de conversas — continuando sem bloquear:', e);
+    }
+  }
+
   if (!conversation) {
     const { data } = await supabase.from('conversations')
       .insert([{ user_id: userId, lead_id: lead.id, agent_id: agentData.id, status: 'active', channel: 'whatsapp' }])
