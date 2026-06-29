@@ -59,8 +59,8 @@ export async function POST(req: NextRequest) {
       mode: 'subscription',
       line_items: [{ price: PLAN_PRICE_IDS[plan]!, quantity: 1 }],
       allow_promotion_codes: true,
-      success_url: `${origin}/app/settings?tab=plano&checkout=sucesso`,
-      cancel_url: `${origin}/app/settings?tab=plano&checkout=cancelado`,
+      success_url: `${origin}/app/checkout?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${origin}/app/checkout?canceled=1`,
       client_reference_id: userId,
       subscription_data: { metadata: { user_id: userId, plan } },
     });

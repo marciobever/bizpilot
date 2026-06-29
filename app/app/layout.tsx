@@ -75,7 +75,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!user || !subscriptionLoaded) return;
     if (!hasAccess && !onCheckoutRoute) {
-      navigate.replace("/app/checkout?plan=starter");
+      navigate.replace("/app/checkout");
     }
   }, [user, subscriptionLoaded, hasAccess, onCheckoutRoute, navigate]);
 

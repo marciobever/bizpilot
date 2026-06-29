@@ -27,7 +27,9 @@ export function GoogleAuthButton({ label = "Continuar com Google", plan }: Props
   const handleGoogle = async () => {
     setLoading(true);
     setError(null);
-    const redirectTo = `${window.location.origin}/app/checkout?plan=${plan || "starter"}`;
+    const redirectTo = plan
+      ? `${window.location.origin}/app/checkout?plan=${plan}`
+      : `${window.location.origin}/app/checkout`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo },

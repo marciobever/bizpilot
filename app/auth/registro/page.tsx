@@ -28,7 +28,7 @@ function RegisterForm() {
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
       if (data.user) {
-        navigate.push(plan ? `/app/checkout?plan=${plan}` : "/app");
+        navigate.push(plan ? `/app/checkout?plan=${plan}` : "/app/checkout");
       }
     } catch (err: any) {
       setError(err.message || "Ocorreu um erro ao criar conta.");

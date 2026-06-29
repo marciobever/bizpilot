@@ -30,10 +30,10 @@ function LoginForm() {
       if (data.user) {
         const { data: profile } = await supabase.from("profiles")
           .select("subscription_status").eq("id", data.user.id).single();
-        if (profile?.subscription_status === "active") {
+        if (profile?.subscription_status === "active" || profile?.subscription_status === "trialing") {
           navigate.push("/app");
         } else {
-          navigate.push(`/app/checkout?plan=${plan || "starter"}`);
+          navigate.push(plan ? `/app/checkout?plan=${plan}` : "/app/checkout");
         }
       }
     } catch (err: any) {
