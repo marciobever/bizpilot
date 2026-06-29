@@ -28,17 +28,12 @@ function LoginForm() {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       if (data.user) {
-        if (plan) {
-          // Checa se já tem assinatura ativa — se sim, vai pro app direto
-          const { data: profile } = await supabase.from("profiles")
-            .select("subscription_status").eq("id", data.user.id).single();
-          if (profile?.subscription_status === "active") {
-            navigate.push("/app");
-          } else {
-            navigate.push(`/app/checkout?plan=${plan}`);
-          }
-        } else {
+        const { data: profile } = await supabase.from("profiles")
+          .select("subscription_status").eq("id", data.user.id).single();
+        if (profile?.subscription_status === "active") {
           navigate.push("/app");
+        } else {
+          navigate.push(`/app/checkout?plan=${plan || "starter"}`);
         }
       }
     } catch (err: any) {
