@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useParams, useSearchParams } from "next/navigation";
-import { ArrowLeft, Save, Bot, MessageSquare, ShieldAlert, Database, Zap, Smartphone, FileText, Loader2, Settings, Puzzle, Smile } from "lucide-react";
+import { ArrowLeft, Save, Bot, MessageSquare, ShieldAlert, Database, Zap, Smartphone, FileText, Loader2, Settings, Puzzle, Smile, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { supabase } from "@/lib/supabase";
@@ -22,6 +22,7 @@ import { InstructionsTab } from "./_tabs/InstructionsTab";
 import { TagsTab } from "./_tabs/TagsTab";
 import { KnowledgeTab } from "./_tabs/KnowledgeTab";
 import { ChannelsTab } from "./_tabs/ChannelsTab";
+import { AfiliadosTab } from "./_tabs/AfiliadosTab";
 // Views
 import { NewAgentView } from "./_views/NewAgentView";
 import { SetupWhatsappView } from "./_views/SetupWhatsappView";
@@ -40,6 +41,8 @@ export default function AgentConfig() {
   const isNew = agentId === "new";
 
   const [activeTab, setActiveTab] = useState("identity");
+  const [agentType, setAgentType] = useState("atendimento");
+  const [affiliateGroups, setAffiliateGroups] = useState<{ id: string; name: string }[]>([]);
 
   // ── Hooks ─────────────────────────────────────────────────────────────────
   const form = useAgentForm(isNew);
@@ -71,6 +74,7 @@ export default function AgentConfig() {
       if (!data) return;
 
       form.setAgentName(data.name || "");
+      setAgentType(data.type || "atendimento");
       if (data.system_prompt) form.setSystemPrompt(data.system_prompt);
 
       if (data.config) {
@@ -99,6 +103,7 @@ export default function AgentConfig() {
         }
         if (cfg.tools && Array.isArray(cfg.tools)) tools.setTools(cfg.tools);
         if (cfg.mediaFiles && Array.isArray(cfg.mediaFiles)) media.setMediaFiles(cfg.mediaFiles);
+        if (cfg.affiliateGroups && Array.isArray(cfg.affiliateGroups)) setAffiliateGroups(cfg.affiliateGroups);
         if (cfg.whatsapp) {
           const wa = cfg.whatsapp;
           if (wa.provider === "meta" || wa.provider === "evolution") waChannel.setWhatsappProvider(wa.provider);
@@ -142,6 +147,7 @@ export default function AgentConfig() {
       variables: varsObject,
       tools: tools.tools,
       mediaFiles: media.mediaFiles,
+      affiliateGroups,
       whatsapp: {
         provider: waChannel.whatsappProvider,
         meta: {
@@ -229,6 +235,7 @@ export default function AgentConfig() {
   }
 
   const addonsLocked = form.userPlan === "basico";
+  const isAfiliados = agentType === "afiliados" || agentType === "afiliado";
   const tabs = [
     { id: "identity", label: "Identidade", icon: Bot },
     { id: "personality", label: "Personalidade", icon: Smile },
@@ -238,6 +245,7 @@ export default function AgentConfig() {
     { id: "tags", label: "Dados Dinâmicos", icon: FileText },
     { id: "knowledge", label: "Base de Conhecimento", icon: Database },
     { id: "channels", label: "Canais", icon: Zap },
+    ...(isAfiliados ? [{ id: "afiliados", label: "Grupos de Oferta", icon: Users }] : []),
   ];
 
   return (
@@ -401,6 +409,13 @@ export default function AgentConfig() {
               onTestMeta={waChannel.handleTestMeta}
               onDisconnectMeta={waChannel.handleDisconnectMeta}
               onCopyToClipboard={waChannel.copyToClipboard}
+            />
+          )}
+          {activeTab === "afiliados" && (
+            <AfiliadosTab
+              agentId={agentId}
+              affiliateGroups={affiliateGroups}
+              setAffiliateGroups={setAffiliateGroups}
             />
           )}
         </div>

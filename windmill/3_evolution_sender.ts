@@ -255,7 +255,7 @@ async function sendEvolution(
         title: "",
         description: textBody,
         footer: "",
-        buttons: buttons.map((b, i) => ({ id: `${i}`, text: b.substring(0, 20) })),
+        buttons: buttons.map((b, i) => ({ id: `${i}`, displayText: b.substring(0, 20), type: "reply" })),
         delay: typingDelay,
       }),
     });

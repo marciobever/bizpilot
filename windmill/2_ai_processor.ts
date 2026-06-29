@@ -528,9 +528,93 @@ function fmtCommission(rate: string | null): string {
   return ` · ${pct}% comissão`;
 }
 
-// Envia cada produto como imagem com caption formatado + menu numerado ao final.
+// Produto em cache: salvo no affiliateNote da mensagem do agente para recuperar
+// quando o usuário tocar em "Publicar em Grupos".
+interface CachedProduct { name: string; price: string; link: string; imageUrl: string | null; }
+
+async function fetchCachedProducts(supabase: any, conversationId: string): Promise<CachedProduct[]> {
+  const { data } = await supabase.from('messages')
+    .select('content')
+    .eq('conversation_id', conversationId)
+    .eq('sender_type', 'agent')
+    .like('content', 'Produtos enviados%')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data?.content) return [];
+  return data.content.split('\n')
+    .filter((l: string) => /^\d+\./.test(l))
+    .map((l: string) => {
+      const parts = l.replace(/^\d+\.\s*/, '').split(' | ');
+      return { name: parts[0]?.trim() || '', price: parts[1]?.trim() || '', link: parts[2]?.trim() || '', imageUrl: parts[3]?.trim() || null };
+    });
+}
+
+// Trata botões de afiliado (pub_X e grp_X_Y) sem passar pela IA.
+async function handleAffiliateButton(
+  buttonId: string, config: any, supabase: any,
+  conversationId: string, evoUrl: string, evoKey: string, jid: string
+): Promise<boolean> {
+  const headers = { 'Content-Type': 'application/json', apikey: evoKey };
+
+  // pub_0 … pub_4 → usuário quer publicar o produto X; mostra seleção de grupo
+  const pubMatch = buttonId.match(/^pub_(\d+)$/);
+  if (pubMatch) {
+    const idx = parseInt(pubMatch[1]);
+    const groups: { id: string; name: string }[] = config.affiliateGroups || [];
+    if (!groups.length) {
+      await fetch(`${evoUrl}/send/text`, { method: 'POST', headers,
+        body: JSON.stringify({ number: jid, text: '⚠️ Nenhum grupo configurado. Acesse o painel do bot e adicione grupos na aba *Grupos de Oferta*.', linkPreview: false, delay: 0 }) });
+      return true;
+    }
+    const products = await fetchCachedProducts(supabase, conversationId);
+    const prodTitle = products[idx]?.name?.slice(0, 40) || `Produto ${idx + 1}`;
+    await fetch(`${evoUrl}/send/button`, { method: 'POST', headers,
+      body: JSON.stringify({
+        number: jid,
+        title: '📢 Publicar oferta',
+        description: `Em qual grupo?\n${prodTitle}`,
+        footer: '',
+        buttons: groups.slice(0, 3).map((g, i) => ({ id: `grp_${idx}_${i}`, displayText: g.name.slice(0, 20), type: 'reply' })),
+        delay: 0,
+      }) });
+    return true;
+  }
+
+  // grp_X_Y → publica produto X no grupo Y
+  const grpMatch = buttonId.match(/^grp_(\d+)_(\d+)$/);
+  if (grpMatch) {
+    const [, pi, gi] = grpMatch.map(Number);
+    const groups: { id: string; name: string }[] = config.affiliateGroups || [];
+    const group = groups[gi];
+    const products = await fetchCachedProducts(supabase, conversationId);
+    const product = products[pi];
+
+    if (!group || !product) {
+      await fetch(`${evoUrl}/send/text`, { method: 'POST', headers,
+        body: JSON.stringify({ number: jid, text: !product ? '❌ Produto não encontrado. Faça uma nova busca.' : '❌ Grupo não encontrado.', linkPreview: false, delay: 0 }) });
+      return true;
+    }
+
+    const offerText = `🔥 *OFERTA ESPECIAL!*\n\n*${product.name}*\n\n💰 ${product.price}\n\n🛒 *Compre aqui:*\n${product.link}`;
+    if (product.imageUrl) {
+      await fetch(`${evoUrl}/send/media`, { method: 'POST', headers,
+        body: JSON.stringify({ number: group.id, type: 'image', url: product.imageUrl, caption: offerText, delay: 0 }) });
+    } else {
+      await fetch(`${evoUrl}/send/text`, { method: 'POST', headers,
+        body: JSON.stringify({ number: group.id, text: offerText, linkPreview: true, delay: 0 }) });
+    }
+    await fetch(`${evoUrl}/send/text`, { method: 'POST', headers,
+      body: JSON.stringify({ number: jid, text: `✅ *Publicado!*\n\n*${product.name}* foi enviado para *${group.name}*. 🚀`, linkPreview: false, delay: 300 }) });
+    return true;
+  }
+
+  return false;
+}
+
+// Envia cada produto como imagem + caption + botão "Publicar em Grupos" (se houver grupos).
 // Lista interativa (/send/list) não renderiza no celular via whatsmeow.
-async function sendAffiliateCardsFallback(products: ShopeeProduct[], evoUrl: string, evoKey: string, jid: string): Promise<void> {
+async function sendAffiliateCardsFallback(products: ShopeeProduct[], evoUrl: string, evoKey: string, jid: string, hasGroups: boolean): Promise<void> {
   const headers = { 'Content-Type': 'application/json', apikey: evoKey };
   const nums = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
 
@@ -540,31 +624,32 @@ async function sendAffiliateCardsFallback(products: ShopeeProduct[], evoUrl: str
     const caption = `${nums[i] ?? `${i + 1}.`} *${p.productName}*\n💰 ${p.priceLabel}${fmtCommission(p.commissionRate)}\n🔗 ${link}`;
     try {
       if (p.imageUrl) {
-        await fetch(`${evoUrl}/send/media`, {
-          method: 'POST', headers,
-          body: JSON.stringify({ number: jid, type: 'image', url: p.imageUrl, caption, delay: 500 }),
-        });
+        await fetch(`${evoUrl}/send/media`, { method: 'POST', headers,
+          body: JSON.stringify({ number: jid, type: 'image', url: p.imageUrl, caption, delay: 500 }) });
       } else {
-        await fetch(`${evoUrl}/send/text`, {
-          method: 'POST', headers,
-          body: JSON.stringify({ number: jid, text: caption, linkPreview: false, delay: 500 }),
-        });
+        await fetch(`${evoUrl}/send/text`, { method: 'POST', headers,
+          body: JSON.stringify({ number: jid, text: caption, linkPreview: false, delay: 500 }) });
+      }
+      if (hasGroups) {
+        await fetch(`${evoUrl}/send/button`, { method: 'POST', headers,
+          body: JSON.stringify({
+            number: jid, title: '', description: p.productName.slice(0, 50), footer: '',
+            buttons: [{ id: `pub_${i}`, displayText: '📢 Publicar em Grupos', type: 'reply' }],
+            delay: 200,
+          }) });
       }
     } catch (e: any) {
       console.error('sendAffiliateCardsFallback:', e?.message);
     }
   }
 
-  // Menu numerado com emoji — funciona em qualquer celular
-  const lines = products.map((p, i) => `${nums[i] ?? `${i + 1}.`} ${p.productName.slice(0, 45)}`);
-  const menu = `*Qual você quer publicar?* 👇\n\n${lines.join('\n')}\n\nResponda com o número e monto o post na hora! 🚀`;
-  try {
-    await fetch(`${evoUrl}/send/text`, {
-      method: 'POST', headers,
-      body: JSON.stringify({ number: jid, text: menu, linkPreview: false, delay: 800 }),
-    });
-  } catch (e: any) {
-    console.error('sendAffiliateMenu:', e?.message);
+  // Fallback sem grupos: menu numerado para o usuário escolher qual divulgar
+  if (!hasGroups) {
+    const lines = products.map((p, i) => `${nums[i] ?? `${i + 1}.`} ${p.productName.slice(0, 45)}`);
+    try {
+      await fetch(`${evoUrl}/send/text`, { method: 'POST', headers,
+        body: JSON.stringify({ number: jid, text: `*Qual você quer publicar?* 👇\n\n${lines.join('\n')}\n\nResponda com o número e monto o post na hora! 🚀`, linkPreview: false, delay: 800 }) });
+    } catch (e: any) { console.error('sendAffiliateMenu:', e?.message); }
   }
 }
 
@@ -866,10 +951,12 @@ async function executeTool(
     if (provider === 'evolution') {
       const { url, key } = await resolveEvolutionCreds(config);
       if (url && key) {
-        await sendAffiliateCardsFallback(products, url, key, jid);
+        const hasGroups = Array.isArray(config.affiliateGroups) && config.affiliateGroups.length > 0;
+        await sendAffiliateCardsFallback(products, url, key, jid, hasGroups);
         sideEffects.handled = true;
+        // Inclui imageUrl para recuperar ao publicar no grupo via handleAffiliateButton
         sideEffects.affiliateNote = 'Produtos enviados ao cliente para ele escolher qual divulgar:\n' +
-          products.map((p, i) => `${i + 1}. ${p.productName} | ${p.priceLabel} | ${p.affiliateLink || p.productUrl}`).join('\n');
+          products.map((p, i) => `${i + 1}. ${p.productName} | ${p.priceLabel} | ${p.affiliateLink || p.productUrl} | ${p.imageUrl || ''}`).join('\n');
         return 'Cards e lista de escolha enviados ao cliente.';
       }
     }
@@ -1301,6 +1388,22 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
   }
   if (config.blocklist?.some((n: string) => phoneNumber.includes(n) || n.includes(phoneNumber))) {
     return { send: false, reason: 'Número bloqueado.' };
+  }
+
+  // ── Botões de afiliado: pub_X e grp_X_Y (sem IA, resposta imediata) ───────
+  // O webhook_receiver agora manda selectedButtonId como incomingMessage.
+  if (messageType === 'button_reply' && hasAffiliate &&
+      (incomingMessage.startsWith('pub_') || incomingMessage.startsWith('grp_'))) {
+    const { url: evoUrl, key: evoKey } = await resolveEvolutionCreds(config);
+    const jid = remoteJid.includes('@') ? remoteJid : `${remoteJid}@s.whatsapp.net`;
+    if (evoUrl && evoKey) {
+      const handled = await handleAffiliateButton(incomingMessage, config, supabase, conversation.id, evoUrl, evoKey, jid);
+      if (handled) {
+        await supabase.from('messages').insert({ conversation_id: conversation.id, sender_type: 'agent', content: `[Ação de afiliado: ${incomingMessage}]` });
+        await supabase.from('conversations').update({ last_message_at: new Date().toISOString() }).eq('id', conversation.id);
+        return buildReturn(false, remoteJid, instanceName, '', null, wasAudio, channelInfo, agentData, config, lead, senderName, phoneNumber, conversation, isNewConversation);
+      }
+    }
   }
 
   // ── Agentic loop (OpenAI function calling) ────────────────────────────────

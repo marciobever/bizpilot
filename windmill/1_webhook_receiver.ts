@@ -19,15 +19,16 @@ async function downloadMedia(
   // Caminho rápido: base64 já está no payload (WEBHOOK_FILES=true)
   if (msgObj?.base64) return msgObj.base64;
 
-  // Sem metadados suficientes para download
-  if (!msgObj?.url && !msgObj?.directPath) return null;
+  // evolution-go serializa o campo URL em PascalCase ("URL"), não camelCase ("url")
+  const mediaUrl = msgObj?.URL || msgObj?.url || null;
+  if (!mediaUrl && !msgObj?.directPath) return null;
 
   try {
     const res = await fetch(`${EVOLUTION_API_URL}/message/downloadimage`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: instanceToken },
       body: JSON.stringify({
-        url: msgObj.url,
+        url: mediaUrl,
         directPath: msgObj.directPath,
         mediaKey: msgObj.mediaKey,
         fileEncSHA256: msgObj.fileEncSHA256,
@@ -192,7 +193,8 @@ export async function main(payload: any) {
     incomingMessage = msg.extendedTextMessage.text;
 
   } else if (msg.buttonsResponseMessage) {
-    incomingMessage = msg.buttonsResponseMessage.selectedDisplayText || msg.buttonsResponseMessage.selectedButtonId || "";
+    // Preferir o ID do botão (pub_0, grp_0_1, etc.) para lógica de afiliados
+    incomingMessage = msg.buttonsResponseMessage.selectedButtonId || msg.buttonsResponseMessage.selectedDisplayText || "";
     messageType = "button_reply";
 
   } else if (msg.listResponseMessage) {
@@ -212,14 +214,14 @@ export async function main(payload: any) {
 
   } else if (msg.audioMessage || msg.pttMessage) {
     // Áudio: transcreve imediatamente via Whisper (sem fila).
-    // Evolution: baixa via getBase64FromMediaMessage. Meta: o webhook da Cloud API
-    // já entrega o áudio em base64 (msg.audioMessage.base64).
     wasAudio = true;
     try {
       const audioObj = msg.audioMessage || msg.pttMessage || {};
-      console.log("AUDIO_OBJ_KEYS:", JSON.stringify(Object.keys(audioObj)));
-      console.log("AUDIO_OBJ:", JSON.stringify(audioObj).slice(0, 500));
-      let b64: string | null = await downloadMedia(audioObj, EVOLUTION_API_URL, instanceToken || EVOLUTION_API_KEY);
+      // evolution-go: base64 fica em payload.data.Message.base64 (irmão de audioMessage),
+      // não dentro de audioMessage. Buscamos em todos os locais possíveis.
+      const resolvedB64 = rawMsg.base64 || audioObj.base64 || payload.data?.base64 || null;
+      const effectiveAudioObj = resolvedB64 ? { ...audioObj, base64: resolvedB64 } : audioObj;
+      let b64: string | null = await downloadMedia(effectiveAudioObj, EVOLUTION_API_URL, instanceToken || EVOLUTION_API_KEY);
       let mimetype = audioObj.mimetype || "audio/ogg";
       if (b64) {
         const buf = Buffer.from(b64, "base64");
