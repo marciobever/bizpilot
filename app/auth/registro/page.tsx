@@ -1,7 +1,8 @@
 "use client";
 import React, { useState } from "react";
 import Link from 'next/link';
-import { useRouter as useNavigate } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -10,7 +11,10 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 
 export default function Register() {
-  const navigate = useNavigate();
+  const navigate = useRouter();
+  const searchParams = useSearchParams();
+  const plan = searchParams.get("plan") || "";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,17 +24,11 @@ export default function Register() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
+      const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
-      
       if (data.user) {
-        navigate.push("/app");
+        navigate.push(plan ? `/app/checkout?plan=${plan}` : "/app");
       }
     } catch (err: any) {
       setError(err.message || "Ocorreu um erro ao criar conta.");
@@ -48,7 +46,7 @@ export default function Register() {
         </div>
       )}
 
-      <GoogleAuthButton label="Cadastrar com Google" />
+      <GoogleAuthButton label="Cadastrar com Google" plan={plan || undefined} />
 
       <div className="flex items-center gap-3">
         <span className="h-px flex-1 bg-border" />
@@ -58,31 +56,15 @@ export default function Register() {
 
       <div className="space-y-2">
         <Label htmlFor="email">E-mail</Label>
-        <Input 
-          id="email" 
-          type="email" 
-          placeholder="nome@empresa.com.br" 
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required 
-        />
+        <Input id="email" type="email" placeholder="nome@empresa.com.br" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </div>
-      
+
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="password">Senha</Label>
-          <Link href="/auth/recuperar" className="text-xs text-brand-400 hover:text-brand-300">
-            Esqueceu a senha?
-          </Link>
+          <Link href="/auth/recuperar" className="text-xs text-brand-400 hover:text-brand-300">Esqueceu a senha?</Link>
         </div>
-        <Input 
-          id="password" 
-          type="password" 
-          placeholder="••••••••" 
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required 
-        />
+        <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
       </div>
 
       <Button type="submit" className="w-full bg-brand-500 hover:bg-brand-600 text-white" disabled={loading}>
@@ -91,7 +73,7 @@ export default function Register() {
 
       <div className="text-center text-sm text-muted-foreground mt-4">
         Já tem uma conta?{" "}
-        <Link href="/auth/login" className="text-brand-400 hover:text-brand-300 font-medium">
+        <Link href={plan ? `/auth/login?plan=${plan}` : "/auth/login"} className="text-brand-400 hover:text-brand-300 font-medium">
           Fazer login
         </Link>
       </div>

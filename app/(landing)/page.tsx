@@ -104,7 +104,7 @@ export default function Home() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Button size="lg" asChild className="h-12 px-8 w-full sm:w-auto text-base">
-              <Link href="/app">Começar Agora <ArrowRight className="ml-2 h-4 w-4" /></Link>
+              <Link href="/auth/registro?plan=starter">Começar Agora <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
             <Button size="lg" variant="outline" className="h-12 px-8 w-full sm:w-auto text-base border-border" onClick={() => setDemoOpen(true)}>
               <Play className="mr-2 h-4 w-4" /> Simular Atendimento

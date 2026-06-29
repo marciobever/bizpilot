@@ -1,7 +1,8 @@
 "use client";
 import React, { useState } from "react";
 import Link from 'next/link';
-import { useRouter as useNavigate } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -10,7 +11,10 @@ import { AlertCircle, Loader2 } from "lucide-react";
 import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 
 export default function Login() {
-  const navigate = useNavigate();
+  const navigate = useRouter();
+  const searchParams = useSearchParams();
+  const plan = searchParams.get("plan") || "";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,17 +24,22 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      
       if (data.user) {
-        navigate.push("/app");
+        if (plan) {
+          // Checa se já tem assinatura ativa — se sim, vai pro app direto
+          const { data: profile } = await supabase.from("profiles")
+            .select("subscription_status").eq("id", data.user.id).single();
+          if (profile?.subscription_status === "active") {
+            navigate.push("/app");
+          } else {
+            navigate.push(`/app/checkout?plan=${plan}`);
+          }
+        } else {
+          navigate.push("/app");
+        }
       }
     } catch (err: any) {
       setError(err.message || "Ocorreu um erro ao fazer login.");
@@ -48,7 +57,7 @@ export default function Login() {
         </div>
       )}
 
-      <GoogleAuthButton label="Entrar com Google" />
+      <GoogleAuthButton label="Entrar com Google" plan={plan || undefined} />
 
       <div className="flex items-center gap-3">
         <span className="h-px flex-1 bg-border" />
@@ -58,31 +67,15 @@ export default function Login() {
 
       <div className="space-y-2">
         <Label htmlFor="email">E-mail</Label>
-        <Input 
-          id="email" 
-          type="email" 
-          placeholder="nome@empresa.com.br" 
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required 
-        />
+        <Input id="email" type="email" placeholder="nome@empresa.com.br" value={email} onChange={(e) => setEmail(e.target.value)} required />
       </div>
-      
+
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="password">Senha</Label>
-          <Link href="/auth/recuperar" className="text-xs text-brand-400 hover:text-brand-300">
-            Esqueceu a senha?
-          </Link>
+          <Link href="/auth/recuperar" className="text-xs text-brand-400 hover:text-brand-300">Esqueceu a senha?</Link>
         </div>
-        <Input 
-          id="password" 
-          type="password" 
-          placeholder="••••••••" 
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required 
-        />
+        <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
       </div>
 
       <Button type="submit" className="w-full bg-brand-500 hover:bg-brand-600 text-white" disabled={loading}>
@@ -91,8 +84,8 @@ export default function Login() {
 
       <div className="text-center text-sm text-muted-foreground mt-4">
         Não tem uma conta?{" "}
-        <Link href="/auth/registro" className="text-brand-400 hover:text-brand-300 font-medium">
-          Cadastre-se grátis
+        <Link href={plan ? `/auth/registro?plan=${plan}` : "/auth/registro"} className="text-brand-400 hover:text-brand-300 font-medium">
+          Cadastre-se
         </Link>
       </div>
     </form>

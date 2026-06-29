@@ -6,6 +6,7 @@ export default function Pricing() {
   const tiers = [
     {
       name: "Starter",
+      planId: "starter",
       desc: "Ideal para começar a automatizar o atendimento com o essencial.",
       price: "29,90",
       features: [
@@ -22,6 +23,7 @@ export default function Pricing() {
     },
     {
       name: "Pro",
+      planId: "pro",
       desc: "Para quem quer escalar o atendimento com múltiplos agentes.",
       price: "79,90",
       features: [
@@ -37,6 +39,7 @@ export default function Pricing() {
     },
     {
       name: "Business",
+      planId: "business",
       desc: "Para operações maiores com agentes e conversas ilimitados.",
       price: "149,00",
       features: [
@@ -64,7 +67,7 @@ export default function Pricing() {
       <div className="text-center max-w-3xl mx-auto mb-20">
         <h2 className="text-4xl font-bold tracking-tight mb-4">Investimento escalável.</h2>
         <p className="text-xl text-muted-foreground">
-          Comece grátis, assine um plano quando houver volume. Sem surpresas ou faturamento confuso.
+          Todos os planos incluem acesso completo à plataforma. Use o cupom no checkout para 50% de desconto no primeiro mês.
         </p>
       </div>
 
@@ -96,7 +99,7 @@ export default function Pricing() {
               className={`w-full h-12 mb-8 ${tier.highlight ? "bg-brand-500 hover:bg-brand-600 text-white" : ""}`}
               variant={tier.highlight ? "default" : "outline"}
             >
-              <Link href="/app">{tier.cta}</Link>
+              <Link href={`/auth/registro?plan=${tier.planId}`}>{tier.cta}</Link>
             </Button>
 
             <ul className="space-y-4">

@@ -15,20 +15,25 @@ function GoogleIcon() {
   );
 }
 
-// Botão de login social via Google (Supabase Auth). Alternativa a criar conta
-// com e-mail/senha. Usa escopos básicos (nome/e-mail) — sem tela de "app não verificado".
-export function GoogleAuthButton({ label = "Continuar com Google" }: { label?: string }) {
+interface Props {
+  label?: string;
+  plan?: string;
+}
+
+export function GoogleAuthButton({ label = "Continuar com Google", plan }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleGoogle = async () => {
     setLoading(true);
     setError(null);
+    const redirectTo = plan
+      ? `${window.location.origin}/app/checkout?plan=${plan}`
+      : `${window.location.origin}/app`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/app` },
+      options: { redirectTo },
     });
-    // Em caso de sucesso a página redireciona para o Google; só voltamos aqui em erro.
     if (error) {
       setError(error.message || "Não foi possível entrar com o Google.");
       setLoading(false);
