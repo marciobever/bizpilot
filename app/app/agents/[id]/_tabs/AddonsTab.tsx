@@ -66,10 +66,10 @@ export function AddonsTab({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Puzzle className="h-5 w-5 text-brand-500" />
-            Funcionalidades — Disponível no plano Profissional
+            Funcionalidades — Disponível no plano Pro
           </CardTitle>
           <CardDescription>
-            Resposta em áudio, memória de dados e ações externas fazem parte do plano Profissional (R$ 79,99/mês) e do plano Avançado (R$ 119,99/mês).
+            Resposta em áudio, memória de dados e ações externas fazem parte do plano Pro (R$ 79,90/mês) e do plano Business (R$ 149,00/mês).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

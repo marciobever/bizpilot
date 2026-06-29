@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { CreditCard, Check, Loader2, ArrowUpRight, AlertTriangle, CheckCircle2, Zap } from "lucide-react";
+import { CreditCard, Check, Loader2, ArrowUpRight, AlertTriangle, CheckCircle2, Zap, Bot, Megaphone, Volume2, Phone } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -55,6 +55,37 @@ const PLANS = [
       "Todas as integrações inclusas",
       "Suporte dedicado",
     ],
+  },
+];
+
+const ADDONS = [
+  {
+    id: "addon_bot",
+    name: "Bot Adicional",
+    price: "R$ 19,90",
+    icon: Bot,
+    desc: "Adicione mais um agente além do limite do seu plano.",
+  },
+  {
+    id: "addon_campaigns",
+    name: "Campanhas Extras",
+    price: "R$ 29,90",
+    icon: Megaphone,
+    desc: "+1.000 disparos/mês para campanhas em massa.",
+  },
+  {
+    id: "addon_voice",
+    name: "Voz Inteligente",
+    price: "R$ 39,90",
+    icon: Volume2,
+    desc: "Respostas em áudio com TTS de alta qualidade.",
+  },
+  {
+    id: "addon_whatsapp_number",
+    name: "Número WhatsApp",
+    price: "R$ 49,90",
+    icon: Phone,
+    desc: "Número virtual dedicado conectado à nossa infraestrutura.",
   },
 ];
 
@@ -180,6 +211,44 @@ export function PlanoTab({
                 </Button>
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Extras / Add-ons */}
+      {!loadingPlan && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-purple-500" />
+              Complementos
+            </CardTitle>
+            <CardDescription>Adicione recursos extras ao seu plano atual, sem precisar fazer upgrade.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-3 sm:grid-cols-2">
+            {ADDONS.map((addon) => {
+              const Icon = addon.icon;
+              return (
+                <div key={addon.id} className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="h-9 w-9 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
+                      <Icon className="h-4 w-4 text-purple-500" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-sm">{addon.name}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{addon.desc}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-bold">{addon.price}<span className="text-xs font-normal text-muted-foreground">/mês</span></span>
+                    <Button size="sm" variant="outline" onClick={() => onUpgrade(addon.id)} disabled={planActionLoading !== null}>
+                      {planActionLoading === addon.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                      Adicionar
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
       )}

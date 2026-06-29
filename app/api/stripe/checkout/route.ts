@@ -12,6 +12,7 @@ function getServiceSupabase() {
 // Mapeia o plano para o Price ID criado no Stripe.
 // Aceita nomes novos (starter/pro/business) e antigos (basico/profissional/avancado).
 const PLAN_PRICE_IDS: Record<string, string | undefined> = {
+  // Planos
   starter:      process.env.STRIPE_PRICE_STARTER,
   pro:          process.env.STRIPE_PRICE_PRO,
   business:     process.env.STRIPE_PRICE_BUSINESS,
@@ -19,6 +20,11 @@ const PLAN_PRICE_IDS: Record<string, string | undefined> = {
   basico:       process.env.STRIPE_PRICE_STARTER,
   profissional: process.env.STRIPE_PRICE_PRO,
   avancado:     process.env.STRIPE_PRICE_BUSINESS,
+  // Extras / add-ons
+  addon_bot:      process.env.STRIPE_PRICE_EXTRA_BOT,
+  addon_campaigns: process.env.STRIPE_PRICE_EXTRA_CAMPAIGNS,
+  addon_voice:    process.env.STRIPE_PRICE_EXTRA_VOICE,
+  addon_whatsapp_number: process.env.STRIPE_PRICE_EXTRA_WHATSAPP_NUMBER,
 };
 
 export async function POST(req: NextRequest) {
