@@ -28,7 +28,6 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { SupportChat } from "@/components/support-chat";
-import { AlertTriangle } from "lucide-react";
 
 const SIDEBAR_ITEMS = [
   { icon: BarChart, label: "Visão Geral", path: "/app" },
@@ -49,7 +48,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Assinaturas que liberam o acesso ao painel.
+  const hasAccess = subscriptionStatus === "active" || subscriptionStatus === "trialing";
+  // A rota de checkout fica fora do bloqueio (senão entraria em loop de redirect).
+  const onCheckoutRoute = location.startsWith("/app/checkout");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -62,8 +67,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     supabase.from("profiles").select("subscription_status").eq("id", user.id).single()
       .then(({ data }) => {
         setSubscriptionStatus(data?.subscription_status ?? null);
+        setSubscriptionLoaded(true);
       });
   }, [user]);
+
+  // Trava de acesso: sem assinatura ativa, manda para o checkout.
+  useEffect(() => {
+    if (!user || !subscriptionLoaded) return;
+    if (!hasAccess && !onCheckoutRoute) {
+      navigate.replace("/app/checkout?plan=starter");
+    }
+  }, [user, subscriptionLoaded, hasAccess, onCheckoutRoute, navigate]);
 
   // Fecha a sidebar mobile e o menu do usuário ao navegar para outra página.
   useEffect(() => {
@@ -87,8 +101,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     navigate.push("/auth/login");
   };
 
-  if (loading || !user) {
+  if (loading || !user || !subscriptionLoaded) {
     return <div className="h-screen w-full flex items-center justify-center bg-background"><span className="text-muted-foreground">Carregando...</span></div>;
+  }
+
+  // Sem assinatura ativa: só a tela de checkout é liberada, sem o painel ao redor.
+  if (!hasAccess) {
+    if (onCheckoutRoute) {
+      return <div className="min-h-screen bg-background text-foreground">{children}</div>;
+    }
+    return <div className="h-screen w-full flex items-center justify-center bg-background"><span className="text-muted-foreground">Redirecionando para o checkout...</span></div>;
   }
 
   return (
@@ -206,20 +228,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             )}
           </div>
         </header>
-        {(subscriptionStatus === "canceled" || subscriptionStatus === "past_due") && !location.startsWith("/app/checkout") && (
-          <div className="bg-amber-500/10 border-b border-amber-500/30 px-4 py-2.5 flex items-center gap-3 text-sm">
-            <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
-            <span className="text-amber-200 flex-1">
-              Sua assinatura ainda não está ativa. Para liberar todos os recursos, escolha um plano.
-            </span>
-            <Link
-              href="/app/settings?tab=plano"
-              className="shrink-0 px-3 py-1 rounded-md bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-colors"
-            >
-              Ver planos
-            </Link>
-          </div>
-        )}
         <div className="bento-grid-bg p-4 md:p-8 max-w-7xl mx-auto w-full flex-1">
           {children}
         </div>
