@@ -273,7 +273,7 @@ export default function AgentConfig() {
     );
   }
 
-  const addonsLocked = form.userPlan === "basico";
+  const addonsLocked = form.userPlan === "starter";
   const isAfiliados = !!capabilities.affiliate || agentType === "afiliados" || agentType === "afiliado";
   const tabs = [
     { id: "identity", label: "Identidade", icon: Bot },
