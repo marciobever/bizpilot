@@ -13,17 +13,49 @@ export async function GET(req: Request) {
     );
 
     const { data: agent } = await supabase.from('agents').select('config').eq('id', agentId).single();
-    const instanceToken = agent?.config?.whatsapp?.instanceToken;
+    let instanceToken: string = agent?.config?.whatsapp?.instanceToken || '';
     const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
     const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
 
-    const apiKey = instanceToken || EVOLUTION_API_KEY;
-    if (!apiKey || !EVOLUTION_API_URL) {
-      return NextResponse.json({ error: 'WhatsApp não conectado para este agente' }, { status: 400 });
+    if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY) {
+      return NextResponse.json({ error: 'Configuração do servidor incompleta' }, { status: 500 });
+    }
+
+    // Se não tem instanceToken salvo, tenta recuperar via /instance/list com global key
+    if (!instanceToken) {
+      const instanceName = agent?.config?.whatsapp?.instanceName || `agent_${agentId}`;
+      const listRes = await fetch(`${EVOLUTION_API_URL}/instance/list`, {
+        headers: { apikey: EVOLUTION_API_KEY },
+      }).catch(() => null);
+
+      if (listRes?.ok) {
+        const listData = await listRes.json().catch(() => null);
+        const instances: any[] = listData?.data ?? listData ?? [];
+        const found = instances.find(
+          (i: any) => (i.name || i.Name || i.instanceName) === instanceName
+        );
+        const recoveredToken: string = found?.token || found?.Token || found?.apikey || '';
+        if (recoveredToken) {
+          instanceToken = recoveredToken;
+          // Salva de volta no config para não precisar recuperar novamente
+          const cfg: any = agent?.config && typeof agent.config === 'object' ? { ...agent.config } : {};
+          if (!cfg.whatsapp) cfg.whatsapp = {};
+          cfg.whatsapp.instanceToken = recoveredToken;
+          cfg.whatsapp.instanceName = instanceName;
+          await supabase.from('agents').update({ config: cfg }).eq('id', agentId);
+        }
+      }
+    }
+
+    if (!instanceToken) {
+      return NextResponse.json(
+        { error: 'Token da instância não encontrado. Reconecte o WhatsApp nas configurações do agente.' },
+        { status: 400 }
+      );
     }
 
     const res = await fetch(`${EVOLUTION_API_URL}/group/list`, {
-      headers: { apikey: apiKey },
+      headers: { apikey: instanceToken },
     });
 
     if (!res.ok) {
@@ -32,7 +64,6 @@ export async function GET(req: Request) {
     }
 
     const data = await res.json();
-    // evolution-go retorna { groups: [{ JID, Name, ... }] }
     const groups = (data.groups || []).map((g: any) => ({
       id: g.JID || g.jid || '',
       name: g.Name || g.name || g.Subject || g.subject || g.JID || '',
