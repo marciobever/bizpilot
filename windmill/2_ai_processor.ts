@@ -1230,7 +1230,9 @@ export async function main(
 
   // ── Memória de dados estruturados (registros livres por categoria) ───────
 
-  const hasDataRecords = config.dataRecordsEnabled !== false; // ativo por padrão
+  const caps = config.capabilities || {};
+  const hasCaps = Object.keys(caps).length > 0;
+  const hasDataRecords = hasCaps ? !!caps.dataRecords : config.dataRecordsEnabled !== false;
 
   // ── Banco de dados externo do usuário (Supabase ou Firebase próprios) ────
 
@@ -1253,6 +1255,11 @@ export async function main(
     .select('status, config').eq('user_id', userId).eq('provider', 'affiliate').maybeSingle();
   const hasAffiliate = affiliateIntegration?.status === 'connected';
   config.affiliateShopee = hasAffiliate ? (affiliateIntegration?.config || null) : null;
+
+  // Gate por eixo de capabilities (backward compat: sem capabilities = comportamento antigo)
+  const effectivePayments = hasCaps ? (!!caps.commerce && hasPayments) : hasPayments;
+  const effectiveCalendar = hasCaps ? (!!caps.commerce && hasCalendar) : hasCalendar;
+  const effectiveAffiliate = hasCaps ? !!caps.affiliate : hasAffiliate;
 
   // ── Arquivos para envio (catálogos, tabelas de preço, contratos, etc.) ────
 
@@ -1426,7 +1433,7 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
   const sideEffects: { imageUrl?: string; reaction?: string; fileUrl?: string; fileName?: string; handled?: boolean; affiliateNote?: string } = {};
 
   if (!modelToUse.includes('gemini') && finalOpenAiKey) {
-    const tools = buildOpenAITools(config, hasKnowledge, hasPayments && !!appBaseUrl, hasCalendar && !!appBaseUrl, hasDataRecords, hasExternalDb && !!appBaseUrl, hasEmail && !!appBaseUrl, hasAffiliate, hasMediaFiles ? mediaFiles : []);
+    const tools = buildOpenAITools(config, hasKnowledge, effectivePayments && !!appBaseUrl, effectiveCalendar && !!appBaseUrl, hasDataRecords, hasExternalDb && !!appBaseUrl, hasEmail && !!appBaseUrl, effectiveAffiliate, hasMediaFiles ? mediaFiles : []);
     const messages: any[] = [
       { role: 'system', content: aiSystemInstruction },
       ...cleanHistory.map((m: any) => ({

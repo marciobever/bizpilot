@@ -31,6 +31,13 @@ import { AgentTour } from "./_components/AgentTour";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+type AgentCapabilities = {
+  dataRecords?: boolean;
+  affiliate?: boolean;
+  commerce?: boolean;
+  handoff?: boolean;
+};
+
 export default function AgentConfig() {
   const navigate = useRouter();
   const { id } = useParams();
@@ -42,6 +49,7 @@ export default function AgentConfig() {
 
   const [activeTab, setActiveTab] = useState("identity");
   const [agentType, setAgentType] = useState("atendimento");
+  const [capabilities, setCapabilities] = useState<AgentCapabilities>({});
   const [affiliateGroups, setAffiliateGroups] = useState<{ id: string; name: string }[]>([]);
   const [hasAffiliateIntegration, setHasAffiliateIntegration] = useState(false);
 
@@ -90,7 +98,18 @@ export default function AgentConfig() {
         if (cfg.voice_voice) form.setVoiceVoice(cfg.voice_voice);
         if (cfg.limitations && Array.isArray(cfg.limitations)) form.setLimitations(cfg.limitations);
         if (cfg.ignoreGroups !== undefined) form.setIgnoreGroups(cfg.ignoreGroups);
-        if (cfg.dataRecordsEnabled !== undefined) form.setDataRecordsEnabled(cfg.dataRecordsEnabled);
+        if (cfg.capabilities) {
+          setCapabilities(cfg.capabilities);
+        } else {
+          // Migração: derivar capabilities do tipo antigo
+          const t = data.type || "atendimento";
+          setCapabilities({
+            dataRecords: ["assistente", "financeiro"].includes(t) || !!cfg.dataRecordsEnabled,
+            affiliate:   ["afiliado", "afiliados"].includes(t),
+            commerce:    t === "atendimento",
+            handoff:     t === "atendimento",
+          });
+        }
         if (cfg.handoffContacts && Array.isArray(cfg.handoffContacts)) form.setHandoffContacts(cfg.handoffContacts);
         else if (cfg.handoffPhone) form.setHandoffContacts([{ name: "Atendente", phone: cfg.handoffPhone }]);
         if (cfg.blocklist && Array.isArray(cfg.blocklist)) form.setBlocklist(cfg.blocklist);
@@ -144,7 +163,7 @@ export default function AgentConfig() {
       voice_voice: form.voiceVoice,
       limitations: form.limitations,
       ignoreGroups: form.ignoreGroups,
-      dataRecordsEnabled: form.dataRecordsEnabled,
+      capabilities,
       handoffContacts: form.handoffContacts.map((c) => ({ name: c.name.trim(), phone: c.phone.replace(/\D/g, "") })).filter((c) => c.phone),
       handoffPhone: (form.handoffContacts[0]?.phone || "").replace(/\D/g, ""),
       blocklist: form.blocklist,
@@ -175,7 +194,7 @@ export default function AgentConfig() {
     try {
       const { data, error } = await supabase
         .from("agents")
-        .insert([{ user_id: user.id, name: form.agentName, type: "atendimento", system_prompt: form.systemPrompt, status: "offline", config: buildConfigData() }])
+        .insert([{ user_id: user.id, name: form.agentName, type: agentType, system_prompt: form.systemPrompt, status: "offline", config: buildConfigData() }])
         .select();
       if (error) throw error;
       if (data && data.length > 0) navigate.push(`/app/agents/${data[0].id}?setup=whatsapp`);
@@ -220,6 +239,8 @@ export default function AgentConfig() {
         agentName={form.agentName} setAgentName={form.setAgentName}
         niche={form.niche} setNiche={form.setNiche}
         role={form.role} setRole={form.setRole}
+        capabilities={capabilities} setCapabilities={setCapabilities}
+        setAgentType={setAgentType}
         saving={form.saving} onCreateAndContinue={handleCreateAndContinue}
       />
     );
@@ -240,7 +261,7 @@ export default function AgentConfig() {
   }
 
   const addonsLocked = form.userPlan === "basico";
-  const isAfiliados = agentType === "afiliados" || agentType === "afiliado" || hasAffiliateIntegration;
+  const isAfiliados = capabilities.affiliate || agentType === "afiliados" || agentType === "afiliado" || hasAffiliateIntegration;
   const tabs = [
     { id: "identity", label: "Identidade", icon: Bot },
     { id: "personality", label: "Personalidade", icon: Smile },
@@ -337,7 +358,6 @@ export default function AgentConfig() {
               voiceEnabled={form.voiceEnabled} setVoiceEnabled={form.setVoiceEnabled}
               voiceVoice={form.voiceVoice} setVoiceVoice={form.setVoiceVoice}
               onPlayVoicePreview={form.playVoicePreview}
-              dataRecordsEnabled={form.dataRecordsEnabled} setDataRecordsEnabled={form.setDataRecordsEnabled}
               tools={tools.tools} showToolsManager={tools.showToolsManager} setShowToolsManager={tools.setShowToolsManager}
               showToolForm={tools.showToolForm} setShowToolForm={tools.setShowToolForm}
               toolForm={tools.toolForm} setToolForm={tools.setToolForm}

@@ -1,5 +1,5 @@
 "use client";
-import { Volume2, Brain, Webhook, FileText, ChevronRight, Loader2, X, Plus, Puzzle } from "lucide-react";
+import { Volume2, Webhook, FileText, ChevronRight, Loader2, X, Plus, Puzzle } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/HelpTooltip";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -16,8 +16,6 @@ interface Props {
   voiceVoice: string;
   setVoiceVoice: (v: string) => void;
   onPlayVoicePreview: () => void;
-  dataRecordsEnabled: boolean;
-  setDataRecordsEnabled: (v: boolean) => void;
   // Tools
   tools: AgentTool[];
   showToolsManager: boolean;
@@ -53,7 +51,6 @@ interface Props {
 
 export function AddonsTab({
   userPlan, voiceEnabled, setVoiceEnabled, voiceVoice, setVoiceVoice, onPlayVoicePreview,
-  dataRecordsEnabled, setDataRecordsEnabled,
   tools, showToolsManager, setShowToolsManager, showToolForm, setShowToolForm,
   toolForm, setToolForm, toolParamKey, setToolParamKey, toolParamDesc, setToolParamDesc,
   toolHeaderKey, setToolHeaderKey, toolHeaderVal, setToolHeaderVal, onAddTool, onDeleteTool,
@@ -112,25 +109,6 @@ export function AddonsTab({
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer shrink-0">
                   <input type="checkbox" className="sr-only peer" checked={voiceEnabled} onChange={(e) => setVoiceEnabled(e.target.checked)} />
-                  <div className="w-11 h-6 bg-secondary rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500" />
-                </label>
-              </div>
-            </div>
-
-            <div className={`rounded-lg border p-3 transition-colors ${dataRecordsEnabled ? "border-brand-500/50 bg-brand-500/5" : "border-border bg-card"}`}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-2 min-w-0">
-                  <Brain className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm flex items-center gap-1.5">
-                      Memória de Dados
-                      <HelpTooltip text="O bot lembra de informações do cliente entre conversas — nome, preferências, histórico de pedidos. Assim ele nunca pergunta a mesma coisa duas vezes." />
-                    </p>
-                    <p className="text-xs text-muted-foreground">Guarda e consulta dados do cliente.</p>
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input type="checkbox" className="sr-only peer" checked={dataRecordsEnabled} onChange={(e) => setDataRecordsEnabled(e.target.checked)} />
                   <div className="w-11 h-6 bg-secondary rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500" />
                 </label>
               </div>

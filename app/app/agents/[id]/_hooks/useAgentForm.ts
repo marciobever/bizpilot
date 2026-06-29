@@ -28,7 +28,6 @@ export function useAgentForm(isNew: boolean) {
   const [newLimitation, setNewLimitation] = useState("");
   const [showTemplates, setShowTemplates] = useState(false);
   const [ignoreGroups, setIgnoreGroups] = useState(true);
-  const [dataRecordsEnabled, setDataRecordsEnabled] = useState(true);
   const [handoffContacts, setHandoffContacts] = useState<{ name: string; phone: string }[]>([]);
   const [blocklist, setBlocklist] = useState<string[]>([]);
   const [newBlock, setNewBlock] = useState("");
@@ -74,7 +73,6 @@ export function useAgentForm(isNew: boolean) {
     setLimitations(tpl.limitations);
     setRole(tpl.role);
     setTone(tpl.tone);
-    setDataRecordsEnabled(!!tpl.enableDataRecords);
     setGreeting("");
     setShowTemplates(false);
   };
@@ -176,7 +174,6 @@ ${limitations.map((l) => "- " + l).join("\n") || "- Nenhuma limitação definida
     newLimitation, setNewLimitation,
     showTemplates, setShowTemplates,
     ignoreGroups, setIgnoreGroups,
-    dataRecordsEnabled, setDataRecordsEnabled,
     handoffContacts, setHandoffContacts,
     blocklist, setBlocklist,
     newBlock, setNewBlock,
