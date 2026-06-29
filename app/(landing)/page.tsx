@@ -41,12 +41,12 @@ const LIVE_SCENARIOS: { messages: LiveMessage[]; action: string; badge: { icon: 
   },
   {
     messages: [
-      { from: "user", type: "text", text: "Quero fechar o plano Profissional" },
+      { from: "user", type: "text", text: "Quero fechar o plano Pro" },
       { from: "bot", type: "text", text: "Show! Aqui está o link de pagamento seguro:" },
-      { from: "bot", type: "payment", title: "Plano Profissional", amount: "R$ 79,99/mês" },
+      { from: "bot", type: "payment", title: "Plano Pro", amount: "R$ 79,90/mês" },
     ],
     action: "Pagamento Recebido",
-    badge: { icon: CreditCard, title: "Pagamento Recebido", subtitle: "Cliente assinou o plano Profissional." },
+    badge: { icon: CreditCard, title: "Pagamento Recebido", subtitle: "Cliente assinou o plano Pro." },
   },
   {
     messages: [

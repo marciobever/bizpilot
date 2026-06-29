@@ -5,65 +5,76 @@ import { Button } from "@/components/ui/Button";
 export default function Pricing() {
   const tiers = [
     {
-      name: "Básico",
+      name: "Starter",
       desc: "Ideal para começar a automatizar o atendimento com o essencial.",
-      price: "39,99",
+      price: "29,90",
       features: [
         "1 Agente Inteligente",
-        "Respostas em texto, ilimitadas",
-        "Personalidade, tom de voz e saudação",
-        "Repasse (Handoff) para atendimento humano",
-        "Base de Conhecimento (RAG)",
-        "WhatsApp via Evolution API (QR Code, grátis) ou Meta Oficial*"
+        "500 conversas/mês",
+        "50 documentos na base de conhecimento",
+        "Histórico de 30 dias",
+        "Todas as integrações inclusas",
+        "Repasse para atendimento humano",
+        "WhatsApp Evolution (QR Code) ou Meta Oficial",
       ],
-      cta: "Começar no Básico",
-      highlight: false
+      cta: "Começar no Starter",
+      highlight: false,
     },
     {
-      name: "Profissional",
-      desc: "Para quem quer humanizar o atendimento e automatizar tarefas.",
-      price: "79,99",
+      name: "Pro",
+      desc: "Para quem quer escalar o atendimento com múltiplos agentes.",
+      price: "79,90",
       features: [
-        "Tudo do plano Básico",
-        "Respostas em Áudio (Voz Inteligente / TTS)",
-        "Memória de Dados (registros do cliente)",
-        "Ações e APIs (Tools/Webhooks)",
-        "Até 3 Agentes Inteligentes"
+        "3 Agentes Inteligentes",
+        "3.000 conversas/mês",
+        "200 documentos na base de conhecimento",
+        "Histórico de 90 dias",
+        "Todas as integrações inclusas",
+        "Suporte prioritário",
       ],
-      cta: "Assinar o Profissional",
-      highlight: true
+      cta: "Assinar o Pro",
+      highlight: true,
     },
     {
-      name: "Avançado",
-      desc: "Para operações maiores, com múltiplos agentes e canais.",
-      price: "119,99",
+      name: "Business",
+      desc: "Para operações maiores com agentes e conversas ilimitados.",
+      price: "149,00",
       features: [
-        "Tudo do plano Profissional",
         "Agentes Inteligentes ilimitados",
-        "Múltiplos canais por agente",
-        "Suporte prioritário"
+        "Conversas ilimitadas",
+        "Documentos ilimitados",
+        "Histórico de 1 ano",
+        "Todas as integrações inclusas",
+        "Suporte dedicado",
       ],
-      cta: "Assinar o Avançado",
-      highlight: false
-    }
+      cta: "Assinar o Business",
+      highlight: false,
+    },
+  ];
+
+  const extras = [
+    { name: "Bot Adicional", price: "19,90", desc: "Adicione um agente a mais além do seu plano." },
+    { name: "Campanhas Extras", price: "29,90", desc: "+1.000 disparos/mês para campanhas em massa." },
+    { name: "Voz Inteligente", price: "39,90", desc: "Respostas em áudio com TTS de alta qualidade." },
+    { name: "Número WhatsApp", price: "49,90", desc: "Número virtual dedicado conectado à nossa infra." },
   ];
 
   return (
     <div className="w-full max-w-7xl mx-auto px-6 py-24 md:py-32">
       <div className="text-center max-w-3xl mx-auto mb-20">
-         <h2 className="text-4xl font-bold tracking-tight mb-4">Investimento escalável.</h2>
-         <p className="text-xl text-muted-foreground">
-           Comece grátis, assine um plano quando houver volume. Sem surpresas ou faturamento confuso.
-         </p>
+        <h2 className="text-4xl font-bold tracking-tight mb-4">Investimento escalável.</h2>
+        <p className="text-xl text-muted-foreground">
+          Comece grátis, assine um plano quando houver volume. Sem surpresas ou faturamento confuso.
+        </p>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8 items-center max-w-6xl mx-auto">
         {tiers.map((tier) => (
-          <div 
-            key={tier.name} 
+          <div
+            key={tier.name}
             className={`rounded-3xl p-8 ${
-              tier.highlight 
-                ? "bg-gradient-to-b from-brand-500/10 to-transparent border border-brand-500/50 relative shadow-2xl shadow-brand-500/10 scale-105" 
+              tier.highlight
+                ? "bg-gradient-to-b from-brand-500/10 to-transparent border border-brand-500/50 relative shadow-2xl shadow-brand-500/10 scale-105"
                 : "bg-card border border-border"
             }`}
           >
@@ -74,19 +85,16 @@ export default function Pricing() {
             )}
             <h3 className="text-2xl font-bold mb-2">{tier.name}</h3>
             <p className="text-sm text-muted-foreground mb-6 h-10">{tier.desc}</p>
-            
+
             <div className="mb-8">
-              <span className="text-4xl font-bold font-sans">
-                {tier.price !== "Personalizado" && "R$"}
-                {tier.price}
-              </span>
-              {tier.price !== "Personalizado" && <span className="text-muted-foreground">/mês</span>}
+              <span className="text-4xl font-bold font-sans">R$ {tier.price}</span>
+              <span className="text-muted-foreground">/mês</span>
             </div>
 
-            <Button 
-               asChild 
-               className={`w-full h-12 mb-8 ${tier.highlight ? "bg-brand-500 hover:bg-brand-600 text-white" : ""}`}
-               variant={tier.highlight ? "default" : "outline"}
+            <Button
+              asChild
+              className={`w-full h-12 mb-8 ${tier.highlight ? "bg-brand-500 hover:bg-brand-600 text-white" : ""}`}
+              variant={tier.highlight ? "default" : "outline"}
             >
               <Link href="/app">{tier.cta}</Link>
             </Button>
@@ -105,17 +113,27 @@ export default function Pricing() {
         ))}
       </div>
 
-      <div className="mt-16 text-center max-w-2xl mx-auto p-6 rounded-2xl bg-secondary/30 border border-border">
-        <h4 className="text-lg font-medium mb-2">Precisa de um número de telefone no formato local?</h4>
-        <p className="text-muted-foreground text-sm">
-          Oferecemos aluguel de números virtuais dedicados conectados diretamente à nossa infraestrutura por apenas <strong className="text-foreground">R$ 29/mês</strong> por número (Add-on disponível em qualquer plano).
-        </p>
+      {/* Extras */}
+      <div className="mt-24">
+        <div className="text-center mb-12">
+          <h3 className="text-2xl font-bold mb-2">Complementos disponíveis</h3>
+          <p className="text-muted-foreground">Adicione recursos extras em qualquer plano, conforme sua necessidade.</p>
+        </div>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto">
+          {extras.map((extra) => (
+            <div key={extra.name} className="rounded-2xl border border-border bg-card p-5">
+              <div className="text-sm font-semibold mb-1">{extra.name}</div>
+              <div className="text-2xl font-bold mb-2">R$ {extra.price}<span className="text-sm font-normal text-muted-foreground">/mês</span></div>
+              <p className="text-xs text-muted-foreground">{extra.desc}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <p className="mt-6 text-center text-xs text-muted-foreground max-w-2xl mx-auto">
+      <p className="mt-10 text-center text-xs text-muted-foreground max-w-2xl mx-auto">
         *O WhatsApp Oficial (Meta Cloud API) está disponível em qualquer plano. A Meta cobra por mensagem/conversa
         enviada fora da janela gratuita de 24h — esse custo é cobrado diretamente na sua conta Meta Business, à parte da assinatura.
       </p>
     </div>
-  )
+  );
 }
