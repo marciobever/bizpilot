@@ -1230,7 +1230,7 @@ export async function main(
 
   // ── Memória de dados estruturados (registros livres por categoria) ───────
 
-  const hasDataRecords = !!config.dataRecordsEnabled;
+  const hasDataRecords = config.dataRecordsEnabled !== false; // ativo por padrão
 
   // ── Banco de dados externo do usuário (Supabase ou Firebase próprios) ────
 

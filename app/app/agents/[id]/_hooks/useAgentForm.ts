@@ -28,7 +28,7 @@ export function useAgentForm(isNew: boolean) {
   const [newLimitation, setNewLimitation] = useState("");
   const [showTemplates, setShowTemplates] = useState(false);
   const [ignoreGroups, setIgnoreGroups] = useState(true);
-  const [dataRecordsEnabled, setDataRecordsEnabled] = useState(false);
+  const [dataRecordsEnabled, setDataRecordsEnabled] = useState(true);
   const [handoffContacts, setHandoffContacts] = useState<{ name: string; phone: string }[]>([]);
   const [blocklist, setBlocklist] = useState<string[]>([]);
   const [newBlock, setNewBlock] = useState("");
