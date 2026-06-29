@@ -254,6 +254,9 @@ export default function AgentConfig() {
         role={form.role} setRole={form.setRole}
         capabilities={capabilities} setCapabilities={setCapabilities}
         setAgentType={setAgentType}
+        setTone={form.setTone}
+        setSystemPrompt={form.setSystemPrompt}
+        setLimitations={form.setLimitations}
         saving={form.saving} onCreateAndContinue={handleCreateAndContinue}
       />
     );
