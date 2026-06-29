@@ -11,7 +11,7 @@ import { SECTIONS, FAQ_ITEMS, CATEGORIES, VIDEO_ITEMS } from "./_data/helpData";
 import { VideoCard, QuickStep } from "./_components/HelpComponents";
 
 const QUICK_STEPS = [
-  { n: 1, icon: Bot, title: "Criar o Agente", description: "Use o Assistente de Criação para configurar personalidade, tom e funções em minutos.", href: "/app/agents/wizard" },
+  { n: 1, icon: Bot, title: "Criar o Agente", description: "Use o Assistente de Criação para configurar personalidade, tom e funções em minutos.", href: "/app/agents/new" },
   { n: 2, icon: Smartphone, title: "Conectar o WhatsApp", description: "Escaneie o QR Code na aba Canais e veja o agente ficar online em segundos.", href: undefined },
   { n: 3, icon: Brain, title: "Ensinar o Agente", description: "Adicione preços, FAQs e políticas na Base de Conhecimento — o agente passa a responder com precisão.", href: undefined },
   { n: 4, icon: Zap, title: "Testar e Publicar", description: "Mande uma mensagem de teste e ajuste o que precisar antes de divulgar o número.", href: undefined },
@@ -125,7 +125,7 @@ export default function HelpPage() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold">Começando do zero</h3>
-              <Link href="/app/agents/wizard" className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1 transition-colors">
+              <Link href="/app/agents/new" className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1 transition-colors">
                 Criar agente agora <ArrowRight className="h-3 w-3" />
               </Link>
             </div>
