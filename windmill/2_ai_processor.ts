@@ -1274,7 +1274,20 @@ export async function main(
     .order('created_at', { ascending: false }).limit(20);
 
   const cleanHistory = (history || []).reverse()
-    .filter((m: any) => !m.content.startsWith('[ERRO'));
+    .filter((m: any) => {
+      const c: string = m.content || '';
+      // Remove mensagens internas que poluem o contexto da IA
+      if (c.startsWith('[ERRO')) return false;
+      if (c.startsWith('[Ação de afiliado:')) return false;
+      if (c.startsWith('Produtos enviados')) return false;
+      return true;
+    })
+    // Remove a última mensagem se for a atual (evita duplicação — ela foi inserida
+    // no DB antes do fetch e apareceria 2x no array enviado ao OpenAI)
+    .filter((m: any, _i: number, arr: any[]) => {
+      const isLast = m === arr[arr.length - 1];
+      return !(isLast && m.sender_type === 'lead' && m.content === incomingMessage);
+    });
 
   // ── Limitações / saudação ─────────────────────────────────────────────────
 

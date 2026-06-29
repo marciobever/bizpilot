@@ -43,6 +43,7 @@ export default function AgentConfig() {
   const [activeTab, setActiveTab] = useState("identity");
   const [agentType, setAgentType] = useState("atendimento");
   const [affiliateGroups, setAffiliateGroups] = useState<{ id: string; name: string }[]>([]);
+  const [hasAffiliateIntegration, setHasAffiliateIntegration] = useState(false);
 
   // ── Hooks ─────────────────────────────────────────────────────────────────
   const form = useAgentForm(isNew);
@@ -104,6 +105,10 @@ export default function AgentConfig() {
         if (cfg.tools && Array.isArray(cfg.tools)) tools.setTools(cfg.tools);
         if (cfg.mediaFiles && Array.isArray(cfg.mediaFiles)) media.setMediaFiles(cfg.mediaFiles);
         if (cfg.affiliateGroups && Array.isArray(cfg.affiliateGroups)) setAffiliateGroups(cfg.affiliateGroups);
+        // Verifica se o add-on de afiliados está ativo para este usuário
+        const { data: affInt } = await supabase.from("integrations")
+          .select("status").eq("user_id", data.user_id).eq("provider", "affiliate").maybeSingle();
+        setHasAffiliateIntegration(affInt?.status === "connected");
         if (cfg.whatsapp) {
           const wa = cfg.whatsapp;
           if (wa.provider === "meta" || wa.provider === "evolution") waChannel.setWhatsappProvider(wa.provider);
@@ -235,7 +240,7 @@ export default function AgentConfig() {
   }
 
   const addonsLocked = form.userPlan === "basico";
-  const isAfiliados = agentType === "afiliados" || agentType === "afiliado";
+  const isAfiliados = agentType === "afiliados" || agentType === "afiliado" || hasAffiliateIntegration;
   const tabs = [
     { id: "identity", label: "Identidade", icon: Bot },
     { id: "personality", label: "Personalidade", icon: Smile },
