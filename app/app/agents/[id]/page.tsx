@@ -105,16 +105,13 @@ export default function AgentConfig() {
         setHasAffiliateIntegration(isAffiliateConnected);
 
         if (cfg.capabilities) {
-          // Se integração está conectada mas capabilities.affiliate está false, corrige
-          const caps = { ...cfg.capabilities };
-          if (isAffiliateConnected && !caps.affiliate) caps.affiliate = true;
-          setCapabilities(caps);
+          setCapabilities(cfg.capabilities);
         } else {
-          // Migração: derivar capabilities do tipo antigo
+          // Migração: derivar capabilities do tipo antigo — affiliate só se o tipo for afiliado
           const t = data.type || "atendimento";
           setCapabilities({
             dataRecords: ["assistente", "financeiro"].includes(t) || !!cfg.dataRecordsEnabled,
-            affiliate:   ["afiliado", "afiliados"].includes(t) || isAffiliateConnected,
+            affiliate:   ["afiliado", "afiliados"].includes(t),
             commerce:    t === "atendimento",
             handoff:     t === "atendimento",
           });
@@ -277,7 +274,7 @@ export default function AgentConfig() {
   }
 
   const addonsLocked = form.userPlan === "basico";
-  const isAfiliados = capabilities.affiliate || agentType === "afiliados" || agentType === "afiliado" || hasAffiliateIntegration;
+  const isAfiliados = !!capabilities.affiliate || agentType === "afiliados" || agentType === "afiliado";
   const tabs = [
     { id: "identity", label: "Identidade", icon: Bot },
     { id: "personality", label: "Personalidade", icon: Smile },
