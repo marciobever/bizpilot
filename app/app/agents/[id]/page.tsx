@@ -131,6 +131,9 @@ export default function AgentConfig() {
         if (cfg.whatsapp) {
           const wa = cfg.whatsapp;
           if (wa.provider === "meta" || wa.provider === "evolution") waChannel.setWhatsappProvider(wa.provider);
+          if (wa.instanceToken) waChannel.setInstanceToken(wa.instanceToken);
+          if (wa.instanceId) waChannel.setInstanceId(wa.instanceId);
+          if (wa.instanceName) waChannel.setInstanceNameSaved(wa.instanceName);
           if (wa.meta) {
             if (wa.meta.phoneNumberId) waChannel.setMetaPhoneNumberId(wa.meta.phoneNumberId);
             if (wa.meta.accessToken) waChannel.setMetaAccessToken(wa.meta.accessToken);
@@ -174,6 +177,11 @@ export default function AgentConfig() {
       affiliateGroups,
       whatsapp: {
         provider: waChannel.whatsappProvider,
+        ...(waChannel.instanceToken && {
+          instanceToken: waChannel.instanceToken,
+          instanceId: waChannel.instanceId,
+          instanceName: waChannel.instanceNameSaved,
+        }),
         meta: {
           phoneNumberId: waChannel.metaPhoneNumberId.trim(),
           accessToken: waChannel.metaAccessToken.trim(),

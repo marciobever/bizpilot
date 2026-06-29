@@ -12,6 +12,9 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
   const [metaTesting, setMetaTesting] = useState(false);
   const [metaTestMsg, setMetaTestMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [metaCostAck, setMetaCostAck] = useState(false);
+  const [instanceToken, setInstanceToken] = useState("");
+  const [instanceId, setInstanceId] = useState("");
+  const [instanceNameSaved, setInstanceNameSaved] = useState("");
   const [webhookOrigin, setWebhookOrigin] = useState("");
   const [showInstanceModal, setShowInstanceModal] = useState(false);
   const [customInstanceName, setCustomInstanceName] = useState("");
@@ -256,6 +259,9 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
     metaTesting,
     metaTestMsg, setMetaTestMsg,
     metaCostAck, setMetaCostAck,
+    instanceToken, setInstanceToken,
+    instanceId, setInstanceId,
+    instanceNameSaved, setInstanceNameSaved,
     webhookOrigin,
     webhookUrl,
     showInstanceModal, setShowInstanceModal,
