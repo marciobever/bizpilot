@@ -64,10 +64,12 @@ export async function GET(req: Request) {
     }
 
     const data = await res.json();
-    const groups = (data.groups || []).map((g: any) => ({
+    // evolution-go retorna { data: [...], message: "success" }
+    const raw: any[] = data.data || data.groups || [];
+    const groups = raw.map((g: any) => ({
       id: g.JID || g.jid || '',
       name: g.Name || g.name || g.Subject || g.subject || g.JID || '',
-      participants: g.ParticipantCount || 0,
+      participants: g.ParticipantCount || g.participantCount || 0,
     })).filter((g: any) => g.id && g.id.includes('@g.us'));
 
     return NextResponse.json({ groups });
