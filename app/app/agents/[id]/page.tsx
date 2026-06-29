@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { normalizePlan, PLAN_LIMITS } from "@/lib/plans";
 // Hooks
 import { useAgentForm } from "./_hooks/useAgentForm";
 import { useWhatsappChannel } from "./_hooks/useWhatsappChannel";
@@ -421,6 +422,7 @@ export default function AgentConfig() {
               sitemapForm={knowledge.sitemapForm} setSitemapForm={knowledge.setSitemapForm}
               importingSitemap={knowledge.importingSitemap} sitemapResult={knowledge.sitemapResult}
               onAddKnowledge={knowledge.handleAddKnowledge}
+              kbLimit={PLAN_LIMITS[normalizePlan(form.userPlan)].kbDocs}
               onImportSitemap={knowledge.handleImportSitemap}
               onDeleteKnowledge={knowledge.handleDeleteKnowledge}
             />

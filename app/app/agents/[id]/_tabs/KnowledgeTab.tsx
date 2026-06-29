@@ -24,14 +24,19 @@ interface Props {
   onAddKnowledge: () => void;
   onImportSitemap: () => void;
   onDeleteKnowledge: (id: string) => void;
+  kbLimit?: number;
 }
 
 export function KnowledgeTab({
   isNew, knowledgeEntries, loadingKnowledge, addingKnowledge,
   showKnowledgeForm, setShowKnowledgeForm, knowledgeForm, setKnowledgeForm,
   sitemapForm, setSitemapForm, importingSitemap, sitemapResult,
-  onAddKnowledge, onImportSitemap, onDeleteKnowledge,
+  onAddKnowledge, onImportSitemap, onDeleteKnowledge, kbLimit,
 }: Props) {
+  const count = knowledgeEntries.length;
+  const atLimit = kbLimit !== undefined && kbLimit !== -1 && count >= kbLimit;
+  const pct = kbLimit && kbLimit > 0 ? Math.min((count / kbLimit) * 100, 100) : 0;
+
   return (
     <Card>
       <CardHeader>
@@ -42,10 +47,26 @@ export function KnowledgeTab({
               <HelpTooltip text="Tudo que você adicionar aqui o bot vai saber de cor — preços, serviços, FAQ, políticas. Quanto mais detalhe, melhores as respostas." />
             </CardTitle>
             <CardDescription>Adicione textos ou URLs. O bot busca automaticamente quando precisar responder sobre o seu negócio.</CardDescription>
+            {kbLimit !== undefined && kbLimit !== -1 && (
+              <div className="mt-2 space-y-1">
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{count} de {kbLimit} documentos usados</span>
+                  {atLimit && <span className="text-amber-500 font-medium">Limite atingido</span>}
+                </div>
+                <div className="h-1.5 w-full rounded-full bg-secondary overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-amber-500" : pct >= 80 ? "bg-yellow-500" : "bg-brand-500"}`} style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            )}
           </div>
-          {!isNew && (
+          {!isNew && !atLimit && (
             <Button size="sm" className="gap-2 shrink-0" onClick={() => setShowKnowledgeForm(!showKnowledgeForm)}>
               <Plus className="h-4 w-4" /> Adicionar
+            </Button>
+          )}
+          {!isNew && atLimit && (
+            <Button size="sm" variant="outline" className="gap-2 shrink-0 text-amber-500 border-amber-500/50" asChild>
+              <a href="/app/settings?tab=plano">Fazer upgrade</a>
             </Button>
           )}
         </div>

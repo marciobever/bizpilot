@@ -1,11 +1,14 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useTypewriter, type ChatMsg } from "./_hooks/useTypewriter";
 import { useWizardFlow, STAGES } from "./_hooks/useWizardFlow";
 import { StagePanel } from "./_components/StagePanel";
+import { supabase } from "@/lib/supabase";
+import { normalizePlan, PLAN_LIMITS } from "@/lib/plans";
 
 const INTRO_TEXT =
   "Oi! Sou o assistente do BizPilot.\nVamos configurar o seu agente em poucos passos.\n\nPrimeiro: qual é o tipo do seu negócio?";
@@ -20,6 +23,7 @@ const CREATION_LINES = [
 ];
 
 export default function AgentWizard() {
+  const router = useRouter();
   const [messages, setMessages] = useState<ChatMsg[]>([
     { id: "intro", role: "bot", text: INTRO_TEXT },
   ]);
@@ -27,6 +31,23 @@ export default function AgentWizard() {
   const [creationStep, setCreationStep] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const tw = useTypewriter();
+
+  // Gate: redireciona para /app/agents se o usuário atingiu o limite de bots
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      const [{ data: profile }, { data: agentRows }] = await Promise.all([
+        supabase.from("profiles").select("plan").eq("id", user.id).single(),
+        supabase.from("agents").select("id"),
+      ]);
+      const plan = normalizePlan(profile?.plan);
+      const limit = PLAN_LIMITS[plan].bots;
+      if (limit !== -1 && (agentRows?.length ?? 0) >= limit) {
+        router.replace("/app/agents");
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => { tw.messagesRef.current = messages; }, [messages]);
 

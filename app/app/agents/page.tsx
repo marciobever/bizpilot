@@ -1,24 +1,29 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import Link from 'next/link';
-import { Plus, MoreHorizontal, MessageSquare, Settings2, Trash2, Bot, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, Settings2, Trash2, Bot, Loader2, Zap } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { normalizePlan, PLAN_LIMITS, PLAN_LABEL } from "@/lib/plans";
 import type { Agent } from "@/types/database";
 
 export default function Agents() {
   const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Modal State
+  const [plan, setPlan] = useState<string>("starter");
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
+  const [showLimitModal, setShowLimitModal] = useState(false);
 
   useEffect(() => {
     if (user) {
       fetchAgents();
+      supabase.from("profiles").select("plan").eq("id", user.id).single()
+        .then(({ data }) => { if (data?.plan) setPlan(data.plan); });
     } else if (!authLoading) {
       setLoading(false);
     }
@@ -28,10 +33,7 @@ export default function Agents() {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('agents')
-        .select('*')
-        .order('created_at', { ascending: false });
-        
+        .from('agents').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       setAgents(data || []);
     } catch (error) {
@@ -39,6 +41,15 @@ export default function Agents() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const normalizedPlan = normalizePlan(plan);
+  const botLimit = PLAN_LIMITS[normalizedPlan].bots;
+  const atBotLimit = botLimit !== -1 && agents.length >= botLimit;
+
+  const handleNewAgent = () => {
+    if (atBotLimit) { setShowLimitModal(true); return; }
+    router.push("/app/agents/wizard");
   };
 
   const handleToggleStatus = async (agent: Agent) => {
@@ -54,14 +65,7 @@ export default function Agents() {
 
   const handleDeleteAgent = async (id: string) => {
     try {
-      // Remove a instância Evolution junto com o agente (best-effort: a rota
-      // resolve o sufixo custom e ignora agentes Meta/sem instância). Se falhar,
-      // ainda apagamos o agente — só registramos para não deixar instância órfã.
-      try {
-        await fetch(`/api/evolution/instances/agent_${id}`, { method: 'DELETE' });
-      } catch (e) {
-        console.error('Falha ao remover instância Evolution do agente:', e);
-      }
+      try { await fetch(`/api/evolution/instances/agent_${id}`, { method: 'DELETE' }); } catch {}
       const { error } = await supabase.from('agents').delete().eq('id', id);
       if (error) throw error;
       setAgents(agents.filter(a => a.id !== id));
@@ -73,17 +77,23 @@ export default function Agents() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Meus Agentes</h2>
           <p className="text-muted-foreground">Crie e gerencie sua equipe de inteligência artificial.</p>
         </div>
-        <Button asChild className="bg-brand-500 hover:bg-brand-600 text-white gap-2">
-          <Link href="/app/agents/wizard">
-            <Plus className="h-4 w-4" />
-            Novo Agente
-          </Link>
-        </Button>
+        <div className="flex items-center gap-3">
+          {!loading && (
+            <div className="text-sm text-muted-foreground">
+              {botLimit === -1
+                ? <span className="text-emerald-500 font-medium">{agents.length} agentes (ilimitado)</span>
+                : <span className={agents.length >= botLimit ? "text-amber-500 font-medium" : ""}>{agents.length} / {botLimit} agentes</span>}
+            </div>
+          )}
+          <Button onClick={handleNewAgent} className="bg-brand-500 hover:bg-brand-600 text-white gap-2">
+            <Plus className="h-4 w-4" /> Novo Agente
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-xl border border-border bg-card">
@@ -100,10 +110,8 @@ export default function Agents() {
             <p className="text-sm text-muted-foreground max-w-sm mt-1 mb-6">
               Você ainda não criou nenhuma inteligência artificial. Crie seu primeiro agente para começar a automatizar seu atendimento.
             </p>
-            <Button asChild variant="outline">
-              <Link href="/app/agents/wizard">
-                <Plus className="mr-2 h-4 w-4" /> Criar Primeiro Agente
-              </Link>
+            <Button onClick={handleNewAgent} variant="outline">
+              <Plus className="mr-2 h-4 w-4" /> Criar Primeiro Agente
             </Button>
           </div>
         ) : (
@@ -128,12 +136,7 @@ export default function Agents() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <label className="relative inline-flex items-center cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="sr-only peer"
-                            checked={agent.status === 'online'}
-                            onChange={() => handleToggleStatus(agent)}
-                          />
+                          <input type="checkbox" className="sr-only peer" checked={agent.status === 'online'} onChange={() => handleToggleStatus(agent)} />
                           <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
                         </label>
                         <Badge variant={agent.status === 'online' ? 'success' : agent.status === 'paused' ? 'warning' : 'secondary'} className="border-0">
@@ -144,16 +147,9 @@ export default function Agents() {
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Button variant="ghost" size="sm" asChild className="h-8 px-2 text-muted-foreground hover:text-foreground">
-                          <Link href={`/app/agents/${agent.id}`}>
-                            <Settings2 className="h-4 w-4" />
-                          </Link>
+                          <Link href={`/app/agents/${agent.id}`}><Settings2 className="h-4 w-4" /></Link>
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => setShowDeleteModal(agent.id)}
-                          className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => setShowDeleteModal(agent.id)} className="h-8 w-8 text-muted-foreground hover:text-red-500 hover:bg-red-500/10">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -166,17 +162,39 @@ export default function Agents() {
         )}
       </div>
 
+      {/* Modal: limite de bots atingido */}
+      {showLimitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
+          <div className="bg-card w-full max-w-sm rounded-2xl border border-border shadow-2xl p-6">
+            <div className="h-10 w-10 rounded-full bg-amber-500/10 flex items-center justify-center mb-4">
+              <Zap className="h-5 w-5 text-amber-500" />
+            </div>
+            <h3 className="text-lg font-bold mb-1">Limite de agentes atingido</h3>
+            <p className="text-sm text-muted-foreground mb-1">
+              Seu plano <span className="font-semibold text-foreground">{PLAN_LABEL[normalizedPlan]}</span> permite até <span className="font-semibold text-foreground">{botLimit} agente{botLimit > 1 ? 's' : ''}</span>.
+            </p>
+            <p className="text-sm text-muted-foreground mb-6">
+              Faça upgrade de plano ou adicione um Bot Extra para continuar criando agentes.
+            </p>
+            <div className="flex flex-col gap-2">
+              <Button className="bg-brand-500 hover:bg-brand-600 text-white" onClick={() => { setShowLimitModal(false); router.push("/app/settings?tab=plano"); }}>
+                Ver planos e extras
+              </Button>
+              <Button variant="outline" onClick={() => setShowLimitModal(false)}>Cancelar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: confirmar exclusão */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
           <div className="bg-card w-full max-w-sm rounded-2xl border border-border shadow-2xl p-6">
             <h3 className="text-lg font-bold mb-1 text-destructive">Excluir Agente</h3>
             <p className="text-sm text-muted-foreground mb-6">Esta ação é irreversível. O agente e todo o seu histórico serão removidos.</p>
-            
             <div className="flex justify-end gap-3">
               <Button type="button" variant="outline" onClick={() => setShowDeleteModal(null)}>Cancelar</Button>
-              <Button type="button" variant="destructive" onClick={() => showDeleteModal && handleDeleteAgent(showDeleteModal)}>
-                Excluir
-              </Button>
+              <Button type="button" variant="destructive" onClick={() => showDeleteModal && handleDeleteAgent(showDeleteModal)}>Excluir</Button>
             </div>
           </div>
         </div>
