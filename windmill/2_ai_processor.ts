@@ -301,7 +301,6 @@ function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boole
           type: 'object',
           properties: {
             termo: { type: 'string', description: 'O que buscar (ex: "air fryer", "facas de cozinha").' },
-            quantidade: { type: 'number', description: 'Quantos produtos retornar (1 a 5). Padrão 5.' },
           },
           required: ['termo'],
         },
@@ -624,33 +623,45 @@ async function sendAffiliateCardsFallback(products: ShopeeProduct[], evoUrl: str
     const caption = `${nums[i] ?? `${i + 1}.`} *${p.productName}*\n💰 ${p.priceLabel}${fmtCommission(p.commissionRate)}\n🔗 ${link}`;
     try {
       if (p.imageUrl) {
-        await fetch(`${evoUrl}/send/media`, { method: 'POST', headers,
+        const mediaRes = await fetch(`${evoUrl}/send/media`, { method: 'POST', headers,
           body: JSON.stringify({ number: jid, type: 'image', url: p.imageUrl, caption, delay: 500 }) });
+        if (!mediaRes.ok) throw new Error(`media ${mediaRes.status}`);
       } else {
         await fetch(`${evoUrl}/send/text`, { method: 'POST', headers,
           body: JSON.stringify({ number: jid, text: caption, linkPreview: false, delay: 500 }) });
       }
-      if (hasGroups) {
+    } catch (e: any) {
+      // Fallback: imagem falhou, envia só o texto
+      console.error('sendAffiliateCardsFallback image:', e?.message);
+      try {
+        await fetch(`${evoUrl}/send/text`, { method: 'POST', headers,
+          body: JSON.stringify({ number: jid, text: caption, linkPreview: false, delay: 300 }) });
+      } catch {}
+    }
+
+    if (hasGroups) {
+      try {
         await fetch(`${evoUrl}/send/button`, { method: 'POST', headers,
           body: JSON.stringify({
             number: jid, title: '', description: p.productName.slice(0, 50), footer: '',
             buttons: [{ id: `pub_${i}`, displayText: '📢 Publicar em Grupos', type: 'reply' }],
             delay: 200,
           }) });
+      } catch (e: any) {
+        console.error('sendAffiliateCardsFallback button:', e?.message);
       }
-    } catch (e: any) {
-      console.error('sendAffiliateCardsFallback:', e?.message);
     }
   }
 
-  // Fallback sem grupos: menu numerado para o usuário escolher qual divulgar
-  if (!hasGroups) {
-    const lines = products.map((p, i) => `${nums[i] ?? `${i + 1}.`} ${p.productName.slice(0, 45)}`);
-    try {
-      await fetch(`${evoUrl}/send/text`, { method: 'POST', headers,
-        body: JSON.stringify({ number: jid, text: `*Qual você quer publicar?* 👇\n\n${lines.join('\n')}\n\nResponda com o número e monto o post na hora! 🚀`, linkPreview: false, delay: 800 }) });
-    } catch (e: any) { console.error('sendAffiliateMenu:', e?.message); }
-  }
+  // Mensagem final sempre enviada — garante que o usuário sabe o que fazer
+  const lines = products.map((p, i) => `${nums[i] ?? `${i + 1}.`} ${p.productName.slice(0, 45)}`);
+  const finalText = hasGroups
+    ? `*Qual você quer publicar no grupo?* 👇\n\n${lines.join('\n')}\n\nToque em 📢 *Publicar em Grupos* no produto acima, ou me diga o número! 🚀`
+    : `*Qual você quer publicar?* 👇\n\n${lines.join('\n')}\n\nResponda com o número e monto o post na hora! 🚀`;
+  try {
+    await fetch(`${evoUrl}/send/text`, { method: 'POST', headers,
+      body: JSON.stringify({ number: jid, text: finalText, linkPreview: false, delay: 800 }) });
+  } catch (e: any) { console.error('sendAffiliateMenu:', e?.message); }
 }
 
 async function generatePaymentLink(args: any, agentId: string, appBaseUrl: string, sideEffects: { imageUrl?: string }): Promise<string> {
@@ -940,7 +951,7 @@ async function executeTool(
     const creds = config.affiliateShopee || {};
     const termo = String(args.termo || '');
     const subIds = [agentId, 'whatsapp'].filter(Boolean);
-    const { ok, products, error } = await searchShopeeProducts(termo, Number(args.quantidade) || 5, subIds, creds.app_id, creds.secret);
+    const { ok, products, error } = await searchShopeeProducts(termo, 5, subIds, creds.app_id, creds.secret);
     if (!ok) return error || 'Não consegui buscar agora.';
     if (!products.length) return `Nenhum produto encontrado para "${termo}". Sugira ao cliente tentar um termo diferente.`;
 
