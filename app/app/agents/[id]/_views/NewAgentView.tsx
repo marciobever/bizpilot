@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ArrowLeft, ChevronLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, ChevronLeft, Loader2, ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -45,13 +45,17 @@ export function NewAgentView({
   const navigate = useRouter();
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedTypeId, setSelectedTypeId]   = useState<string | null>(null);
+  const [outroDraft, setOutroDraft]           = useState("");
+  const [outroConfirmed, setOutroConfirmed]   = useState(false);
 
   const isPersonalizado = selectedGroupId === "personalizado";
-  const hasSelection = selectedTypeId !== null || (isPersonalizado && Object.keys(capabilities).length > 0);
+  const isOutroSelected = selectedTypeId === "outro";
 
   const handleSelectGroup = (groupId: string) => {
     setSelectedGroupId(groupId);
     setSelectedTypeId(null);
+    setOutroDraft("");
+    setOutroConfirmed(false);
     if (groupId === "personalizado") {
       setAgentType("personalizado");
       setCapabilities({ dataRecords: false, affiliate: false, commerce: false, handoff: false });
@@ -59,6 +63,11 @@ export function NewAgentView({
   };
 
   const handleSelectType = (typeId: string) => {
+    if (typeId === "outro") {
+      setSelectedTypeId("outro");
+      setOutroConfirmed(false);
+      return;
+    }
     const t = findBusinessType(typeId);
     if (!t) return;
     setSelectedTypeId(typeId);
@@ -71,10 +80,25 @@ export function NewAgentView({
     setLimitations?.(t.limitations);
   };
 
+  const handleConfirmOutro = () => {
+    const texto = outroDraft.trim();
+    if (!texto) return;
+    setNiche(texto);
+    setRole("Atendente Virtual");
+    setAgentType("atendimento");
+    setCapabilities({ commerce: true, handoff: true });
+    setTone?.("Simpático e Prestativo");
+    setSystemPrompt?.(`Você é um atendente virtual de ${texto}. Seja simpático, objetivo e prestativo.\n\nVocê pode: responder dúvidas, apresentar serviços e produtos, processar agendamentos e pagamentos, encaminhar para a equipe quando necessário.\n\n=== SOBRE O NEGÓCIO ===\n(Preencha: serviços, preços, horários, localização e diferenciais.)`);
+    setLimitations?.(["Confirmar informações antes de finalizar qualquer solicitação", "Nunca inventar preços ou prazos não fornecidos", "Encaminhar reclamações para o responsável"]);
+    setOutroConfirmed(true);
+  };
+
   const toggleCap = (key: keyof AgentCapabilities) =>
     setCapabilities({ ...capabilities, [key]: !capabilities[key] });
 
   const activeGroup = BUSINESS_GROUPS.find((g) => g.id === selectedGroupId);
+  const typeIsReady = selectedTypeId !== null && selectedTypeId !== "outro"
+    || (isOutroSelected && outroConfirmed);
 
   // ── Step 2: tipos dentro de um grupo ──────────────────────────────────────
   if (selectedGroupId && !isPersonalizado) {
@@ -115,12 +139,30 @@ export function NewAgentView({
                       : "border-border bg-card hover:border-brand-500/40"
                   }`}
                 >
-                  <p className="font-medium text-sm">{type.label}</p>
+                  <p className={`font-medium text-sm ${type.id === "outro" ? "text-muted-foreground italic" : ""}`}>
+                    {type.label}
+                  </p>
                 </button>
               ))}
             </div>
 
-            {selectedTypeId && (
+            {isOutroSelected && (
+              <div className="flex gap-2 items-center">
+                <Input
+                  autoFocus
+                  placeholder="Descreva seu negócio (ex: Floricultural, Loja de Games...)"
+                  value={outroDraft}
+                  onChange={(e) => { setOutroDraft(e.target.value); setOutroConfirmed(false); }}
+                  onKeyDown={(e) => e.key === "Enter" && handleConfirmOutro()}
+                  className={outroConfirmed ? "border-brand-500" : ""}
+                />
+                <Button type="button" size="icon" variant="outline" onClick={handleConfirmOutro} disabled={!outroDraft.trim()}>
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+
+            {typeIsReady && (
               <IdentityForm
                 agentName={agentName} setAgentName={setAgentName}
                 niche={niche} setNiche={setNiche}
@@ -132,7 +174,7 @@ export function NewAgentView({
               <Button
                 className="gap-2 bg-brand-600 hover:bg-brand-700 text-white"
                 onClick={onCreateAndContinue}
-                disabled={saving || !selectedTypeId || !agentName.trim()}
+                disabled={saving || !typeIsReady || !agentName.trim()}
               >
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Criar Agente e Configurar WhatsApp ➔
@@ -165,7 +207,7 @@ export function NewAgentView({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
             {BUSINESS_GROUPS.map((group) => (
               <button
                 key={group.id}
