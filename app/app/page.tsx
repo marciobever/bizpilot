@@ -167,7 +167,7 @@ export default function DashboardMetrics() {
               </div>
             </div>
             <Button asChild className="bg-brand-500 hover:bg-brand-600 text-white gap-2 shrink-0">
-              <Link href="/app/agents/new">
+              <Link href="/app/agents/wizard">
                 Criar meu primeiro agente <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
@@ -268,7 +268,7 @@ export default function DashboardMetrics() {
           <CardContent>
             {agents.length === 0 ? (
               <div className="text-center py-6 text-sm text-muted-foreground">
-                Nenhum agente criado ainda. <Link href="/app/agents/new" className="text-primary underline">Criar agente</Link>
+                Nenhum agente criado ainda. <Link href="/app/agents/wizard" className="text-primary underline">Criar agente</Link>
               </div>
             ) : (
               <div className="space-y-5">
