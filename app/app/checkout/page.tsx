@@ -1,10 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
 
-export default function CheckoutPage() {
+function CheckoutInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const plan = searchParams.get("plan") || "starter";
@@ -83,5 +83,13 @@ export default function CheckoutPage() {
       <Loader2 className="h-8 w-8 animate-spin text-brand-400" />
       <p className="text-sm text-muted-foreground">Abrindo checkout seguro…</p>
     </div>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense>
+      <CheckoutInner />
+    </Suspense>
   );
 }

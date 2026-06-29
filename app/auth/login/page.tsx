@@ -1,5 +1,5 @@
 "use client";
-import React, { useState } from "react";
+import React, { Suspense, useState } from "react";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/Label";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { GoogleAuthButton } from "@/components/GoogleAuthButton";
 
-export default function Login() {
+function LoginForm() {
   const navigate = useRouter();
   const searchParams = useSearchParams();
   const plan = searchParams.get("plan") || "";
@@ -89,5 +89,13 @@ export default function Login() {
         </Link>
       </div>
     </form>
+  );
+}
+
+export default function Login() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }
