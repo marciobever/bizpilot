@@ -1,12 +1,12 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { User as UserIcon, Palette, CreditCard, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
 import { addonCountsFromRows } from "@/lib/plans";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { PerfilTab } from "./_tabs/PerfilTab";
 import { AparenciaTab } from "./_tabs/AparenciaTab";
 import { PlanoTab } from "./_tabs/PlanoTab";
@@ -16,16 +16,27 @@ type TabId = "perfil" | "aparencia" | "plano" | "seguranca";
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: "perfil", label: "Perfil", icon: UserIcon },
+  { id: "plano", label: "Plano e Cobrança", icon: CreditCard },
   { id: "aparencia", label: "Aparência", icon: Palette },
-  { id: "plano", label: "Plano", icon: CreditCard },
   { id: "seguranca", label: "Segurança", icon: Shield },
 ];
 
-export default function Settings() {
+const VALID_TABS: TabId[] = ["perfil", "aparencia", "plano", "seguranca"];
+
+function SettingsInner() {
   const { user } = useAuth();
   const { theme, setTheme } = useTheme();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<TabId>("perfil");
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab") as TabId | null;
+  const [activeTab, setActiveTab] = useState<TabId>(
+    tabParam && VALID_TABS.includes(tabParam) ? tabParam : "perfil"
+  );
+
+  // Mantém a aba sincronizada com o ?tab= da URL (navegação pelo menu lateral).
+  useEffect(() => {
+    if (tabParam && VALID_TABS.includes(tabParam)) setActiveTab(tabParam);
+  }, [tabParam]);
 
   const [fullName, setFullName] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
@@ -147,5 +158,13 @@ export default function Settings() {
         <SegurancaTab newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} savingPassword={savingPassword} passwordFeedback={passwordFeedback} onChangePassword={handleChangePassword} onSignOut={handleSignOut} />
       )}
     </div>
+  );
+}
+
+export default function Settings() {
+  return (
+    <Suspense>
+      <SettingsInner />
+    </Suspense>
   );
 }

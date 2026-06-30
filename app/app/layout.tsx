@@ -16,6 +16,10 @@ import {
   Menu,
   X,
   ChevronDown,
+  ChevronRight,
+  CreditCard,
+  Palette,
+  Shield,
   User as UserIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -35,9 +39,16 @@ const SIDEBAR_ITEMS = [
   { icon: MessageSquare, label: "Conversas", path: "/app/conversations" },
   { icon: Users, label: "Leads", path: "/app/leads" },
   { icon: Puzzle, label: "Integrações", path: "/app/automations" },
-  { icon: Settings, label: "Configurações", path: "/app/settings" },
   { icon: HelpCircle, label: "Ajuda", path: "/app/help" },
   { icon: LifeBuoy, label: "Suporte", path: "/app/suporte" },
+];
+
+// Sub-itens da seção "Minha Conta" — cada um abre uma aba das Configurações.
+const ACCOUNT_ITEMS = [
+  { icon: UserIcon, label: "Perfil", tab: "perfil" },
+  { icon: CreditCard, label: "Plano e Cobrança", tab: "plano" },
+  { icon: Palette, label: "Aparência", tab: "aparencia" },
+  { icon: Shield, label: "Segurança", tab: "seguranca" },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -47,6 +58,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { theme, toggleTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -83,6 +95,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     setSidebarOpen(false);
     setUserMenuOpen(false);
+  }, [location]);
+
+  // Abre a seção "Minha Conta" automaticamente quando se está nas Configurações.
+  useEffect(() => {
+    if (location.startsWith("/app/settings")) setAccountOpen(true);
   }, [location]);
 
   // Fecha o menu do usuário ao clicar fora dele.
@@ -161,6 +178,42 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </Link>
             );
           })}
+
+          {/* Minha Conta (grupo expansível) */}
+          <div className="mt-1">
+            <button
+              type="button"
+              onClick={() => setAccountOpen((v) => !v)}
+              className={cn(
+                "w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+                location.startsWith("/app/settings")
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:bg-secondary hover:text-secondary-foreground"
+              )}
+            >
+              <Settings className="h-4 w-4" />
+              <span className="flex-1 text-left">Minha Conta</span>
+              <ChevronRight className={cn("h-4 w-4 transition-transform", accountOpen && "rotate-90")} />
+            </button>
+
+            {accountOpen && (
+              <div className="mt-1 ml-3 pl-3 border-l border-border flex flex-col gap-1">
+                {ACCOUNT_ITEMS.map((sub) => {
+                  const SubIcon = sub.icon;
+                  return (
+                    <Link
+                      key={sub.tab}
+                      href={`/app/settings?tab=${sub.tab}`}
+                      className="flex items-center gap-3 px-3 py-1.5 rounded-md text-sm text-muted-foreground hover:bg-secondary hover:text-secondary-foreground transition-colors"
+                    >
+                      <SubIcon className="h-4 w-4" />
+                      {sub.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
       </aside>
