@@ -43,6 +43,7 @@ export function useAgentForm(isNew: boolean) {
   const [newVarKey, setNewVarKey] = useState("");
   const [newVarValue, setNewVarValue] = useState("");
   const [userPlan, setUserPlan] = useState<"starter" | "pro" | "business">("starter");
+  const [hasVoiceAddon, setHasVoiceAddon] = useState(false);
   const [loading, setLoading] = useState(!isNew);
   const [saving, setSaving] = useState(false);
 
@@ -67,6 +68,15 @@ export function useAgentForm(isNew: boolean) {
         // Normaliza nomes antigos
         const p = data.plan === "basico" ? "starter" : data.plan === "profissional" ? "pro" : data.plan === "avancado" ? "business" : data.plan;
         setUserPlan(p as "starter" | "pro" | "business");
+      });
+    supabase
+      .from("user_addons")
+      .select("addon_id, status")
+      .eq("user_id", user.id)
+      .eq("addon_id", "addon_voice")
+      .then(({ data }) => {
+        const active = (data ?? []).some((r: any) => r.status === "active" || r.status === "trialing");
+        setHasVoiceAddon(active);
       });
   }, [user]);
 
@@ -192,6 +202,7 @@ ${limitations.map((l) => "- " + l).join("\n") || "- Nenhuma limitação definida
     newVarKey, setNewVarKey,
     newVarValue, setNewVarValue,
     userPlan,
+    hasVoiceAddon,
     loading, setLoading,
     saving, setSaving,
     applyTemplate,

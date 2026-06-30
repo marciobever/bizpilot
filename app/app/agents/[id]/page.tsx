@@ -137,6 +137,8 @@ export default function AgentConfig() {
           if (wa.instanceToken) waChannel.setInstanceToken(wa.instanceToken);
           if (wa.instanceId) waChannel.setInstanceId(wa.instanceId);
           if (wa.instanceName) waChannel.setInstanceNameSaved(wa.instanceName);
+          if (wa.evolution?.connected) waChannel.setWaConnected(true);
+          if (wa.evolution?.instanceName) waChannel.setInstanceNameSaved(wa.evolution.instanceName);
           if (wa.meta) {
             if (wa.meta.phoneNumberId) waChannel.setMetaPhoneNumberId(wa.meta.phoneNumberId);
             if (wa.meta.accessToken) waChannel.setMetaAccessToken(wa.meta.accessToken);
@@ -165,7 +167,7 @@ export default function AgentConfig() {
       tone: form.tone,
       greeting: form.greeting,
       typingSpeed: form.typingSpeed,
-      voice_enabled: form.voiceEnabled,
+      voice_enabled: form.hasVoiceAddon ? form.voiceEnabled : false,
       voice_voice: form.voiceVoice,
       limitations: form.limitations,
       ignoreGroups: form.ignoreGroups,
@@ -185,6 +187,10 @@ export default function AgentConfig() {
           instanceId: waChannel.instanceId,
           instanceName: waChannel.instanceNameSaved,
         }),
+        evolution: {
+          connected: waChannel.waConnected,
+          instanceName: waChannel.instanceNameSaved || `agent_${agentId}`,
+        },
         meta: {
           phoneNumberId: waChannel.metaPhoneNumberId.trim(),
           accessToken: waChannel.metaAccessToken.trim(),
@@ -205,7 +211,7 @@ export default function AgentConfig() {
     try {
       const { data, error } = await supabase
         .from("agents")
-        .insert([{ user_id: user.id, name: form.agentName, type: agentType, system_prompt: form.systemPrompt, status: "offline", config: buildConfigData() }])
+        .insert([{ user_id: user.id, name: form.agentName, type: agentType, system_prompt: form.systemPrompt, status: "online", config: buildConfigData() }])
         .select();
       if (error) throw error;
       if (data && data.length > 0) navigate.push(`/app/agents/${data[0].id}?setup=whatsapp`);
@@ -369,6 +375,7 @@ export default function AgentConfig() {
           {activeTab === "addons" && (
             <AddonsTab
               userPlan={form.userPlan}
+              hasVoiceAddon={form.hasVoiceAddon}
               voiceEnabled={form.voiceEnabled} setVoiceEnabled={form.setVoiceEnabled}
               voiceVoice={form.voiceVoice} setVoiceVoice={form.setVoiceVoice}
               onPlayVoicePreview={form.playVoicePreview}

@@ -102,7 +102,7 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
           setWaQrCode("");
           setWaLoading(false);
           setCheckingWa(false);
-          supabase.from("agents").update({ status: "online" }).eq("id", id).then();
+          await persistEvolutionConnected(instName, true);
           return;
         }
         if (data.base64) {
@@ -128,6 +128,26 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
     }, 4000);
   };
 
+  // Persiste no config.whatsapp do agente o estado de conexão do Evolution,
+  // para que a lista de agentes saiba que existe (ou não) um número conectado.
+  const persistEvolutionConnected = async (instName: string, connected: boolean) => {
+    try {
+      const { data: existing } = await supabase.from("agents").select("config").eq("id", id).single();
+      const cfg = existing?.config && typeof existing.config === "object" ? existing.config : {};
+      cfg.whatsapp = {
+        ...(cfg.whatsapp || {}),
+        provider: "evolution",
+        evolution: { ...(cfg.whatsapp?.evolution || {}), connected, instanceName: instName },
+      };
+      await supabase.from("agents").update({
+        config: cfg,
+        status: connected ? "online" : "offline",
+      }).eq("id", id);
+    } catch (e) {
+      console.error("Erro ao persistir estado da conexão Evolution:", e);
+    }
+  };
+
   const handleDisconnectWhatsapp = async () => {
     if (!confirm("Tem certeza que deseja desconectar?")) return;
     setWaLoading(true);
@@ -136,7 +156,7 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
       setWaConnected(false);
       setWaQrCode("");
       setCheckingWa(false);
-      supabase.from("agents").update({ status: "offline" }).eq("id", id).then();
+      await persistEvolutionConnected(`agent_${id}`, false);
     } catch (e) {
       alert("Erro ao desconectar");
     } finally {

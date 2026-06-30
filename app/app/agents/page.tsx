@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { normalizePlan, PLAN_LIMITS, PLAN_LABEL, addonCountsFromRows, computeEffectiveLimits } from "@/lib/plans";
+import { agentHasNumber } from "@/lib/agentChannel";
 import type { Agent } from "@/types/database";
 
 export default function Agents() {
@@ -59,6 +60,8 @@ export default function Agents() {
   };
 
   const handleToggleStatus = async (agent: Agent) => {
+    // Sem número de WhatsApp conectado, o agente não pode ser ligado.
+    if (!agentHasNumber((agent as any).config)) return;
     const newStatus = agent.status === 'online' ? 'offline' : 'online';
     try {
       const { error } = await supabase.from('agents').update({ status: newStatus }).eq('id', agent.id);
@@ -140,15 +143,26 @@ export default function Agents() {
                     </td>
                     <td className="px-6 py-4 text-muted-foreground capitalize">{agent.type}</td>
                     <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <label className="relative inline-flex items-center cursor-pointer">
-                          <input type="checkbox" className="sr-only peer" checked={agent.status === 'online'} onChange={() => handleToggleStatus(agent)} />
-                          <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
-                        </label>
-                        <Badge variant={agent.status === 'online' ? 'success' : agent.status === 'paused' ? 'warning' : 'secondary'} className="border-0">
-                          {agent.status}
-                        </Badge>
-                      </div>
+                      {(() => {
+                        const hasNumber = agentHasNumber((agent as any).config);
+                        return (
+                          <div className="flex items-center gap-3">
+                            <label className={`relative inline-flex items-center ${hasNumber ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`} title={hasNumber ? '' : 'Conecte um número de WhatsApp para ativar'}>
+                              <input type="checkbox" className="sr-only peer" disabled={!hasNumber} checked={hasNumber && agent.status === 'online'} onChange={() => handleToggleStatus(agent)} />
+                              <div className="w-11 h-6 bg-secondary peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500"></div>
+                            </label>
+                            {hasNumber ? (
+                              <Badge variant={agent.status === 'online' ? 'success' : 'secondary'} className="border-0">
+                                {agent.status === 'online' ? 'online' : 'pausado'}
+                              </Badge>
+                            ) : (
+                              <Link href={`/app/agents/${agent.id}?setup=whatsapp`}>
+                                <Badge variant="warning" className="border-0 cursor-pointer hover:opacity-80">Aguardando WhatsApp</Badge>
+                              </Link>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">

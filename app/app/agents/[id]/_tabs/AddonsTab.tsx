@@ -1,5 +1,5 @@
 "use client";
-import { Volume2, Webhook, FileText, ChevronRight, Loader2, X, Plus, Puzzle } from "lucide-react";
+import { Volume2, Webhook, FileText, ChevronRight, Loader2, X, Plus } from "lucide-react";
 import { HelpTooltip } from "@/components/ui/HelpTooltip";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -11,6 +11,7 @@ import type { AgentTool, MediaFile } from "../_types";
 
 interface Props {
   userPlan: "starter" | "pro" | "business";
+  hasVoiceAddon: boolean;
   voiceEnabled: boolean;
   setVoiceEnabled: (v: boolean) => void;
   voiceVoice: string;
@@ -50,7 +51,7 @@ interface Props {
 }
 
 export function AddonsTab({
-  userPlan, voiceEnabled, setVoiceEnabled, voiceVoice, setVoiceVoice, onPlayVoicePreview,
+  userPlan, hasVoiceAddon, voiceEnabled, setVoiceEnabled, voiceVoice, setVoiceVoice, onPlayVoicePreview,
   tools, showToolsManager, setShowToolsManager, showToolForm, setShowToolForm,
   toolForm, setToolForm, toolParamKey, setToolParamKey, toolParamDesc, setToolParamDesc,
   toolHeaderKey, setToolHeaderKey, toolHeaderVal, setToolHeaderVal, onAddTool, onDeleteTool,
@@ -59,32 +60,7 @@ export function AddonsTab({
   onAddMediaFile, onDeleteMediaFile, onUploadMediaFile,
 }: Props) {
   const navigate = useRouter();
-
-  if (userPlan === "starter") {
-    return (
-      <Card className="border-brand-500/30 bg-brand-500/5">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Puzzle className="h-5 w-5 text-brand-500" />
-            Funcionalidades — Disponível no plano Pro
-          </CardTitle>
-          <CardDescription>
-            Resposta em áudio, memória de dados e ações externas fazem parte do plano Pro (R$ 79,90/mês) e do plano Business (R$ 149,00/mês).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <ul className="text-sm text-muted-foreground space-y-1.5">
-            <li>• Respostas em áudio com voz natural</li>
-            <li>• Memória de dados — o bot guarda e consulta informações do cliente</li>
-            <li>• Ações externas — o bot conecta com outros sistemas para agendar, buscar dados, etc.</li>
-          </ul>
-          <Button className="bg-brand-600 hover:bg-brand-700 text-white" onClick={() => navigate.push("/app/settings")}>
-            Fazer upgrade de plano
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
+  const toolsLocked = userPlan === "starter";
 
   return (
     <div className="space-y-6">
@@ -95,25 +71,61 @@ export function AddonsTab({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid sm:grid-cols-2 gap-3">
-            <div className={`rounded-lg border p-3 transition-colors ${voiceEnabled ? "border-brand-500/50 bg-brand-500/5" : "border-border bg-card"}`}>
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-2 min-w-0">
-                  <Volume2 className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
-                  <div className="min-w-0">
-                    <p className="font-medium text-sm flex items-center gap-1.5">
-                      Voz e Áudio
-                      <HelpTooltip text="O bot responde com mensagens de áudio além de texto. Ideal para clientes que preferem ouvir a ler." />
-                    </p>
-                    <p className="text-xs text-muted-foreground">Responde com mensagens de voz.</p>
+            {/* Voz — liberada pelo complemento "Voz Inteligente" (qualquer plano) */}
+            {hasVoiceAddon ? (
+              <div className={`rounded-lg border p-3 transition-colors ${voiceEnabled ? "border-brand-500/50 bg-brand-500/5" : "border-border bg-card"}`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <Volume2 className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm flex items-center gap-1.5">
+                        Voz e Áudio
+                        <HelpTooltip text="O bot responde com mensagens de áudio além de texto. Ideal para clientes que preferem ouvir a ler." />
+                      </p>
+                      <p className="text-xs text-muted-foreground">Responde com mensagens de voz.</p>
+                    </div>
                   </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input type="checkbox" className="sr-only peer" checked={voiceEnabled} onChange={(e) => setVoiceEnabled(e.target.checked)} />
+                    <div className="w-11 h-6 bg-secondary rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500" />
+                  </label>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                  <input type="checkbox" className="sr-only peer" checked={voiceEnabled} onChange={(e) => setVoiceEnabled(e.target.checked)} />
-                  <div className="w-11 h-6 bg-secondary rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand-500" />
-                </label>
               </div>
-            </div>
+            ) : (
+              <button type="button" onClick={() => navigate.push("/app/settings?tab=plano")} className="text-left rounded-lg border border-dashed border-purple-500/40 bg-purple-500/5 p-3 hover:bg-purple-500/10 transition-colors">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <Volume2 className="h-5 w-5 text-purple-500 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm flex items-center gap-1.5">
+                        Voz e Áudio
+                        <Badge variant="outline" className="text-[10px] h-4 border-purple-500/40 text-purple-500">Complemento</Badge>
+                      </p>
+                      <p className="text-xs text-muted-foreground">Contrate a <span className="font-medium">Voz Inteligente</span> (R$ 39,90/mês) para o bot responder em áudio.</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                </div>
+              </button>
+            )}
 
+            {toolsLocked ? (
+              <button type="button" onClick={() => navigate.push("/app/settings?tab=plano")} className="text-left rounded-lg border border-dashed border-brand-500/40 bg-brand-500/5 p-3 hover:bg-brand-500/10 transition-colors">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2 min-w-0">
+                    <Webhook className="h-5 w-5 text-brand-500 shrink-0 mt-0.5" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm flex items-center gap-1.5">
+                        Ações Externas
+                        <Badge variant="outline" className="text-[10px] h-4 bg-brand-500/10 text-brand-500 border-0">PRO</Badge>
+                      </p>
+                      <p className="text-xs text-muted-foreground">Disponível nos planos Pro e Business.</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                </div>
+              </button>
+            ) : (
             <button type="button" onClick={() => setShowToolsManager(!showToolsManager)} className={`text-left rounded-lg border p-3 transition-colors ${showToolsManager ? "border-brand-500/50 bg-brand-500/5" : "border-border bg-card hover:border-brand-500/40"}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-start gap-2 min-w-0">
@@ -129,7 +141,9 @@ export function AddonsTab({
                 <ChevronRight className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${showToolsManager ? "rotate-90" : ""}`} />
               </div>
             </button>
+            )}
 
+            {!toolsLocked && (
             <button type="button" onClick={() => setShowMediaManager(!showMediaManager)} className={`text-left rounded-lg border p-3 transition-colors ${showMediaManager ? "border-brand-500/50 bg-brand-500/5" : "border-border bg-card hover:border-brand-500/40"}`}>
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-start gap-2 min-w-0">
@@ -142,9 +156,10 @@ export function AddonsTab({
                 <ChevronRight className={`h-4 w-4 text-muted-foreground shrink-0 transition-transform ${showMediaManager ? "rotate-90" : ""}`} />
               </div>
             </button>
+            )}
           </div>
 
-          {voiceEnabled && (
+          {hasVoiceAddon && voiceEnabled && (
             <div className="space-y-2 bg-secondary/10 p-4 rounded-md border border-border">
               <Label>Escolha a voz</Label>
               <div className="flex items-center gap-2">
