@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
 
         // Plano principal.
         const plan = planFromPriceId(sub.items.data[0]?.price?.id) || sub.metadata?.plan || null;
-        const periodEnd = (sub as any).current_period_end;
+        const periodEnd = (sub as any).current_period_end ?? (sub.items?.data?.[0] as any)?.current_period_end ?? null;
 
         const update: Record<string, any> = {
           stripe_subscription_id: sub.id,

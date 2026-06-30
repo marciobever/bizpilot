@@ -75,7 +75,10 @@ export async function POST(req: NextRequest) {
 
     // ── Plano principal ───────────────────────────────────────────────────────
     const plan = planFromPriceId(priceId) || (sub?.metadata?.plan as string) || null;
-    const periodEnd = sub ? (sub as any).current_period_end : null;
+    // current_period_end migrou do objeto subscription para o item nas versões novas da API.
+    const periodEnd = sub
+      ? ((sub as any).current_period_end ?? (sub.items?.data?.[0] as any)?.current_period_end ?? null)
+      : null;
 
     const update: Record<string, any> = {
       subscription_status: status,
