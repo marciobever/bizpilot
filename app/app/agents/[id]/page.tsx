@@ -214,7 +214,7 @@ export default function AgentConfig() {
         .insert([{ user_id: user.id, name: form.agentName, type: agentType, system_prompt: form.systemPrompt, status: "online", config: buildConfigData() }])
         .select();
       if (error) throw error;
-      if (data && data.length > 0) navigate.push(`/app/agents/${data[0].id}?setup=whatsapp`);
+      if (data && data.length > 0) navigate.push(`/app/agents/${data[0].id}`);
     } catch (error) {
       console.error("Erro ao criar agente:", error);
       alert("Erro ao criar agente.");

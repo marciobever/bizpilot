@@ -92,6 +92,30 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
     }
   };
 
+  const pollConnectionState = async (instName: string) => {
+    try {
+      const res = await fetch(`/api/evolution/instances/${instName}/connectionState`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.instance?.state === "open") {
+          setWaConnected(true);
+          setWaQrCode("");
+          setCheckingWa(false);
+          await persistEvolutionConnected(instName, true);
+          return;
+        }
+      }
+    } catch (e) {
+      console.log(e);
+    }
+    setTimeout(() => {
+      setCheckingWa((current) => {
+        if (current) pollConnectionState(instName);
+        return current;
+      });
+    }, 3000);
+  };
+
   const fetchQrCode = async (instName: string = `agent_${id}`) => {
     try {
       const res = await fetch(`/api/evolution/instances/${instName}/connect`);
@@ -120,12 +144,13 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
       console.log(e);
       setWaLoading(false);
     }
+    // After displaying QR, poll /connectionState to detect when phone scans it
     setTimeout(() => {
       setCheckingWa((current) => {
-        if (current) fetchQrCode(instName);
+        if (current) pollConnectionState(instName);
         return current;
       });
-    }, 4000);
+    }, 3000);
   };
 
   // Persiste no config.whatsapp do agente o estado de conexão do Evolution,
