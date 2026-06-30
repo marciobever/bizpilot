@@ -84,11 +84,11 @@ export const INTEGRATIONS_META = [
   },
 ];
 
-// Marketplaces de afiliados. Shopee ativo; Amazon e Mercado Livre entram depois.
+// Marketplaces de afiliados via integração (credenciais necessárias).
+// Mercado Livre não entra aqui — a tag ML é configurada por agente na aba Afiliados.
 export const AFFILIATE_PROVIDERS: { value: string; label: string; available: boolean }[] = [
   { value: "shopee", label: "Shopee Afiliados", available: true },
   { value: "amazon", label: "Amazon Associates (em breve)", available: false },
-  { value: "mercadolivre", label: "Mercado Livre (em breve)", available: false },
 ];
 
 export const WEBHOOK_EVENTS = [
