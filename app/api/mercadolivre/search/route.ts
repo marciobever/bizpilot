@@ -17,6 +17,26 @@ function buildAffiliateUrl(url: string, tag: string): string {
   }
 }
 
+// Retorna true se a URL é uma página de produto individual (tem MLB no path)
+function isIndividualProduct(url: string): boolean {
+  return /\/p\/MLB|MLB\d{5,}|[/-]MLB\d/i.test(url);
+}
+
+// Retorna true se a URL é do ML mas exclui portais de suporte/vendedor
+function isMercadoLivreUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase();
+    // Bloqueia subdomínios de suporte e vendedor
+    if (/^(vendedores|ajuda|envios|publicidade|blog)\./.test(host)) return false;
+    // Só aceita mercadolivre.com.br
+    if (!host.endsWith("mercadolivre.com.br")) return false;
+    // Bloqueia paths de suporte mesmo no www
+    if (/^\/(ajuda|minha-conta|politicas|institucional|seguranca|nota|faq)/i.test(u.pathname)) return false;
+    return true;
+  } catch { return false; }
+}
+
 export async function POST(req: NextRequest) {
   const serperKey = process.env.SERPER_API_KEY;
   if (!serperKey) {
@@ -28,7 +48,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Parâmetro 'q' obrigatório." }, { status: 400 });
   }
 
-  const query = `${q.trim()} site:mercadolivre.com.br`;
+  // Força busca de páginas de produto individual (MLB = código de produto ML)
+  const query = `${q.trim()} site:mercadolivre.com.br inurl:MLB`;
 
   const res = await fetch(SERPER_URL, {
     method: "POST",
@@ -36,7 +57,7 @@ export async function POST(req: NextRequest) {
       "Content-Type": "application/json",
       "X-API-KEY": serperKey,
     },
-    body: JSON.stringify({ q: query, gl: "br", hl: "pt-br", num: 6 }),
+    body: JSON.stringify({ q: query, gl: "br", hl: "pt-br", num: 10 }),
   });
 
   if (!res.ok) {
@@ -47,20 +68,13 @@ export async function POST(req: NextRequest) {
   const data = await res.json();
   const organic: any[] = data.organic || [];
 
-  // Aceita só páginas de produto/lista do domínio principal
-  const isProductUrl = (url: string): boolean => {
-    try {
-      const u = new URL(url);
-      // Exclui subdomínios que não sejam www (vendedores, ajuda, envios, etc.)
-      if (!/^(www\.)?mercadolivre\.com\.br$/i.test(u.hostname)) return false;
-      // Exclui seções de suporte e conta
-      if (/^\/(ajuda|minha-conta|politicas|institucional|seguranca|vendedores|nota|publicidade|faq|central-de-ajuda)/i.test(u.pathname)) return false;
-      return true;
-    } catch { return false; }
-  };
+  const valid = organic.filter((r) => r.link && isMercadoLivreUrl(r.link));
 
-  const products = organic
-    .filter((r) => r.link && isProductUrl(r.link))
+  // Prefere páginas de produto individual; usa listagens como fallback
+  const products = [
+    ...valid.filter((r) => isIndividualProduct(r.link)),
+    ...valid.filter((r) => !isIndividualProduct(r.link)),
+  ]
     .slice(0, 5)
     .map((r) => {
       const url = tag ? buildAffiliateUrl(r.link, tag) : r.link;
