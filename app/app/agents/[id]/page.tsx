@@ -52,7 +52,6 @@ export default function AgentConfig() {
   const [agentType, setAgentType] = useState("atendimento");
   const [capabilities, setCapabilities] = useState<AgentCapabilities>({});
   const [affiliateGroups, setAffiliateGroups] = useState<{ id: string; name: string }[]>([]);
-  const [mlAffiliateTag, setMlAffiliateTag] = useState("");
   const [hasAffiliateIntegration, setHasAffiliateIntegration] = useState(false);
 
   // ── Hooks ─────────────────────────────────────────────────────────────────
@@ -132,7 +131,6 @@ export default function AgentConfig() {
         if (cfg.tools && Array.isArray(cfg.tools)) tools.setTools(cfg.tools);
         if (cfg.mediaFiles && Array.isArray(cfg.mediaFiles)) media.setMediaFiles(cfg.mediaFiles);
         if (cfg.affiliateGroups && Array.isArray(cfg.affiliateGroups)) setAffiliateGroups(cfg.affiliateGroups);
-        if (cfg.affiliateML?.tag) setMlAffiliateTag(cfg.affiliateML.tag);
         if (cfg.whatsapp) {
           const wa = cfg.whatsapp;
           if (wa.provider === "meta" || wa.provider === "evolution") waChannel.setWhatsappProvider(wa.provider);
@@ -182,7 +180,6 @@ export default function AgentConfig() {
       tools: tools.tools,
       mediaFiles: media.mediaFiles,
       affiliateGroups,
-      affiliateML: mlAffiliateTag ? { tag: mlAffiliateTag } : undefined,
       whatsapp: {
         provider: waChannel.whatsappProvider,
         ...(waChannel.instanceToken && {
@@ -466,8 +463,6 @@ export default function AgentConfig() {
               agentId={agentId}
               affiliateGroups={affiliateGroups}
               setAffiliateGroups={setAffiliateGroups}
-              mlAffiliateTag={mlAffiliateTag}
-              setMlAffiliateTag={setMlAffiliateTag}
             />
           )}
         </div>

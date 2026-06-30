@@ -1066,7 +1066,7 @@ async function executeTool(
   }
 
   if (name === 'buscar_produto_ml') {
-    const mlTag = config.affiliateML?.tag || '';
+    const mlTag = config.affiliateMLTag || '';
     const termo = String(args.termo || '');
     const { ok, products, error } = await searchMLProducts(termo, mlTag, appBaseUrl);
     if (!ok) return error || 'Não consegui buscar no ML agora.';
@@ -1401,16 +1401,20 @@ export async function main(
   // conectada. As credenciais Shopee (app_id/secret) são do PRÓPRIO usuário,
   // configuradas no BizPilot e salvas em integrations.config — não há variável
   // global. Anexamos ao config p/ a tool usar, sem inchar a assinatura.
-  const { data: affiliateIntegration } = await supabase.from('integrations')
-    .select('status, config').eq('user_id', userId).eq('provider', 'affiliate').maybeSingle();
+  const [{ data: affiliateIntegration }, { data: mlIntegration }] = await Promise.all([
+    supabase.from('integrations').select('status, config').eq('user_id', userId).eq('provider', 'affiliate').maybeSingle(),
+    supabase.from('integrations').select('status, config').eq('user_id', userId).eq('provider', 'mercadolivre').maybeSingle(),
+  ]);
   const hasAffiliate = affiliateIntegration?.status === 'connected';
   config.affiliateShopee = hasAffiliate ? (affiliateIntegration?.config || null) : null;
+  const mlConnected = mlIntegration?.status === 'connected' && !!(mlIntegration?.config?.tag);
+  config.affiliateMLTag = mlConnected ? mlIntegration!.config.tag : null;
 
   // Gate por eixo de capabilities (backward compat: sem capabilities = comportamento antigo)
   const effectivePayments = hasCaps ? (!!caps.commerce && hasPayments) : hasPayments;
   const effectiveCalendar = hasCaps ? (!!caps.commerce && hasCalendar) : hasCalendar;
   const effectiveAffiliate = hasCaps ? !!caps.affiliate : hasAffiliate;
-  const hasML = !!(config.affiliateML?.tag) && (hasCaps ? !!caps.affiliate : true);
+  const hasML = mlConnected && (hasCaps ? !!caps.affiliate : true);
 
   // ── Arquivos para envio (catálogos, tabelas de preço, contratos, etc.) ────
 

@@ -32,7 +32,7 @@ interface Props {
   emailForm: { provider: string; apiKey: string; fromEmail: string; fromName: string; smtpPreset: string; host: string; port: string; secure: boolean; user: string; pass: string; templateId: string; brandColor: string };
   setEmailForm: (v: any) => void;
   emailMsg: { ok: boolean; text: string } | null;
-  affiliateForm: { provider: string; appId: string; secret: string };
+  affiliateForm: { provider: string; appId: string; secret: string; mlTag: string };
   setAffiliateForm: (v: any) => void;
   affiliateMsg: { ok: boolean; text: string } | null;
   onClose: () => void;
@@ -410,6 +410,19 @@ export function IntegrationModal({
                   </div>
                   <div className="space-y-2"><Label>App ID</Label><Input placeholder="18xxxxxxxxx" value={affiliateForm.appId} onChange={(e) => setAffiliateForm({ ...affiliateForm, appId: e.target.value })} /></div>
                   <div className="space-y-2"><Label>App Secret (Chave)</Label><Input type="password" value={affiliateForm.secret} onChange={(e) => setAffiliateForm({ ...affiliateForm, secret: e.target.value })} /></div>
+                </>
+              )}
+              {affiliateForm.provider === "mercadolivre" && (
+                <>
+                  <div className="p-3 bg-secondary/50 border border-border rounded-lg text-xs text-muted-foreground space-y-1.5">
+                    <p>1. Acesse o <a href="https://www.mercadolivre.com.br/l/afiliados-gerar-link" target="_blank" rel="noopener noreferrer" className="text-brand-400 underline">painel de afiliados do ML</a>.</p>
+                    <p>2. Gere um link de qualquer produto e copie o valor do parâmetro <code className="bg-secondary px-1 rounded">tag</code> da URL (ex: <code className="bg-secondary px-1 rounded">seunome-20</code>).</p>
+                    <p>3. Cole a tag abaixo.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tag de Afiliado</Label>
+                    <Input placeholder="Ex: seunome-20" value={affiliateForm.mlTag} onChange={(e) => setAffiliateForm({ ...affiliateForm, mlTag: e.target.value.trim() })} className="font-mono" />
+                  </div>
                 </>
               )}
               {affiliateMsg && <div className={`flex items-start gap-2 text-sm p-3 rounded-lg ${affiliateMsg.ok ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}><AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />{affiliateMsg.text}</div>}

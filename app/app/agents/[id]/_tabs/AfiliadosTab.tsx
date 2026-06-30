@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Users, RefreshCw, Search, CheckCircle2, Circle, AlertCircle, ShoppingBag, ArrowRight, XCircle, Tag } from "lucide-react";
+import { Users, RefreshCw, Search, CheckCircle2, Circle, AlertCircle, ShoppingBag, ArrowRight, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -15,23 +15,33 @@ interface Props {
   agentId: string;
   affiliateGroups: { id: string; name: string }[];
   setAffiliateGroups: (groups: { id: string; name: string }[]) => void;
-  mlAffiliateTag: string;
-  setMlAffiliateTag: (tag: string) => void;
 }
 
-export function AfiliadosTab({ agentId, affiliateGroups, setAffiliateGroups, mlAffiliateTag, setMlAffiliateTag }: Props) {
+export function AfiliadosTab({ agentId, affiliateGroups, setAffiliateGroups }: Props) {
   const { user } = useAuth();
   const [available, setAvailable] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [shopeeConnected, setShopeeConnected] = useState<boolean | null>(null);
+  const [mlConnected, setMlConnected] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (user) checkShopeeConnection();
+    if (user) { checkShopeeConnection(); checkMLConnection(); }
   }, [user]);
 
   useEffect(() => { fetchGroups(); }, [agentId]);
+
+  const checkMLConnection = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("integrations")
+      .select("status")
+      .eq("user_id", user.id)
+      .eq("provider", "mercadolivre")
+      .maybeSingle();
+    setMlConnected(data?.status === "connected");
+  };
 
   const checkShopeeConnection = async () => {
     if (!user) return;
@@ -122,31 +132,41 @@ export function AfiliadosTab({ agentId, affiliateGroups, setAffiliateGroups, mlA
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Tag className="h-5 w-5 text-yellow-500" />
+            <ShoppingBag className="h-5 w-5 text-yellow-500" />
             Mercado Livre Afiliados
           </CardTitle>
           <CardDescription>
-            Tag de afiliado usada para gerar links com rastreamento. Encontre a sua no painel de afiliados do ML.
+            Tag de afiliado para gerar links rastreados. Configure em Integrações → Afiliados.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex gap-2 items-center">
-            <Input
-              placeholder="Ex: seunome-20"
-              value={mlAffiliateTag}
-              onChange={(e) => setMlAffiliateTag(e.target.value.trim())}
-              className="font-mono text-sm"
-            />
-            {mlAffiliateTag && (
-              <div className="flex items-center gap-1.5 text-sm text-emerald-500 shrink-0">
-                <CheckCircle2 className="h-4 w-4" />
-                Configurado
+        <CardContent>
+          {mlConnected === null ? (
+            <div className="text-sm text-muted-foreground">Verificando conexão...</div>
+          ) : mlConnected ? (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-emerald-500">
+                <CheckCircle2 className="h-4 w-4 shrink-0" />
+                Mercado Livre Afiliados conectado
               </div>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            O bot buscará produtos no Mercado Livre e adicionará <span className="font-mono">?tag=suatag</span> automaticamente em cada link.
-          </p>
+              <Link href="/app/automations">
+                <Button variant="outline" size="sm" className="gap-1.5 text-xs">
+                  Gerenciar <ArrowRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-amber-500">
+                <XCircle className="h-4 w-4 shrink-0" />
+                Mercado Livre não conectado
+              </div>
+              <Link href="/app/automations">
+                <Button size="sm" className="gap-1.5 text-xs bg-brand-500 hover:bg-brand-600 text-white">
+                  Conectar agora <ArrowRight className="h-3 w-3" />
+                </Button>
+              </Link>
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -42,7 +42,7 @@ export function useIntegrations() {
     templateId: "minimal", brandColor: "#6366f1",
   });
   const [emailMsg, setEmailMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [affiliateForm, setAffiliateForm] = useState({ provider: "shopee", appId: "", secret: "" });
+  const [affiliateForm, setAffiliateForm] = useState({ provider: "shopee", appId: "", secret: "", mlTag: "" });
   const [affiliateMsg, setAffiliateMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   useEffect(() => {
@@ -152,8 +152,16 @@ export function useIntegrations() {
         templateId: validTemplate, brandColor: cfg.brandColor || "#6366f1",
       });
     } else if (id === "affiliate") {
-      const cfg = statusMap.affiliate?.config || {};
-      setAffiliateForm({ provider: cfg.provider || "shopee", appId: cfg.app_id || "", secret: cfg.secret ? "••••••••••••" : "" });
+      const cfgShopee = statusMap.affiliate?.config || {};
+      const cfgML = statusMap.mercadolivre?.config || {};
+      const defaultProvider = statusMap.mercadolivre?.status === "connected" && !statusMap.affiliate?.status?.includes("connected")
+        ? "mercadolivre" : (cfgShopee.provider || "shopee");
+      setAffiliateForm({
+        provider: defaultProvider,
+        appId: cfgShopee.app_id || "",
+        secret: cfgShopee.secret ? "••••••••••••" : "",
+        mlTag: cfgML.tag || "",
+      });
     }
   };
 
@@ -293,15 +301,21 @@ export function useIntegrations() {
         setActiveModal(null);
       } else if (id === "affiliate") {
         const provider = affiliateForm.provider;
-        const existing = statusMap.affiliate?.config || {};
         setAffiliateMsg(null);
-        if (provider !== "shopee") { setAffiliateMsg({ ok: false, text: "Esse marketplace ainda não está disponível. Em breve!" }); return; }
-        const appId = affiliateForm.appId.trim();
-        const secretInput = affiliateForm.secret.trim();
-        const finalSecret = secretInput.startsWith("•") ? existing.secret : secretInput;
-        if (!appId || !finalSecret) { setAffiliateMsg({ ok: false, text: "Informe o App ID e a App Secret da Shopee Afiliados." }); return; }
-        // Campos app_id/secret batem com o que o bot lê em integrations.config.
-        await upsertIntegration("affiliate", "Afiliados", "connected", { provider, app_id: appId, secret: finalSecret });
+        if (provider === "shopee") {
+          const existing = statusMap.affiliate?.config || {};
+          const appId = affiliateForm.appId.trim();
+          const secretInput = affiliateForm.secret.trim();
+          const finalSecret = secretInput.startsWith("•") ? existing.secret : secretInput;
+          if (!appId || !finalSecret) { setAffiliateMsg({ ok: false, text: "Informe o App ID e a App Secret da Shopee Afiliados." }); return; }
+          await upsertIntegration("affiliate", "Afiliados", "connected", { provider, app_id: appId, secret: finalSecret });
+        } else if (provider === "mercadolivre") {
+          const tag = affiliateForm.mlTag.trim();
+          if (!tag) { setAffiliateMsg({ ok: false, text: "Informe a sua tag de afiliado do Mercado Livre (ex: seunome-20)." }); return; }
+          await upsertIntegration("mercadolivre", "Mercado Livre Afiliados", "connected", { tag });
+        } else {
+          setAffiliateMsg({ ok: false, text: "Marketplace ainda não disponível." }); return;
+        }
         setActiveModal(null);
       }
     } finally {
