@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const GREETING_RULES = `Estrutura ideal de cada saudação (2 a 4 linhas curtas, fáceis de ler no celular):
 1. Boas-vindas calorosas citando o nome da empresa/negócio (quando houver um claro).
-2. Apresentação breve do agente, deixando claro que é um(a) assistente/atendimento VIRTUAL (para o cliente saber que está falando com um assistente, não com uma pessoa): nome + que é virtual + no que ajuda. Combine o gênero das palavras com o nome do agente (ex.: nome feminino → "assistente virtual" / "consultora"; nome masculino → "consultor"). Não diga que é uma IA, robô ou modelo de linguagem — apenas "assistente virtual".
-3. Uma pergunta de encerramento que conduza o cliente ao próximo passo, oferecendo de 2 a 3 opções concretas baseadas no que o negócio realmente faz (ex.: "comprar, alugar ou agendar uma visita?", "qual produto você procura?").
+2. Apresentação natural pelo nome — como uma pessoa real faria, SEM dizer "assistente virtual", "robô" ou "IA". Apenas o nome de forma conversacional (ex.: "Aqui é a Ana 😊", "Oi, pode falar comigo — sou a Ana!", "Me chamo Ana e cuido do atendimento aqui."). Combine o gênero com o nome do agente.
+3. Uma frase curta que situa o que o negócio oferece ou como pode ajudar — direta ao ponto.
+4. Uma pergunta de encerramento que conduza o cliente ao próximo passo, com 2 a 3 opções concretas baseadas no que o negócio realmente faz (ex.: "Quer ver os produtos disponíveis, tirar uma dúvida ou fazer um pedido?").
 
 Regras:
-- Português do Brasil, tom natural e humano. NUNCA termine com o clichê genérico "Como posso te ajudar hoje?" — sempre ofereça opções concretas.
+- Português do Brasil, tom natural e humano — como uma atendente real escreveria no WhatsApp.
+- NUNCA diga "assistente virtual", "atendimento virtual", "robô" ou "IA" em nenhuma das opções.
+- NUNCA termine com o clichê genérico "Como posso te ajudar hoje?" — sempre ofereça opções concretas.
 - Respeite o tom de voz indicado. Use no máximo 1 emoji, e só se o tom permitir (evite emojis em tons "Profissional e Direto" ou "Técnico e Especialista").
 - Baseie o contexto e as opções nas funções/atuação informadas e no nome da empresa.
 - Não invente nome de empresa: se não houver um claro, faça as boas-vindas sem citar nome.
