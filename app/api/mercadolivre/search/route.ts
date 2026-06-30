@@ -47,10 +47,10 @@ export async function POST(req: NextRequest) {
   const data = await res.json();
   const organic: any[] = data.organic || [];
 
-  // Filtra só URLs de produto ML (evita homepage, categorias, listas)
-  const productPattern = /mercadolivre\.com\.br\/(p\/|[^/]+-MLB)/i;
+  // Exclui apenas homepage e páginas de ajuda/conta — tudo mais é produto ou lista válida
+  const excludePattern = /mercadolivre\.com\.br\/(ajuda|minha-conta|politicas|institucional|seguranca)?\/?$/i;
   const products = organic
-    .filter((r) => productPattern.test(r.link || ""))
+    .filter((r) => r.link && !excludePattern.test(r.link))
     .slice(0, 5)
     .map((r) => {
       const url = tag ? buildAffiliateUrl(r.link, tag) : r.link;
