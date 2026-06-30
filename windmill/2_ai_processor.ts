@@ -313,11 +313,11 @@ function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boole
       type: 'function',
       function: {
         name: 'buscar_produto_ml',
-        description: 'Busca produtos no Mercado Livre e retorna até 5 opções com link de afiliado. Use quando o cliente pedir indicação/recomendação de produto do ML, ou pedir para buscar/encontrar um produto para comprar ou para divulgar/publicar como oferta.',
+        description: 'Busca produtos no Mercado Livre e retorna até 5 opções com link de afiliado. Use APENAS quando o cliente especificou um produto ou categoria concreta (ex: "air fryer", "tênis Nike", "fone bluetooth"). Se o cliente pediu busca de forma genérica sem nomear o produto, pergunte "Que produto você quer buscar?" ANTES de chamar esta função.',
         parameters: {
           type: 'object',
           properties: {
-            termo: { type: 'string', description: 'O que buscar (ex: "air fryer", "tênis Nike").' },
+            termo: { type: 'string', description: 'Nome ou categoria do produto a buscar (ex: "air fryer", "tênis Nike", "fone bluetooth"). Deve ser um produto específico — NUNCA use termos genéricos como "produtos para divulgação" ou "melhores produtos".' },
           },
           required: ['termo'],
         },

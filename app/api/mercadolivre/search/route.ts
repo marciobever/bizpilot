@@ -47,10 +47,20 @@ export async function POST(req: NextRequest) {
   const data = await res.json();
   const organic: any[] = data.organic || [];
 
-  // Exclui apenas homepage e páginas de ajuda/conta — tudo mais é produto ou lista válida
-  const excludePattern = /mercadolivre\.com\.br\/(ajuda|minha-conta|politicas|institucional|seguranca)?\/?$/i;
+  // Aceita só páginas de produto/lista do domínio principal
+  const isProductUrl = (url: string): boolean => {
+    try {
+      const u = new URL(url);
+      // Exclui subdomínios que não sejam www (vendedores, ajuda, envios, etc.)
+      if (!/^(www\.)?mercadolivre\.com\.br$/i.test(u.hostname)) return false;
+      // Exclui seções de suporte e conta
+      if (/^\/(ajuda|minha-conta|politicas|institucional|seguranca|vendedores|nota|publicidade|faq|central-de-ajuda)/i.test(u.pathname)) return false;
+      return true;
+    } catch { return false; }
+  };
+
   const products = organic
-    .filter((r) => r.link && !excludePattern.test(r.link))
+    .filter((r) => r.link && isProductUrl(r.link))
     .slice(0, 5)
     .map((r) => {
       const url = tag ? buildAffiliateUrl(r.link, tag) : r.link;
