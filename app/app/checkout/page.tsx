@@ -86,8 +86,9 @@ function CheckoutInner() {
         const json = await res.json();
         if (cancelledFlag) return;
         if (res.ok && json.active) {
-          // Reload real: força o layout a reler o subscription_status já ativo.
-          window.location.href = "/app";
+          // Complemento: volta pras configurações. Plano: entra no app.
+          // Reload real força o layout a reler o subscription_status já ativo.
+          window.location.href = json.addon ? "/app/settings?tab=plano&addon=ok" : "/app";
           return;
         }
         setErrorMsg(json.error || "Não foi possível confirmar o pagamento. Se o valor foi cobrado, aguarde alguns segundos e recarregue.");

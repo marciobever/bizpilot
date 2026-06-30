@@ -17,6 +17,15 @@ function planFromPriceId(priceId: string | undefined): string | null {
   return null;
 }
 
+function addonFromPriceId(priceId: string | undefined): string | null {
+  if (!priceId) return null;
+  if (priceId === process.env.STRIPE_PRICE_EXTRA_BOT)             return 'addon_bot';
+  if (priceId === process.env.STRIPE_PRICE_EXTRA_CAMPAIGNS)       return 'addon_campaigns';
+  if (priceId === process.env.STRIPE_PRICE_EXTRA_VOICE)           return 'addon_voice';
+  if (priceId === process.env.STRIPE_PRICE_EXTRA_WHATSAPP_NUMBER) return 'addon_whatsapp_number';
+  return null;
+}
+
 // Confirma o pagamento na volta do Stripe, sem depender do webhook.
 // Busca a sessão de checkout, valida que está paga e ativa a assinatura no perfil.
 export async function POST(req: NextRequest) {
@@ -47,6 +56,24 @@ export async function POST(req: NextRequest) {
     const sub = session.subscription as Stripe.Subscription | null;
     const status = sub?.status || 'active';
     const priceId = sub?.items?.data?.[0]?.price?.id;
+    const purchased = (sub?.metadata?.plan as string) || planFromPriceId(priceId) || addonFromPriceId(priceId) || null;
+
+    // ── Complemento (add-on): grava em tabela própria, sem mexer no plano ──────
+    const isAddon = !!purchased && purchased.startsWith('addon_');
+    if (isAddon) {
+      const { error: addonError } = await supabase.from('user_addons').upsert({
+        user_id: userId,
+        addon_id: purchased,
+        stripe_subscription_id: sub?.id ?? null,
+        status,
+      }, { onConflict: 'stripe_subscription_id' });
+      if (addonError) {
+        return NextResponse.json({ error: `Falha ao gravar complemento: ${addonError.message}` }, { status: 500 });
+      }
+      return NextResponse.json({ active: true, addon: purchased });
+    }
+
+    // ── Plano principal ───────────────────────────────────────────────────────
     const plan = planFromPriceId(priceId) || (sub?.metadata?.plan as string) || null;
     const periodEnd = sub ? (sub as any).current_period_end : null;
 
