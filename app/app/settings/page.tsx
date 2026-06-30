@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
+import { addonCountsFromRows } from "@/lib/plans";
 import { useRouter } from "next/navigation";
 import { PerfilTab } from "./_tabs/PerfilTab";
 import { AparenciaTab } from "./_tabs/AparenciaTab";
@@ -34,6 +35,7 @@ export default function Settings() {
   const [loadingPlan, setLoadingPlan] = useState(true);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [hasStripeCustomer, setHasStripeCustomer] = useState(false);
+  const [addonCounts, setAddonCounts] = useState<Record<string, number>>({});
   const [planActionLoading, setPlanActionLoading] = useState<string | null>(null);
   const [planFeedback, setPlanFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -53,6 +55,9 @@ export default function Settings() {
       setSubscriptionStatus(data?.subscription_status || null);
       setHasStripeCustomer(!!data?.stripe_customer_id);
       setLoadingPlan(false);
+    });
+    supabase.from("user_addons").select("addon_id, status").eq("user_id", user.id).then(({ data }) => {
+      setAddonCounts(addonCountsFromRows(data as any));
     });
   }, [user]);
 
@@ -136,7 +141,7 @@ export default function Settings() {
       )}
       {activeTab === "aparencia" && <AparenciaTab theme={theme} setTheme={(v) => setTheme(v as any)} />}
       {activeTab === "plano" && (
-        <PlanoTab plan={plan} loadingPlan={loadingPlan} subscriptionStatus={subscriptionStatus} hasStripeCustomer={hasStripeCustomer} planActionLoading={planActionLoading} planFeedback={planFeedback} onUpgrade={handleUpgrade} onManageSubscription={handleManageSubscription} />
+        <PlanoTab plan={plan} loadingPlan={loadingPlan} subscriptionStatus={subscriptionStatus} hasStripeCustomer={hasStripeCustomer} planActionLoading={planActionLoading} planFeedback={planFeedback} addonCounts={addonCounts} onUpgrade={handleUpgrade} onManageSubscription={handleManageSubscription} />
       )}
       {activeTab === "seguranca" && (
         <SegurancaTab newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} savingPassword={savingPassword} passwordFeedback={passwordFeedback} onChangePassword={handleChangePassword} onSignOut={handleSignOut} />

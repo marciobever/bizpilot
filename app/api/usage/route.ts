@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { normalizePlan, PLAN_LIMITS } from '@/lib/plans';
+import { normalizePlan, addonCountsFromRows, computeEffectiveLimits } from '@/lib/plans';
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
       { data: agents },
       { count: convCount },
       { data: agentIds },
+      { data: addonRows },
     ] = await Promise.all([
       supabase.from('profiles').select('plan').eq('id', userId).single(),
       supabase.from('agents').select('id').eq('user_id', userId),
@@ -28,10 +29,12 @@ export async function GET(req: NextRequest) {
         .eq('user_id', userId)
         .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
       supabase.from('agents').select('id').eq('user_id', userId),
+      supabase.from('user_addons').select('addon_id, status').eq('user_id', userId),
     ]);
 
     const plan = normalizePlan(profile?.plan);
-    const limits = PLAN_LIMITS[plan];
+    const addonCounts = addonCountsFromRows(addonRows as any);
+    const limits = computeEffectiveLimits(profile?.plan, addonCounts);
 
     // Count KB docs across all agents
     let kbCount = 0;
@@ -44,11 +47,15 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       plan,
+      addons: addonCounts,
       usage: {
         bots:          { used: agents?.length ?? 0,  limit: limits.bots },
         conversations: { used: convCount ?? 0,        limit: limits.conversations },
         kbDocs:        { used: kbCount,               limit: limits.kbDocs },
         historyDays:   { limit: limits.historyDays },
+        extraCampaigns:      limits.extraCampaigns,
+        extraWhatsappNumbers: limits.extraWhatsappNumbers,
+        voice:               limits.voice,
       },
     });
   } catch (e: any) {

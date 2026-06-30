@@ -381,9 +381,13 @@ Use SEMPRE a ferramenta buscar_conhecimento antes de responder sobre produtos, s
       if (data && data.length > 0) navigate.push(`/app/agents/${data[0].id}?setup=whatsapp`);
     } catch (e: any) {
       console.error("Erro ao criar agente:", e);
-      if (typeof e?.message === "string" && e.message.includes("SUBSCRIPTION_REQUIRED")) {
+      const msg = typeof e?.message === "string" ? e.message : "";
+      if (msg.includes("SUBSCRIPTION_REQUIRED")) {
         alert("Você precisa de uma assinatura ativa para criar agentes. Vamos te levar para escolher um plano.");
-        navigate.push("/app/checkout?plan=starter");
+        navigate.push("/app/checkout");
+      } else if (msg.includes("BOT_LIMIT_REACHED")) {
+        alert("Você atingiu o limite de agentes do seu plano. Compre um Bot Adicional ou faça upgrade em Configurações → Plano.");
+        navigate.push("/app/settings?tab=plano");
       } else {
         alert("Erro ao criar agente. Tente novamente.");
       }

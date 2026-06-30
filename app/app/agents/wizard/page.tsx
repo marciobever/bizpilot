@@ -8,7 +8,7 @@ import { useTypewriter, type ChatMsg } from "./_hooks/useTypewriter";
 import { useWizardFlow, STAGES } from "./_hooks/useWizardFlow";
 import { StagePanel } from "./_components/StagePanel";
 import { supabase } from "@/lib/supabase";
-import { normalizePlan, PLAN_LIMITS } from "@/lib/plans";
+import { addonCountsFromRows, computeEffectiveLimits } from "@/lib/plans";
 
 const INTRO_TEXT =
   "Oi! Sou o assistente do BizPilot.\nVamos configurar o seu agente em poucos passos.\n\nPrimeiro: qual é o tipo do seu negócio?";
@@ -36,12 +36,13 @@ export default function AgentWizard() {
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
-      const [{ data: profile }, { data: agentRows }] = await Promise.all([
+      const [{ data: profile }, { data: agentRows }, { data: addonRows }] = await Promise.all([
         supabase.from("profiles").select("plan").eq("id", user.id).single(),
         supabase.from("agents").select("id"),
+        supabase.from("user_addons").select("addon_id, status").eq("user_id", user.id),
       ]);
-      const plan = normalizePlan(profile?.plan);
-      const limit = PLAN_LIMITS[plan].bots;
+      const counts = addonCountsFromRows(addonRows as any);
+      const limit = computeEffectiveLimits(profile?.plan, counts).bots;
       if (limit !== -1 && (agentRows?.length ?? 0) >= limit) {
         router.replace("/app/agents");
       }

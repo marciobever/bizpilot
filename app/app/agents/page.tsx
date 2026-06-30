@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
-import { normalizePlan, PLAN_LIMITS, PLAN_LABEL } from "@/lib/plans";
+import { normalizePlan, PLAN_LIMITS, PLAN_LABEL, addonCountsFromRows, computeEffectiveLimits } from "@/lib/plans";
 import type { Agent } from "@/types/database";
 
 export default function Agents() {
@@ -16,6 +16,7 @@ export default function Agents() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(true);
   const [plan, setPlan] = useState<string>("starter");
+  const [extraBots, setExtraBots] = useState(0);
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
   const [showLimitModal, setShowLimitModal] = useState(false);
 
@@ -24,6 +25,11 @@ export default function Agents() {
       fetchAgents();
       supabase.from("profiles").select("plan").eq("id", user.id).single()
         .then(({ data }) => { if (data?.plan) setPlan(data.plan); });
+      supabase.from("user_addons").select("addon_id, status").eq("user_id", user.id)
+        .then(({ data }) => {
+          const counts = addonCountsFromRows(data as any);
+          setExtraBots(counts["addon_bot"] ?? 0);
+        });
     } else if (!authLoading) {
       setLoading(false);
     }
@@ -44,7 +50,7 @@ export default function Agents() {
   };
 
   const normalizedPlan = normalizePlan(plan);
-  const botLimit = PLAN_LIMITS[normalizedPlan].bots;
+  const botLimit = computeEffectiveLimits(plan, { addon_bot: extraBots }).bots;
   const atBotLimit = botLimit !== -1 && agents.length >= botLimit;
 
   const handleNewAgent = () => {
@@ -171,10 +177,12 @@ export default function Agents() {
             </div>
             <h3 className="text-lg font-bold mb-1">Limite de agentes atingido</h3>
             <p className="text-sm text-muted-foreground mb-1">
-              Seu plano <span className="font-semibold text-foreground">{PLAN_LABEL[normalizedPlan]}</span> permite até <span className="font-semibold text-foreground">{botLimit} agente{botLimit > 1 ? 's' : ''}</span>.
+              Seu plano <span className="font-semibold text-foreground">{PLAN_LABEL[normalizedPlan]}</span>
+              {extraBots > 0 && <> + <span className="font-semibold text-foreground">{extraBots} bot{extraBots > 1 ? 's' : ''} extra{extraBots > 1 ? 's' : ''}</span></>}
+              {" "}permite até <span className="font-semibold text-foreground">{botLimit} agente{botLimit > 1 ? 's' : ''}</span>.
             </p>
             <p className="text-sm text-muted-foreground mb-6">
-              Faça upgrade de plano ou adicione um Bot Extra para continuar criando agentes.
+              Adicione um <span className="font-semibold text-foreground">Bot Adicional</span> (R$ 19,90/mês) ou faça upgrade de plano para continuar criando agentes.
             </p>
             <div className="flex flex-col gap-2">
               <Button className="bg-brand-500 hover:bg-brand-600 text-white" onClick={() => { setShowLimitModal(false); router.push("/app/settings?tab=plano"); }}>

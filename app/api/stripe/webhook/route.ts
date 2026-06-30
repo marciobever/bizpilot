@@ -18,6 +18,22 @@ function planFromPriceId(priceId: string | undefined): string | null {
   return null;
 }
 
+function addonFromPriceId(priceId: string | undefined): string | null {
+  if (!priceId) return null;
+  if (priceId === process.env.STRIPE_PRICE_EXTRA_BOT)             return 'addon_bot';
+  if (priceId === process.env.STRIPE_PRICE_EXTRA_CAMPAIGNS)       return 'addon_campaigns';
+  if (priceId === process.env.STRIPE_PRICE_EXTRA_VOICE)           return 'addon_voice';
+  if (priceId === process.env.STRIPE_PRICE_EXTRA_WHATSAPP_NUMBER) return 'addon_whatsapp_number';
+  return null;
+}
+
+// Um add-on é identificado pela metadata.plan (addon_*) ou pelo price ID do extra.
+function addonIdFromSub(sub: Stripe.Subscription): string | null {
+  const metaPlan = sub.metadata?.plan as string | undefined;
+  if (metaPlan && metaPlan.startsWith('addon_')) return metaPlan;
+  return addonFromPriceId(sub.items.data[0]?.price?.id);
+}
+
 export async function POST(req: NextRequest) {
   const secret = process.env.STRIPE_SECRET_KEY;
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -44,6 +60,20 @@ export async function POST(req: NextRequest) {
       case 'customer.subscription.updated': {
         const sub = event.data.object as Stripe.Subscription;
         const userId = sub.metadata?.user_id;
+        const addonId = addonIdFromSub(sub);
+
+        // Complemento: atualiza só a linha em user_addons.
+        if (addonId) {
+          await supabase.from('user_addons').upsert({
+            user_id: userId ?? null,
+            addon_id: addonId,
+            stripe_subscription_id: sub.id,
+            status: sub.status,
+          }, { onConflict: 'stripe_subscription_id' });
+          break;
+        }
+
+        // Plano principal.
         const plan = planFromPriceId(sub.items.data[0]?.price?.id) || sub.metadata?.plan || null;
         const periodEnd = (sub as any).current_period_end;
 
@@ -64,6 +94,17 @@ export async function POST(req: NextRequest) {
 
       case 'customer.subscription.deleted': {
         const sub = event.data.object as Stripe.Subscription;
+        const addonId = addonIdFromSub(sub);
+
+        // Cancelamento de complemento: marca só a linha do add-on.
+        if (addonId) {
+          await supabase.from('user_addons')
+            .update({ status: 'canceled' })
+            .eq('stripe_subscription_id', sub.id);
+          break;
+        }
+
+        // Cancelamento do plano principal.
         await supabase.from('profiles').update({
           subscription_status: 'canceled',
           plan: 'starter',

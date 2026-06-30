@@ -56,6 +56,49 @@ export function requiredPlanLabel(feature: string): string {
   return need ? PLAN_LABEL[need] : "";
 }
 
+// ─── Complementos (add-ons) ───────────────────────────────────────────────────
+export type AddonId = "addon_bot" | "addon_campaigns" | "addon_voice" | "addon_whatsapp_number";
+
+export interface EffectiveLimits {
+  bots: number;            // base + addon_bot (-1 = ilimitado)
+  conversations: number;   // limite base do plano (-1 = ilimitado)
+  kbDocs: number;          // limite base do plano (-1 = ilimitado)
+  historyDays: number;
+  voice: boolean;          // liberado por addon_voice
+  extraCampaigns: number;  // qtde de addon_campaigns (cada um = +1.000 disparos/mês)
+  extraWhatsappNumbers: number; // qtde de addon_whatsapp_number
+}
+
+// Soma linhas de user_addons em contagem por addon_id (apenas status ativo/trialing).
+export function addonCountsFromRows(
+  rows: Array<{ addon_id: string; status?: string | null }> | null | undefined
+): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const r of rows ?? []) {
+    if (r.status && r.status !== "active" && r.status !== "trialing") continue;
+    counts[r.addon_id] = (counts[r.addon_id] ?? 0) + 1;
+  }
+  return counts;
+}
+
+// Limites efetivos = limites do plano + complementos comprados.
+export function computeEffectiveLimits(
+  plan: string | null | undefined,
+  addonCounts: Record<string, number>
+): EffectiveLimits {
+  const base = PLAN_LIMITS[normalizePlan(plan)];
+  const extraBots = addonCounts["addon_bot"] ?? 0;
+  return {
+    bots: base.bots === -1 ? -1 : base.bots + extraBots,
+    conversations: base.conversations,
+    kbDocs: base.kbDocs,
+    historyDays: base.historyDays,
+    voice: (addonCounts["addon_voice"] ?? 0) > 0,
+    extraCampaigns: addonCounts["addon_campaigns"] ?? 0,
+    extraWhatsappNumbers: addonCounts["addon_whatsapp_number"] ?? 0,
+  };
+}
+
 // Normaliza nomes de planos antigos → novo padrão
 export function normalizePlan(plan: string | null | undefined): PlanId {
   if (!plan) return "starter";

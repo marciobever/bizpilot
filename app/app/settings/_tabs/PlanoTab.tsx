@@ -96,13 +96,14 @@ interface Props {
   hasStripeCustomer: boolean;
   planActionLoading: string | null;
   planFeedback: { type: "success" | "error"; message: string } | null;
+  addonCounts?: Record<string, number>;
   onUpgrade: (targetPlan: string) => void;
   onManageSubscription: () => void;
 }
 
 export function PlanoTab({
   plan, loadingPlan, subscriptionStatus, hasStripeCustomer,
-  planActionLoading, planFeedback, onUpgrade, onManageSubscription,
+  planActionLoading, planFeedback, addonCounts = {}, onUpgrade, onManageSubscription,
 }: Props) {
   // Normaliza nomes antigos
   const normalizedPlan = plan === "basico" ? "starter" : plan === "profissional" ? "pro" : plan === "avancado" ? "business" : (plan || "starter");
@@ -231,6 +232,9 @@ export function PlanoTab({
           <CardContent className="grid gap-3 sm:grid-cols-2">
             {ADDONS.map((addon) => {
               const Icon = addon.icon;
+              const owned = addonCounts[addon.id] ?? 0;
+              const singleInstance = addon.id === "addon_voice"; // voz é liga/desliga
+              const isMaxed = singleInstance && owned > 0;
               return (
                 <div key={addon.id} className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
                   <div className="flex items-start gap-3">
@@ -238,15 +242,22 @@ export function PlanoTab({
                       <Icon className="h-4 w-4 text-purple-500" />
                     </div>
                     <div className="min-w-0">
-                      <div className="font-semibold text-sm">{addon.name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-sm">{addon.name}</span>
+                        {owned > 0 && (
+                          <Badge variant="success" className="text-[10px]">
+                            {singleInstance ? "Ativo" : `Ativo (${owned})`}
+                          </Badge>
+                        )}
+                      </div>
                       <div className="text-xs text-muted-foreground mt-0.5">{addon.desc}</div>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-lg font-bold">{addon.price}<span className="text-xs font-normal text-muted-foreground">/mês</span></span>
-                    <Button size="sm" variant="outline" onClick={() => onUpgrade(addon.id)} disabled={planActionLoading !== null}>
+                    <Button size="sm" variant="outline" onClick={() => onUpgrade(addon.id)} disabled={planActionLoading !== null || isMaxed}>
                       {planActionLoading === addon.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
-                      Adicionar
+                      {isMaxed ? "Contratado" : owned > 0 ? "Adicionar outro" : "Adicionar"}
                     </Button>
                   </div>
                 </div>
