@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Users, RefreshCw, Search, CheckCircle2, Circle, AlertCircle, ShoppingBag, ArrowRight, XCircle } from "lucide-react";
+import { Users, RefreshCw, Search, CheckCircle2, Circle, AlertCircle, ShoppingBag, ArrowRight, XCircle, Tag } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -15,9 +15,11 @@ interface Props {
   agentId: string;
   affiliateGroups: { id: string; name: string }[];
   setAffiliateGroups: (groups: { id: string; name: string }[]) => void;
+  mlAffiliateTag: string;
+  setMlAffiliateTag: (tag: string) => void;
 }
 
-export function AfiliadosTab({ agentId, affiliateGroups, setAffiliateGroups }: Props) {
+export function AfiliadosTab({ agentId, affiliateGroups, setAffiliateGroups, mlAffiliateTag, setMlAffiliateTag }: Props) {
   const { user } = useAuth();
   const [available, setAvailable] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
@@ -113,6 +115,38 @@ export function AfiliadosTab({ agentId, affiliateGroups, setAffiliateGroups }: P
               </Link>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Mercado Livre */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Tag className="h-5 w-5 text-yellow-500" />
+            Mercado Livre Afiliados
+          </CardTitle>
+          <CardDescription>
+            Tag de afiliado usada para gerar links com rastreamento. Encontre a sua no painel de afiliados do ML.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2 items-center">
+            <Input
+              placeholder="Ex: seunome-20"
+              value={mlAffiliateTag}
+              onChange={(e) => setMlAffiliateTag(e.target.value.trim())}
+              className="font-mono text-sm"
+            />
+            {mlAffiliateTag && (
+              <div className="flex items-center gap-1.5 text-sm text-emerald-500 shrink-0">
+                <CheckCircle2 className="h-4 w-4" />
+                Configurado
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            O bot buscará produtos no Mercado Livre e adicionará <span className="font-mono">?tag=suatag</span> automaticamente em cada link.
+          </p>
         </CardContent>
       </Card>
 

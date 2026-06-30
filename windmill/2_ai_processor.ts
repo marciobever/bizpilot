@@ -78,7 +78,7 @@ const buildTtsText = (t: string) =>
 
 // ─── Tools: construção e execução ─────────────────────────────────────────────
 
-function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boolean, hasCalendar: boolean, hasDataRecords: boolean, hasExternalDb: boolean, hasEmail: boolean, hasAffiliate: boolean, mediaFiles: { name: string; description: string; url: string }[]): any[] {
+function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boolean, hasCalendar: boolean, hasDataRecords: boolean, hasExternalDb: boolean, hasEmail: boolean, hasAffiliate: boolean, hasML: boolean, mediaFiles: { name: string; description: string; url: string }[]): any[] {
   const tools: any[] = [];
 
   const handoffContacts: { name: string; phone: string }[] = Array.isArray(config.handoffContacts) ? config.handoffContacts.filter((c: any) => c?.phone) : [];
@@ -308,6 +308,23 @@ function buildOpenAITools(config: any, hasKnowledge: boolean, hasPayments: boole
     });
   }
 
+  if (hasML) {
+    tools.push({
+      type: 'function',
+      function: {
+        name: 'buscar_produto_ml',
+        description: 'Busca produtos no Mercado Livre e retorna até 5 opções com link de afiliado. Use quando o cliente pedir indicação/recomendação de produto do ML, ou pedir para buscar/encontrar um produto para comprar ou para divulgar/publicar como oferta.',
+        parameters: {
+          type: 'object',
+          properties: {
+            termo: { type: 'string', description: 'O que buscar (ex: "air fryer", "tênis Nike").' },
+          },
+          required: ['termo'],
+        },
+      },
+    });
+  }
+
   if (mediaFiles.length > 0) {
     const filesList = mediaFiles.map((f) => `"${f.name}"${f.description ? ` (${f.description})` : ''}`).join(', ');
     tools.push({
@@ -466,6 +483,77 @@ async function searchShopeeProducts(termo: string, quantidade: number, subIds: s
   } catch (e: any) {
     return { ok: false, products: [], error: `Não consegui buscar na Shopee agora: ${e.message}` };
   }
+}
+
+// ── Afiliados Mercado Livre (via Serper/Google) ───────────────────────────────
+
+type MLProduct = {
+  title: string;
+  url: string;
+  price: string | null;
+  snippet: string;
+  imageUrl: string | null;
+};
+
+async function searchMLProducts(
+  termo: string, tag: string, appBaseUrl: string
+): Promise<{ ok: boolean; products: MLProduct[]; error?: string }> {
+  if (!termo.trim()) return { ok: false, products: [], error: 'Informe o que o cliente quer buscar.' };
+  if (!appBaseUrl) return { ok: false, products: [], error: 'APP_BASE_URL não configurada.' };
+  try {
+    const res = await fetch(`${appBaseUrl}/api/mercadolivre/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: termo, tag }),
+    });
+    const data = await res.json();
+    if (!res.ok) return { ok: false, products: [], error: data.error || `Erro ${res.status}` };
+    return { ok: true, products: data.products || [] };
+  } catch (e: any) {
+    return { ok: false, products: [], error: `Erro ao buscar no ML: ${e.message}` };
+  }
+}
+
+async function sendMLCardsFallback(
+  products: MLProduct[], evoUrl: string, evoKey: string, jid: string, hasGroups: boolean
+): Promise<void> {
+  const headers = { 'Content-Type': 'application/json', apikey: evoKey };
+  const nums = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣'];
+
+  for (let i = 0; i < products.length; i++) {
+    const p = products[i];
+    const priceStr = p.price ? `\n💰 ${p.price}` : '';
+    const caption = `${nums[i] ?? `${i + 1}.`} *${p.title}*${priceStr}\n🛒 ${p.url}`;
+    try {
+      if (p.imageUrl) {
+        const r = await fetch(`${evoUrl}/send/media`, { method: 'POST', headers,
+          body: JSON.stringify({ number: jid, type: 'image', url: p.imageUrl, caption, delay: 500 }) });
+        if (!r.ok) throw new Error(`media ${r.status}`);
+      } else {
+        await fetch(`${evoUrl}/send/text`, { method: 'POST', headers,
+          body: JSON.stringify({ number: jid, text: caption, linkPreview: true, delay: 500 }) });
+      }
+    } catch {
+      await fetch(`${evoUrl}/send/text`, { method: 'POST', headers,
+        body: JSON.stringify({ number: jid, text: caption, linkPreview: true, delay: 300 }) }).catch(() => {});
+    }
+
+    if (hasGroups) {
+      await fetch(`${evoUrl}/send/button`, { method: 'POST', headers,
+        body: JSON.stringify({
+          number: jid, title: '', description: p.title.slice(0, 50), footer: '',
+          buttons: [{ id: `pub_${i}`, displayText: '📢 Publicar em Grupos', type: 'reply' }],
+          delay: 200,
+        }) }).catch(() => {});
+    }
+  }
+
+  const lines = products.map((p, i) => `${nums[i] ?? `${i + 1}.`} ${p.title.slice(0, 45)}`);
+  const finalText = hasGroups
+    ? `*Qual você quer publicar no grupo?* 👇\n\n${lines.join('\n')}\n\nToque em 📢 *Publicar em Grupos* no produto acima! 🚀`
+    : `*Qual você quer divulgar?* 👇\n\n${lines.join('\n')}\n\nResponda com o número e monto o post! 🚀`;
+  await fetch(`${evoUrl}/send/text`, { method: 'POST', headers,
+    body: JSON.stringify({ number: jid, text: finalText, linkPreview: false, delay: 800 }) }).catch(() => {});
 }
 
 // Resolve URL + token da Evolution. No evolution-go o token é por instância
@@ -977,6 +1065,32 @@ async function executeTool(
     return `Encontrei ${products.length} produto(s) para "${termo}":\n\n${lines.join('\n\n')}\n\nApresente de forma organizada e pergunte qual o cliente quer divulgar.`;
   }
 
+  if (name === 'buscar_produto_ml') {
+    const mlTag = config.affiliateML?.tag || '';
+    const termo = String(args.termo || '');
+    const { ok, products, error } = await searchMLProducts(termo, mlTag, appBaseUrl);
+    if (!ok) return error || 'Não consegui buscar no ML agora.';
+    if (!products.length) return `Nenhum produto encontrado para "${termo}" no Mercado Livre. Sugira ao cliente tentar um termo diferente.`;
+
+    const provider = config.whatsapp?.provider || 'evolution';
+    const jid = leadPhone.includes('@') ? leadPhone : `${leadPhone}@s.whatsapp.net`;
+
+    if (provider === 'evolution') {
+      const { url, key } = await resolveEvolutionCreds(config);
+      if (url && key) {
+        const hasGroups = Array.isArray(config.affiliateGroups) && config.affiliateGroups.length > 0;
+        await sendMLCardsFallback(products, url, key, jid, hasGroups);
+        sideEffects.handled = true;
+        sideEffects.affiliateNote = 'Produtos enviados ao cliente para ele escolher qual divulgar:\n' +
+          products.map((p, i) => `${i + 1}. ${p.title} | ${p.price || 'Preço no link'} | ${p.url} | ${p.imageUrl || ''}`).join('\n');
+        return 'Cards do Mercado Livre enviados ao cliente.';
+      }
+    }
+
+    const lines = products.map((p, i) => `${i + 1}. *${p.title}*${p.price ? ` — ${p.price}` : ''}\nLink: ${p.url}`);
+    return `Encontrei ${products.length} produto(s) para "${termo}" no ML:\n\n${lines.join('\n\n')}\n\nApresente de forma organizada e pergunte qual o cliente quer divulgar.`;
+  }
+
   if (name === 'gerar_link_pagamento') {
     return generatePaymentLink(args, agentId, appBaseUrl, sideEffects);
   }
@@ -1296,6 +1410,7 @@ export async function main(
   const effectivePayments = hasCaps ? (!!caps.commerce && hasPayments) : hasPayments;
   const effectiveCalendar = hasCaps ? (!!caps.commerce && hasCalendar) : hasCalendar;
   const effectiveAffiliate = hasCaps ? !!caps.affiliate : hasAffiliate;
+  const hasML = !!(config.affiliateML?.tag) && (hasCaps ? !!caps.affiliate : true);
 
   // ── Arquivos para envio (catálogos, tabelas de preço, contratos, etc.) ────
 
@@ -1469,7 +1584,7 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
   const sideEffects: { imageUrl?: string; reaction?: string; fileUrl?: string; fileName?: string; handled?: boolean; affiliateNote?: string } = {};
 
   if (!modelToUse.includes('gemini') && finalOpenAiKey) {
-    const tools = buildOpenAITools(config, hasKnowledge, effectivePayments && !!appBaseUrl, effectiveCalendar && !!appBaseUrl, hasDataRecords, hasExternalDb && !!appBaseUrl, hasEmail && !!appBaseUrl, effectiveAffiliate, hasMediaFiles ? mediaFiles : []);
+    const tools = buildOpenAITools(config, hasKnowledge, effectivePayments && !!appBaseUrl, effectiveCalendar && !!appBaseUrl, hasDataRecords, hasExternalDb && !!appBaseUrl, hasEmail && !!appBaseUrl, effectiveAffiliate, hasML, hasMediaFiles ? mediaFiles : []);
     const messages: any[] = [
       { role: 'system', content: aiSystemInstruction },
       ...cleanHistory.map((m: any) => ({
