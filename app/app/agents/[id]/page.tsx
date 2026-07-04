@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/Badge";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { normalizePlan, PLAN_LIMITS } from "@/lib/plans";
+import { CHAT_MODEL } from "@/lib/aiModel";
 // Hooks
 import { useAgentForm } from "./_hooks/useAgentForm";
 import { useWhatsappChannel } from "./_hooks/useWhatsappChannel";
@@ -89,7 +90,6 @@ export default function AgentConfig() {
 
       if (data.config) {
         const cfg = typeof data.config === "string" ? JSON.parse(data.config) : data.config;
-        if (cfg.model) form.setSelectedModel(cfg.model);
         if (cfg.role) form.setRole(cfg.role);
         if (cfg.niche) form.setNiche(cfg.niche);
         if (cfg.tone) form.setTone(cfg.tone);
@@ -161,7 +161,7 @@ export default function AgentConfig() {
     const varsObject: Record<string, string> = {};
     form.variables.forEach((v) => { if (v.key.trim()) varsObject[v.key.trim()] = v.value; });
     return {
-      model: form.selectedModel,
+      model: CHAT_MODEL,
       role: form.role,
       niche: form.niche,
       tone: form.tone,
@@ -365,7 +365,6 @@ export default function AgentConfig() {
           )}
           {activeTab === "config" && (
             <ConfigTab
-              selectedModel={form.selectedModel} setSelectedModel={form.setSelectedModel}
               ignoreGroups={form.ignoreGroups} setIgnoreGroups={form.setIgnoreGroups}
               handoffContacts={form.handoffContacts} setHandoffContacts={form.setHandoffContacts}
               blocklist={form.blocklist} setBlocklist={form.setBlocklist}

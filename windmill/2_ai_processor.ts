@@ -3,6 +3,23 @@
 // Suporta: agentic loop (function calling), memória longa, RAG (base de conhecimento).
 import { createClient } from '@supabase/supabase-js';
 
+// ─── Segredo interno para autenticar as chamadas ao app Next (/api/*) ─────────
+// As rotas /api chamadas por este script exigem o header `x-internal-secret`.
+// Configure a variável INTERNAL_API_SECRET no Windmill (mesmo valor da env
+// INTERNAL_API_SECRET na Vercel).
+let _internalSecret: string | null = null;
+async function getInternalSecret(): Promise<string> {
+  if (_internalSecret !== null) return _internalSecret;
+  _internalSecret = process.env.INTERNAL_API_SECRET || '';
+  if (!_internalSecret) {
+    try {
+      const { getVariable } = await import('windmill-client');
+      _internalSecret = await getVariable('u/bevervansomarcio/synapseai/INTERNAL_API_SECRET').catch(() => '');
+    } catch { /* ignore */ }
+  }
+  return _internalSecret;
+}
+
 // ─── Registro de uso/custo de IA (usage_logs) ─────────────────────────────────
 // Preços em USD por 1M de tokens (input/output). Para tts-1, "input" representa
 // USD por 1M de caracteres (cobrança da OpenAI é por caractere, não por token).
@@ -503,7 +520,7 @@ async function searchMLProducts(
   try {
     const res = await fetch(`${appBaseUrl}/api/mercadolivre/search`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': await getInternalSecret() },
       body: JSON.stringify({ q: termo, tag }),
     });
     const data = await res.json();
@@ -756,7 +773,7 @@ async function generatePaymentLink(args: any, agentId: string, appBaseUrl: strin
   try {
     const res = await fetch(`${appBaseUrl}/api/payments/create-link`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': await getInternalSecret() },
       body: JSON.stringify({ agentId, description: args.description, amount: args.amount }),
     });
     const data = await res.json();
@@ -808,7 +825,7 @@ async function checkCalendarAvailability(args: any, agentId: string, appBaseUrl:
   try {
     const res = await fetch(`${appBaseUrl}/api/calendar/availability`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': await getInternalSecret() },
       body: JSON.stringify({ agentId, date: args.date }),
     });
     const data = await res.json();
@@ -825,7 +842,7 @@ async function bookCalendarSlot(args: any, agentId: string, appBaseUrl: string, 
   try {
     const res = await fetch(`${appBaseUrl}/api/calendar/book`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': await getInternalSecret() },
       body: JSON.stringify({ agentId, datetime: args.datetime, name: args.nome, email: args.email, description: args.descricao, leadId, conversationId }),
     });
     const data = await res.json();
@@ -840,7 +857,7 @@ async function rescheduleCalendarSlot(args: any, agentId: string, appBaseUrl: st
   try {
     const res = await fetch(`${appBaseUrl}/api/calendar/reschedule`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': await getInternalSecret() },
       body: JSON.stringify({ agentId, leadId, datetime: args.datetime }),
     });
     const data = await res.json();
@@ -855,7 +872,7 @@ async function cancelCalendarBooking(agentId: string, appBaseUrl: string, leadId
   try {
     const res = await fetch(`${appBaseUrl}/api/calendar/cancel`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': await getInternalSecret() },
       body: JSON.stringify({ agentId, leadId }),
     });
     const data = await res.json();
@@ -900,7 +917,7 @@ async function queryExternalDatabase(args: any, agentId: string, appBaseUrl: str
   try {
     const res = await fetch(`${appBaseUrl}/api/external-db/query`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': await getInternalSecret() },
       body: JSON.stringify({ agentId, termo: args.termo }),
     });
     const data = await res.json();
@@ -929,7 +946,7 @@ async function sendEmail(args: any, agentId: string, appBaseUrl: string): Promis
   try {
     const res = await fetch(`${appBaseUrl}/api/email/send`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-internal-secret': await getInternalSecret() },
       body: JSON.stringify({ agentId, to: args.destinatario, subject: args.assunto, body: args.mensagem }),
     });
     const data = await res.json();
@@ -1199,7 +1216,6 @@ export async function main(
   webhook_data: any,
   SUPABASE_URL?: string,
   SUPABASE_SERVICE_ROLE_KEY?: string,
-  GEMINI_API_KEY?: string,
   OPENAI_API_KEY?: string
 ) {
   if (!webhook_data || webhook_data.process === false) {
@@ -1207,11 +1223,10 @@ export async function main(
   }
 
   let finalOpenAiKey = OPENAI_API_KEY;
-  let finalGeminiKey = GEMINI_API_KEY;
   let finalSupabaseUrl = SUPABASE_URL;
   let finalSupabaseRoleKey = SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!finalOpenAiKey || !finalGeminiKey || !finalSupabaseUrl || !finalSupabaseRoleKey) {
+  if (!finalOpenAiKey || !finalSupabaseUrl || !finalSupabaseRoleKey) {
     try {
       const { getVariable } = await import('windmill-client');
       const tryGet = async (...paths: string[]) => {
@@ -1219,7 +1234,6 @@ export async function main(
         return '';
       };
       if (!finalOpenAiKey)       finalOpenAiKey       = await tryGet('u/bevervansomarcio/OPENAI_API_KEY', 'u/bevervansomarcio/synapseai/OPENAI_API_KEY');
-      if (!finalGeminiKey)       finalGeminiKey       = await tryGet('u/bevervansomarcio/GEMINI_API_KEY', 'u/bevervansomarcio/synapseai/GEMINI_API_KEY');
       if (!finalSupabaseUrl)     finalSupabaseUrl     = await tryGet('u/bevervansomarcio/synapseai/SUPABASE_URL', 'u/bevervansomarcio/SUPABASE_URL');
       if (!finalSupabaseRoleKey) finalSupabaseRoleKey = await tryGet('u/bevervansomarcio/synapseai/SUPABASE_SERVICE_ROLE_KEY', 'u/bevervansomarcio/SUPABASE_SERVICE_ROLE_KEY');
     } catch (e: any) {
@@ -1582,12 +1596,17 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
   }
 
   // ── Agentic loop (OpenAI function calling) ────────────────────────────────
+  // Provedor único: OpenAI. Toda a stack (RAG, function calling, TTS, memória)
+  // depende dele. Modelos legados salvos como 'gemini*' ou 'openai' são
+  // normalizados para o modelo padrão.
+  const CHAT_MODEL = 'gpt-5.4-mini';
+  const rawModel: string = config.model || '';
+  const modelToUse = (!rawModel || rawModel.includes('gemini') || rawModel === 'openai') ? CHAT_MODEL : rawModel;
 
-  const modelToUse = config.model || 'gpt-5.4-mini';
   let responseText = 'Desculpe, não consegui processar sua mensagem no momento.';
   const sideEffects: { imageUrl?: string; reaction?: string; fileUrl?: string; fileName?: string; handled?: boolean; affiliateNote?: string } = {};
 
-  if (!modelToUse.includes('gemini') && finalOpenAiKey) {
+  if (finalOpenAiKey) {
     const tools = buildOpenAITools(config, hasKnowledge, effectivePayments && !!appBaseUrl, effectiveCalendar && !!appBaseUrl, hasDataRecords, hasExternalDb && !!appBaseUrl, hasEmail && !!appBaseUrl, effectiveAffiliate, hasML, hasMediaFiles ? mediaFiles : []);
     const messages: any[] = [
       { role: 'system', content: aiSystemInstruction },
@@ -1604,7 +1623,7 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${finalOpenAiKey}` },
         body: JSON.stringify({
-          model: modelToUse === 'openai' ? 'gpt-4o-mini' : modelToUse,
+          model: modelToUse,
           messages,
           ...(tools.length > 0 ? { tools, tool_choice: 'auto' } : {}),
         }),
@@ -1613,9 +1632,8 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
       const result = await res.json();
       if (!res.ok) { responseText = `[ERRO OPENAI]: ${JSON.stringify(result)}`; break; }
 
-      const usedModel = modelToUse === 'openai' ? 'gpt-4o-mini' : modelToUse;
       logUsage(supabase, {
-        userId, agentId: agentData.id, conversationId: conversation.id, provider: 'openai', model: usedModel, endpoint: 'chat_completion',
+        userId, agentId: agentData.id, conversationId: conversation.id, provider: 'openai', model: modelToUse, endpoint: 'chat_completion',
         promptTokens: result.usage?.prompt_tokens || 0, completionTokens: result.usage?.completion_tokens || 0, totalTokens: result.usage?.total_tokens,
       });
 
@@ -1639,30 +1657,6 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
       }
     }
 
-  } else if (finalGeminiKey) {
-    const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${finalGeminiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: aiSystemInstruction }] },
-          contents: cleanHistory.map((m: any) => ({
-            role: m.sender_type === 'lead' ? 'user' : 'model',
-            parts: [{ text: m.content }],
-          })),
-        }),
-      }
-    );
-    const geminiResult = await geminiRes.json();
-    responseText = geminiResult.candidates?.[0]?.content?.parts?.[0]?.text
-      || `[ERRO GEMINI]: ${JSON.stringify(geminiResult)}`;
-    logUsage(supabase, {
-      userId, agentId: agentData.id, conversationId: conversation.id, provider: 'gemini', model: 'gemini-2.5-flash', endpoint: 'chat_completion',
-      promptTokens: geminiResult.usageMetadata?.promptTokenCount || 0,
-      completionTokens: geminiResult.usageMetadata?.candidatesTokenCount || 0,
-      totalTokens: geminiResult.usageMetadata?.totalTokenCount,
-    });
   } else {
     responseText = '[ERRO]: Nenhuma chave de IA configurada.';
   }

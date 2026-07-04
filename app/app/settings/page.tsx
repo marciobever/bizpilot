@@ -1,5 +1,6 @@
 "use client";
 import React, { Suspense, useEffect, useState } from "react";
+import { authFetch } from "@/lib/api-client";
 import { User as UserIcon, Palette, CreditCard, Shield } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -87,7 +88,7 @@ function SettingsInner() {
     setPlanFeedback(null);
     setPlanActionLoading(targetPlan);
     try {
-      const res = await fetch("/api/stripe/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan: targetPlan, userId: user.id, email: user.email }) });
+      const res = await authFetch("/api/stripe/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan: targetPlan, userId: user.id, email: user.email }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao iniciar checkout.");
       window.location.href = data.url;
@@ -102,7 +103,7 @@ function SettingsInner() {
     setPlanFeedback(null);
     setPlanActionLoading("portal");
     try {
-      const res = await fetch("/api/stripe/portal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id }) });
+      const res = await authFetch("/api/stripe/portal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao abrir portal de cobrança.");
       window.location.href = data.url;

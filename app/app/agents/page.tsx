@@ -1,5 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
+import { authFetch } from "@/lib/api-client";
 import Link from 'next/link';
 import { useRouter } from "next/navigation";
 import { Plus, Settings2, Trash2, Bot, Loader2, Zap } from "lucide-react";
@@ -74,7 +75,7 @@ export default function Agents() {
 
   const handleDeleteAgent = async (id: string) => {
     try {
-      try { await fetch(`/api/evolution/instances/agent_${id}`, { method: 'DELETE' }); } catch {}
+      try { await authFetch(`/api/evolution/instances/agent_${id}`, { method: 'DELETE' }); } catch {}
       const { error } = await supabase.from('agents').delete().eq('id', id);
       if (error) throw error;
       setAgents(agents.filter(a => a.id !== id));

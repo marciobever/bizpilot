@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import { graphUrl } from '../utils';
+import { requireUser } from '@/lib/api-auth';
 
 // Valida as credenciais do WhatsApp Cloud API (Meta Oficial) consultando
 // os dados do número na Graph API. Usado pelo botão "Testar e Conectar".
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   try {
     const { phoneNumberId, accessToken } = await req.json();
 

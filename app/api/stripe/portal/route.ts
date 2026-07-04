@@ -1,18 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
-
-function getServiceSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error('SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY ausente.');
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-}
+import { requireUser, getServiceSupabase } from '@/lib/api-auth';
 
 // Abre o Portal do Cliente Stripe (gerenciar forma de pagamento, cancelar, ver faturas).
 export async function POST(req: NextRequest) {
-  const { userId } = await req.json() as { userId?: string };
-  if (!userId) return NextResponse.json({ error: 'userId é obrigatório.' }, { status: 400 });
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const userId = auth.user.id;
+
   if (!process.env.STRIPE_SECRET_KEY) return NextResponse.json({ error: 'STRIPE_SECRET_KEY não configurada.' }, { status: 500 });
 
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);

@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
+import { requireUser } from '@/lib/api-auth';
 
 // Valida as credenciais do provedor de calendário escolhido.
 // Usado pelo botão "Salvar Conexão" da integração "Calendário / Agenda".
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
     const { provider } = body;

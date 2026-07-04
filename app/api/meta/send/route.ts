@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { graphUrl, getServiceSupabase, getMetaConfig } from '../utils';
+import { requireUser, userOwnsAgent } from '@/lib/api-auth';
 
 // Envia uma mensagem de texto via WhatsApp Cloud API (Meta Oficial).
 //
@@ -12,6 +13,9 @@ import { graphUrl, getServiceSupabase, getMetaConfig } from '../utils';
 // da janela de atendimento de 24h após a última mensagem do cliente. Fora
 // disso, é obrigatório usar um template aprovado.
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
     const { to, text } = body;
@@ -26,6 +30,9 @@ export async function POST(req: Request) {
 
     // Resolve credenciais a partir do agente, se necessário.
     if ((!phoneNumberId || !accessToken) && body.agentId) {
+      if (!(await userOwnsAgent(body.agentId, auth.user.id))) {
+        return NextResponse.json({ success: false, error: 'Agente não pertence à sua conta.' }, { status: 403 });
+      }
       const supabase = getServiceSupabase();
       const { data: agent } = await supabase
         .from('agents')

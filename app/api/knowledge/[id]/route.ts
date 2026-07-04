@@ -1,17 +1,25 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-
-function getServiceSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error('SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY ausente.');
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-}
+import { requireUser, getServiceSupabase, userOwnsAgent } from '@/lib/api-auth';
 
 // DELETE /api/knowledge/[id]
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   const { id } = await params;
   const supabase = getServiceSupabase();
+
+  // Confere que o documento pertence a um agente do usuário logado.
+  const { data: doc } = await supabase
+    .from('knowledge_base')
+    .select('agent_id')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (!doc || !(await userOwnsAgent((doc as any).agent_id, auth.user.id))) {
+    return NextResponse.json({ error: 'Documento não encontrado.' }, { status: 404 });
+  }
+
   const { error } = await supabase.from('knowledge_base').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });

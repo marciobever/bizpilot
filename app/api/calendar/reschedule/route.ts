@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireInternalSecret } from '@/lib/api-auth';
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -52,6 +53,9 @@ async function rescheduleGoogle(config: any, eventId: string, datetime: string) 
 // POST /api/calendar/reschedule { agentId, leadId, datetime }
 // Chamado pelo Windmill (tool `reagendar_horario`).
 export async function POST(req: NextRequest) {
+  const auth = requireInternalSecret(req);
+  if (!auth.ok) return auth.response;
+
   const { agentId, leadId, datetime } = await req.json();
   if (!agentId || !leadId || !datetime) return NextResponse.json({ error: 'agentId, leadId e datetime são obrigatórios' }, { status: 400 });
 

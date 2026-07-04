@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { authFetch } from "@/lib/api-client";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { SupportChatButton } from "./SupportChatButton";
@@ -30,7 +31,7 @@ export function SupportChat() {
     setLoading(true);
 
     try {
-      const res = await fetch("/api/support-chat", {
+      const res = await authFetch("/api/support-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

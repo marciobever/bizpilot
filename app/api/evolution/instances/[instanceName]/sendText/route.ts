@@ -1,9 +1,12 @@
 import { NextResponse } from 'next/server';
-import { resolveInstanceToken } from '../../../utils';
+import { resolveInstanceToken, authorizeInstanceRoute } from '../../../utils';
 
 export async function POST(req: Request, context: any) {
   try {
     const { instanceName } = await context.params;
+    const denied = await authorizeInstanceRoute(req, instanceName);
+    if (denied) return denied;
+
     const { number, text } = await req.json();
     const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
 

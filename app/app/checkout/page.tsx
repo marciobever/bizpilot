@@ -1,5 +1,6 @@
 "use client";
 import { Suspense, useEffect, useState } from "react";
+import { authFetch } from "@/lib/api-client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Loader2, Check, LogOut } from "lucide-react";
@@ -43,7 +44,7 @@ function CheckoutInner() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.replace(`/auth/login?plan=${plan}`); return; }
 
-    const res = await fetch("/api/stripe/checkout", {
+    const res = await authFetch("/api/stripe/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ plan, userId: user.id, email: user.email }),
@@ -78,7 +79,7 @@ function CheckoutInner() {
       // 1) Voltou do Stripe: confirma o pagamento e libera o app.
       if (sessionId) {
         setPhase("confirming");
-        const res = await fetch("/api/stripe/confirm", {
+        const res = await authFetch("/api/stripe/confirm", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ sessionId }),

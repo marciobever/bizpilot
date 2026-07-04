@@ -1,4 +1,25 @@
 import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+import { requireUser, userOwnsAgent, agentIdFromInstanceName } from '@/lib/api-auth';
+
+// Autoriza uma rota /api/evolution/instances/[instanceName]: exige usuário
+// logado E que o agente embutido no instanceName seja dele. Devolve null se ok
+// (pode prosseguir) ou uma NextResponse de erro a ser retornada pela rota.
+export async function authorizeInstanceRoute(
+  req: Request,
+  instanceName: string,
+): Promise<NextResponse | null> {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
+  const agentId = agentIdFromInstanceName(instanceName);
+  if (!agentId) return NextResponse.json({ error: 'instanceName inválido.' }, { status: 400 });
+
+  if (!(await userOwnsAgent(agentId, auth.user.id))) {
+    return NextResponse.json({ error: 'Instância não pertence à sua conta.' }, { status: 403 });
+  }
+  return null;
+}
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;

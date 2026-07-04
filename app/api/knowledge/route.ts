@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceSupabase, fetchUrlContent, ingestKnowledgeEntry } from '@/lib/knowledge';
+import { requireUser, userOwnsAgent, assertPublicHttpUrl, SsrfError } from '@/lib/api-auth';
 
 // GET /api/knowledge?agentId=xxx
 export async function GET(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   const agentId = req.nextUrl.searchParams.get('agentId');
   if (!agentId) return NextResponse.json({ error: 'agentId obrigatório' }, { status: 400 });
+  if (!(await userOwnsAgent(agentId, auth.user.id))) {
+    return NextResponse.json({ error: 'Agente não pertence à sua conta.' }, { status: 403 });
+  }
 
   const supabase = getServiceSupabase();
   const { data, error } = await supabase
@@ -19,6 +26,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/knowledge
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const { agentId, title, content, sourceType = 'text', sourceUrl } = body;
 
@@ -26,10 +36,13 @@ export async function POST(req: NextRequest) {
 
   const supabase = getServiceSupabase();
 
-  // Resolve user_id from the agent record
+  // Resolve user_id from the agent record e garante que é do usuário logado
   const { data: agent, error: agentErr } = await supabase
     .from('agents').select('user_id').eq('id', agentId).single();
   if (agentErr || !agent) return NextResponse.json({ error: 'Agente não encontrado' }, { status: 404 });
+  if (agent.user_id !== auth.user.id) {
+    return NextResponse.json({ error: 'Agente não pertence à sua conta.' }, { status: 403 });
+  }
   const userId = agent.user_id;
 
   // Verifica limite de documentos do plano
@@ -52,8 +65,14 @@ export async function POST(req: NextRequest) {
 
   let finalContent = content || '';
   if (sourceType === 'url' && sourceUrl) {
-    try { finalContent = await fetchUrlContent(sourceUrl); }
-    catch (e: any) { return NextResponse.json({ error: e.message }, { status: 400 }); }
+    try {
+      await assertPublicHttpUrl(String(sourceUrl));
+      finalContent = await fetchUrlContent(sourceUrl);
+    }
+    catch (e: any) {
+      const msg = e instanceof SsrfError ? `URL não permitida: ${e.message}` : e.message;
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
   }
   if (!finalContent.trim()) return NextResponse.json({ error: 'Conteúdo vazio' }, { status: 400 });
 

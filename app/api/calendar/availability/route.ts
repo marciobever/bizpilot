@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireInternalSecret } from '@/lib/api-auth';
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -76,6 +77,9 @@ async function calendlySlots(apiToken: string, eventTypeUri: string, date: strin
 // POST /api/calendar/availability { agentId, date: 'YYYY-MM-DD' }
 // Chamado pelo Windmill (tool `verificar_disponibilidade`).
 export async function POST(req: NextRequest) {
+  const auth = requireInternalSecret(req);
+  if (!auth.ok) return auth.response;
+
   const { agentId, date } = await req.json();
   if (!agentId || !date) return NextResponse.json({ error: 'agentId e date são obrigatórios' }, { status: 400 });
 

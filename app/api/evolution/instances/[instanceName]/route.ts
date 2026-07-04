@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { resolveInstanceToken } from '../../utils';
+import { resolveInstanceToken, authorizeInstanceRoute } from '../../utils';
 
 export async function DELETE(req: Request, context: any) {
   try {
     const { instanceName } = await context.params;
+    const denied = await authorizeInstanceRoute(req, instanceName);
+    if (denied) return denied;
+
     const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
     const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
 

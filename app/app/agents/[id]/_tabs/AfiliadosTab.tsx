@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { authFetch } from "@/lib/api-client";
 import { Users, RefreshCw, Search, CheckCircle2, Circle, AlertCircle, ShoppingBag, ArrowRight, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -58,7 +59,7 @@ export function AfiliadosTab({ agentId, affiliateGroups, setAffiliateGroups }: P
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`/api/evolution/groups?agentId=${agentId}`);
+      const res = await authFetch(`/api/evolution/groups?agentId=${agentId}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Erro ao buscar grupos");
       setAvailable(data.groups || []);

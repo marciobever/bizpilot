@@ -1,18 +1,12 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-
-function getServiceSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error('SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY ausente.');
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-}
+import { requireInternalSecret, getServiceSupabase, assertPublicHttpUrl } from '@/lib/api-auth';
 
 const MAX_RESULTS = 5;
 
 async function querySupabase(config: any, termo: string) {
   const { projectUrl, apiKey, table, searchColumn } = config;
-  const url = `${String(projectUrl).replace(/\/$/, '')}/rest/v1/${encodeURIComponent(table)}?${encodeURIComponent(searchColumn)}=ilike.*${encodeURIComponent(termo)}*&limit=${MAX_RESULTS}`;
+  const base = await assertPublicHttpUrl(String(projectUrl));
+  const url = `${base.toString().replace(/\/$/, '')}/rest/v1/${encodeURIComponent(table)}?${encodeURIComponent(searchColumn)}=ilike.*${encodeURIComponent(termo)}*&limit=${MAX_RESULTS}`;
   const res = await fetch(url, { headers: { apikey: apiKey, Authorization: `Bearer ${apiKey}` } });
   const data = await res.json();
   if (!res.ok) throw new Error(data?.message || 'Erro ao consultar a tabela.');
@@ -55,6 +49,9 @@ async function queryFirebase(config: any, termo: string) {
 // Chamado pelo Windmill (tool `consultar_dados_externos`) quando o agente
 // precisa buscar uma informação no banco de dados próprio do usuário.
 export async function POST(req: NextRequest) {
+  const auth = requireInternalSecret(req);
+  if (!auth.ok) return auth.response;
+
   const { agentId, termo } = await req.json();
 
   if (!agentId || !termo) {

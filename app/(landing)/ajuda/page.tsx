@@ -12,7 +12,7 @@ export default function HelpCenter() {
   ];
 
   const FAQ = [
-    { q: "Qual modelo de Inteligência vocês usam?", a: "Por padrão, rodamos Google Gemini 1.5 Flash pela velocidade incrível para diálogos. Para planos Pro e Enterprise, oferecemos também o GPT-4o e Claude 3.5 Sonnet para extrema empatia humana." },
+    { q: "Qual modelo de Inteligência vocês usam?", a: "Rodamos em um modelo avançado da OpenAI, ajustado para respostas precisas e fiéis à base de conhecimento do seu negócio — o bot consulta o que você cadastrou antes de responder, em vez de inventar." },
     { q: "O robô vaza informações dos meus PDFs?", a: "Não. A inserção no RAG passa por camadas de segurança fortes (System Prompt Isolations) que garantem que o robô apenas repasse o ensinado, sem 'alucinar' ou desviar do tema." },
     { q: "Posso cancelar a qualquer momento?", a: "Sim. A assinatura pode ser gerenciada diretamente pelo painel e o cancelamento é imediato sem burocracias ou carências." }
   ];

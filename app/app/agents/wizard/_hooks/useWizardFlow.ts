@@ -2,6 +2,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { authFetch } from "@/lib/api-client";
+import { CHAT_MODEL } from "@/lib/aiModel";
 import { useAuth } from "@/lib/auth";
 import {
   SECTORS, composeSystemPrompt, aggregateLimitations, sectorHasDataRecords, type Sector, type AgentFunction,
@@ -169,7 +171,7 @@ export function useWizardFlow({ pushUser, pushBot, setBotTyping, addBotMessageDi
     setGeneratingFunction(true);
     setFunctionGenError("");
     try {
-      const res = await fetch("/api/agents/generate", {
+      const res = await authFetch("/api/agents/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -296,7 +298,7 @@ Use SEMPRE a ferramenta buscar_conhecimento antes de responder sobre produtos, s
     setBotTyping(true);
     try {
       const context = { agentName, role, niche, tone: toneArg || tone };
-      const res = await fetch("/api/agents/generate", {
+      const res = await authFetch("/api/agents/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ field: "greetings", description: buildBrief() || "Atendimento ao cliente", context }),
@@ -365,7 +367,7 @@ Use SEMPRE a ferramenta buscar_conhecimento antes de responder sobre produtos, s
     const limitations = selectedLimitations.length > 0 ? selectedLimitations : (isCustom ? selectedSector.baseLimitations : aggregateLimitations(selectedSector, selectedFunctions));
     const dataRecords = isCustom ? false : sectorHasDataRecords(selectedSector, selectedFunctions);
     const configData = {
-      model: "gpt-5.4-mini", role, niche, tone, greeting, sector: selectedSector.id,
+      model: CHAT_MODEL, role, niche, tone, greeting, sector: selectedSector.id,
       functions: isCustom ? [] : selectedFunctions, typingSpeed: "40",
       voice_enabled: false, voice_voice: "alloy", limitations, ignoreGroups: true,
       dataRecordsEnabled: dataRecords, handoffPhone: "", blocklist: [], tags: [],

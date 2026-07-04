@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 
 interface Props {
-  selectedModel: string;
-  setSelectedModel: (v: string) => void;
   ignoreGroups: boolean;
   setIgnoreGroups: (v: boolean) => void;
   handoffContacts: { name: string; phone: string }[];
@@ -20,7 +18,6 @@ interface Props {
 }
 
 export function ConfigTab({
-  selectedModel, setSelectedModel,
   ignoreGroups, setIgnoreGroups,
   handoffContacts, setHandoffContacts,
   blocklist, setBlocklist,
@@ -28,40 +25,6 @@ export function ConfigTab({
 }: Props) {
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Motor de Inteligência</CardTitle>
-          <CardDescription>Escolha qual modelo de IA vai processar as respostas deste agente.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {[
-              { id: "gemini-2.5-flash", label: "Google Gemini", desc: "Extremamente rápido, ideal para grande volume. Padrão." },
-              { id: "gpt-5.4-mini", label: "OpenAI", desc: "Avançado, balanceado em custo e inteligência geral." },
-            ].map((m) => (
-              <div
-                key={m.id}
-                className={`p-3 rounded-lg border cursor-pointer relative transition-colors ${
-                  selectedModel === m.id
-                    ? "border-brand-500 bg-brand-500/10"
-                    : "border-border bg-card hover:border-muted-foreground/50"
-                }`}
-                onClick={() => setSelectedModel(m.id)}
-              >
-                {selectedModel === m.id && (
-                  <div className="absolute top-3 right-3 flex items-center h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500" />
-                  </div>
-                )}
-                <div className={`font-medium text-sm ${selectedModel === m.id ? "text-brand-200" : "text-foreground"}`}>{m.label}</div>
-                <div className={`text-[11px] mt-1 ${selectedModel === m.id ? "text-brand-400/80" : "text-muted-foreground"}`}>{m.desc}</div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <CardTitle>Regras de Atendimento</CardTitle>
