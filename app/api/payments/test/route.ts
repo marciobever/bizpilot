@@ -50,6 +50,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
+    if (provider === 'pagbank') {
+      // PagBank não expõe um endpoint read-only simples pra validar o token sem
+      // criar cobrança; confere presença e valida de fato na 1ª cobrança.
+      return NextResponse.json({ success: true });
+    }
+
+    if (provider === 'infinitepay') {
+      // InfinitePay usa o handle público (sem token). Só normalizamos/confirmamos
+      // que foi informado; validado de fato ao gerar o primeiro link.
+      if (!apiKey.replace(/^\$/, '').trim()) {
+        return NextResponse.json({ success: false, error: 'Informe sua InfiniteTag.' }, { status: 400 });
+      }
+      return NextResponse.json({ success: true });
+    }
+
     return NextResponse.json({ success: false, error: 'Provedor não suportado.' }, { status: 400 });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

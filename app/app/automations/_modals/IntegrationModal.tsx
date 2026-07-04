@@ -143,7 +143,7 @@ export function IntegrationModal({
               ) : (
                 <div className="space-y-2">
                   <Label>{PAYMENT_PROVIDERS.find((p) => p.value === paymentsForm.provider)?.keyLabel}</Label>
-                  <Input type="password" value={paymentsForm.apiKey} onChange={(e) => setPaymentsForm({ ...paymentsForm, apiKey: e.target.value })} />
+                  <Input type={paymentsForm.provider === "infinitepay" ? "text" : "password"} value={paymentsForm.apiKey} onChange={(e) => setPaymentsForm({ ...paymentsForm, apiKey: e.target.value })} placeholder={paymentsForm.provider === "infinitepay" ? "seu-handle" : undefined} />
                   <p className="text-xs text-muted-foreground">{PAYMENT_PROVIDERS.find((p) => p.value === paymentsForm.provider)?.help}</p>
                 </div>
               )}

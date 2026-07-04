@@ -75,6 +75,44 @@ async function createStripeLink(apiKey: string, description: string, amount: num
   return data.url as string;
 }
 
+// PagBank (ex-PagSeguro): cria um Checkout e devolve o link com rel "PAY".
+async function createPagBankLink(apiKey: string, description: string, amount: number) {
+  const res = await fetch('https://api.pagseguro.com/checkouts', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      reference_id: crypto.randomUUID(),
+      items: [{ reference_id: '1', name: description.slice(0, 100) || 'Cobrança', quantity: 1, unit_amount: Math.round(amount * 100) }],
+      payment_methods: [{ type: 'PIX' }, { type: 'CREDIT_CARD' }, { type: 'BOLETO' }],
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data?.error_messages?.[0]?.description || data?.message || 'Erro ao criar checkout no PagBank.');
+  const pay = (data.links || []).find((l: any) => l.rel === 'PAY');
+  if (!pay?.href) throw new Error('PagBank não retornou um link de pagamento.');
+  return pay.href as string;
+}
+
+// InfinitePay: cria um link de pagamento a partir do handle (InfiniteTag público,
+// sem token secreto). Aceita cartão/Pix/boleto na página hospedada.
+async function createInfinitePayLink(handle: string, description: string, amount: number, origin: string) {
+  const res = await fetch('https://api.checkout.infinitepay.io/links', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      handle: handle.replace(/^\$/, '').trim(),
+      redirect_url: `${origin}/?pagamento=sucesso`,
+      order_nsu: crypto.randomUUID(),
+      items: [{ quantity: 1, price: Math.round(amount * 100), description: description.slice(0, 250) || 'Cobrança' }],
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`Não consegui gerar o link na InfinitePay — confira se a InfiniteTag está correta. (${data?.message || res.status})`);
+  const link = data.url || data.link || data.payment_url || data?.data?.url;
+  if (!link) throw new Error('InfinitePay não retornou um link de pagamento.');
+  return link as string;
+}
+
 // POST /api/payments/create-link
 // Chamado pelo Windmill (tool `gerar_link_pagamento`) quando o agente decide
 // gerar uma cobrança para o lead durante a conversa.
@@ -134,6 +172,8 @@ export async function POST(req: NextRequest) {
     else if (provider === 'asaas') url = await createAsaasLink(apiKey, description, numericAmount);
     else if (provider === 'woovi') url = await createWooviLink(apiKey, description, numericAmount);
     else if (provider === 'stripe') url = await createStripeLink(apiKey, description, numericAmount, req.nextUrl.origin);
+    else if (provider === 'pagbank') url = await createPagBankLink(apiKey, description, numericAmount);
+    else if (provider === 'infinitepay') url = await createInfinitePayLink(apiKey, description, numericAmount, req.nextUrl.origin);
     else return NextResponse.json({ error: 'Provedor não suportado.' }, { status: 400 });
 
     if (!url) return NextResponse.json({ error: 'Provedor não retornou um link de pagamento.' }, { status: 502 });

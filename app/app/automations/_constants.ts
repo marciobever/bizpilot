@@ -126,6 +126,18 @@ export const PAYMENT_PROVIDERS: { value: string; label: string; keyLabel: string
     keyLabel: "Chave Secreta (Secret Key)",
     help: "Painel da Stripe → Desenvolvedores → Chaves de API → Chave secreta (sk_live_... ou sk_test_...).",
   },
+  {
+    value: "pagbank",
+    label: "PagBank (PagSeguro)",
+    keyLabel: "Token de Produção",
+    help: "Painel PagBank → Vendas → Integrações / Minhas credenciais → Token de produção.",
+  },
+  {
+    value: "infinitepay",
+    label: "InfinitePay",
+    keyLabel: "Sua InfiniteTag (handle, sem o $)",
+    help: "É o seu @ da InfinitePay (ex: joaosilva), o mesmo do seu link de pagamento. Não precisa de token nem senha.",
+  },
 ];
 
 export const CALENDAR_PROVIDERS: { value: string; label: string }[] = [
