@@ -20,6 +20,37 @@ async function getInternalSecret(): Promise<string> {
   return _internalSecret;
 }
 
+// ─── Report de erros pro Bugsink (self-hosted, compatível com Sentry) ─────────
+// DSN é semi-público (feito pra embutir em cliente), então fica inline mesmo.
+async function reportToBugsink(message: string, extra: Record<string, any>): Promise<void> {
+  const KEY = '105363e79651405fb2bab8eeb4f6b36f';
+  const HOST = 'bugsink.bizpilot.com.br';
+  const PROJECT = '1';
+  try {
+    const event = {
+      event_id: crypto.randomUUID().replace(/-/g, ''),
+      timestamp: new Date().toISOString(),
+      platform: 'other',
+      level: 'error',
+      logger: 'ai_processor',
+      server_name: 'windmill',
+      tags: { source: 'bot' },
+      message: String(message).slice(0, 4000),
+      extra,
+    };
+    await fetch(`https://${HOST}/api/${PROJECT}/store/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Sentry-Auth': `Sentry sentry_version=7, sentry_key=${KEY}, sentry_client=bizpilot-bot/1.0`,
+      },
+      body: JSON.stringify(event),
+    });
+  } catch (e: any) {
+    console.error('[BUGSINK] falha ao reportar:', e?.message);
+  }
+}
+
 // ─── Registro de uso/custo de IA (usage_logs) ─────────────────────────────────
 // Preços em USD por 1M de tokens (input/output). Para tts-1, "input" representa
 // USD por 1M de caracteres (cobrança da OpenAI é por caractere, não por token).
@@ -1664,6 +1695,10 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
   // erro real nos bastidores e manda uma mensagem humana no lugar.
   if (responseText.startsWith('[ERRO')) {
     console.error('[AI_PROCESSOR] resposta de erro suprimida:', responseText);
+    await reportToBugsink(responseText, {
+      agentId: agentData.id, agentName: agentData.name,
+      conversationId: conversation.id, userId, phone: phoneNumber, model: modelToUse,
+    });
     responseText = 'Opa, tive um probleminha técnico aqui agora 😕 Pode mandar sua mensagem de novo, por favor?';
   }
 
