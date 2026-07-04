@@ -421,6 +421,7 @@ async function searchKnowledge(
       query_embedding: data[0].embedding,
       agent_id_filter: agentId,
       match_count: 5,
+      min_similarity: 0.42, // sobe de 0.3 (default) p/ cortar trecho fracamente relevante
     });
     if (!chunks?.length) return 'Nenhuma informação relevante encontrada na base de conhecimento.';
     return chunks.map((c: any) => c.chunk_text).join('\n\n---\n\n');
@@ -1367,8 +1368,18 @@ export async function main(
 
   // ── Memória longa ─────────────────────────────────────────────────────────
 
-  const { data: memories } = await supabase.from('contact_memory').select('key, value')
-    .eq('lead_id', lead.id).eq('agent_id', agentData.id);
+  // ── Setup em paralelo (memória + KB + TODAS as integrações numa query só) ──
+  // Antes eram ~7 idas sequenciais ao banco por mensagem; agora 3 em paralelo,
+  // e as 6 checagens de integração viram 1 query filtrada em memória.
+  const [
+    { data: memories },
+    { count: chunkCount },
+    { data: allIntegrations },
+  ] = await Promise.all([
+    supabase.from('contact_memory').select('key, value').eq('lead_id', lead.id).eq('agent_id', agentData.id),
+    supabase.from('knowledge_chunks').select('id', { count: 'exact', head: true }).eq('agent_id', agentData.id),
+    supabase.from('integrations').select('provider, status, config').eq('user_id', userId),
+  ]);
 
   let memoryContext = '';
   if (memories?.length) {
@@ -1376,51 +1387,22 @@ export async function main(
       memories.map((m: any) => `${m.key}: ${m.value}`).join('\n');
   }
 
-  // ── Base de conhecimento (verifica se há chunks) ──────────────────────────
-
-  const { count: chunkCount } = await supabase.from('knowledge_chunks')
-    .select('id', { count: 'exact', head: true }).eq('agent_id', agentData.id);
   const hasKnowledge = (chunkCount || 0) > 0;
 
-  // ── Links de pagamento (Mercado Pago / Asaas / Woovi) ─────────────────────
-
-  const { data: paymentsIntegration } = await supabase.from('integrations')
-    .select('status').eq('user_id', userId).eq('provider', 'payments').maybeSingle();
-  const hasPayments = paymentsIntegration?.status === 'connected';
-
-  // ── Calendário / Agenda (Cal.com / Google Calendar / Calendly) ────────────
-
-  const { data: calendarIntegration } = await supabase.from('integrations')
-    .select('status').eq('user_id', userId).eq('provider', 'calendar').maybeSingle();
-  const hasCalendar = calendarIntegration?.status === 'connected';
+  const integ = (p: string) => (allIntegrations || []).find((i: any) => i.provider === p);
+  const hasPayments = integ('payments')?.status === 'connected';
+  const hasCalendar = integ('calendar')?.status === 'connected';
+  const hasExternalDb = integ('external_db')?.status === 'connected';
+  const hasEmail = integ('email')?.status === 'connected';
 
   // ── Memória de dados estruturados (registros livres por categoria) ───────
-
   const caps = config.capabilities || {};
   const hasCaps = Object.keys(caps).length > 0;
   const hasDataRecords = hasCaps ? !!caps.dataRecords : config.dataRecordsEnabled !== false;
 
-  // ── Banco de dados externo do usuário (Supabase ou Firebase próprios) ────
-
-  const { data: externalDbIntegration } = await supabase.from('integrations')
-    .select('status').eq('user_id', userId).eq('provider', 'external_db').maybeSingle();
-  const hasExternalDb = externalDbIntegration?.status === 'connected';
-
-  // ── E-mail (Resend / SendGrid) ────────────────────────────────────────────
-
-  const { data: emailIntegration } = await supabase.from('integrations')
-    .select('status').eq('user_id', userId).eq('provider', 'email').maybeSingle();
-  const hasEmail = emailIntegration?.status === 'connected';
-
-  // ── Afiliados (add-on pago Shopee) ────────────────────────────────────────
-  // Add-on independente do tier: liga quando a integração 'affiliate' está
-  // conectada. As credenciais Shopee (app_id/secret) são do PRÓPRIO usuário,
-  // configuradas no BizPilot e salvas em integrations.config — não há variável
-  // global. Anexamos ao config p/ a tool usar, sem inchar a assinatura.
-  const [{ data: affiliateIntegration }, { data: mlIntegration }] = await Promise.all([
-    supabase.from('integrations').select('status, config').eq('user_id', userId).eq('provider', 'affiliate').maybeSingle(),
-    supabase.from('integrations').select('status, config').eq('user_id', userId).eq('provider', 'mercadolivre').maybeSingle(),
-  ]);
+  // ── Afiliados: credenciais Shopee (per-user) anexadas ao config p/ a tool ─
+  const affiliateIntegration = integ('affiliate');
+  const mlIntegration = integ('mercadolivre');
   const hasAffiliate = affiliateIntegration?.status === 'connected';
   config.affiliateShopee = hasAffiliate ? (affiliateIntegration?.config || null) : null;
   const mlConnected = mlIntegration?.status === 'connected' && !!(mlIntegration?.config?.tag);
@@ -1619,6 +1601,19 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
       { role: 'user', content: incomingMessage },
     ];
 
+    // RAG automático: recupera o conhecimento relevante à mensagem e injeta ANTES
+    // do modelo responder — em vez de torcer pra ele chamar a tool. É o que
+    // garante resposta baseada na base, não em "achismo".
+    if (hasKnowledge) {
+      const kb = await searchKnowledge(incomingMessage, agentData.id, supabase, finalOpenAiKey, userId, conversation.id);
+      if (kb && kb.trim() && !kb.startsWith('Nenhuma')) {
+        messages.splice(messages.length - 1, 0, {
+          role: 'system',
+          content: `INFORMAÇÕES DA BASE DE CONHECIMENTO relevantes para a mensagem atual do cliente. Use como fonte de verdade; só afirme preços, prazos e dados que estejam aqui — se não estiver, diga que vai confirmar:\n\n${kb}`,
+        });
+      }
+    }
+
     const MAX_ROUNDS = 5;
     for (let round = 0; round < MAX_ROUNDS; round++) {
       const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -1627,6 +1622,7 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
         body: JSON.stringify({
           model: modelToUse,
           messages,
+          temperature: 0.3, // respostas factuais e consistentes (era 1.0 por padrão)
           ...(tools.length > 0 ? { tools, tool_choice: 'auto' } : {}),
         }),
       });
@@ -1661,6 +1657,14 @@ Sempre que o cliente fornecer uma informação que deva ser guardada para consul
 
   } else {
     responseText = '[ERRO]: Nenhuma chave de IA configurada.';
+  }
+
+  // ── Trava de erro: NUNCA envie um dump técnico ao cliente ─────────────────
+  // Se a IA falhou (rate limit, timeout, modelo inválido, sem chave), loga o
+  // erro real nos bastidores e manda uma mensagem humana no lugar.
+  if (responseText.startsWith('[ERRO')) {
+    console.error('[AI_PROCESSOR] resposta de erro suprimida:', responseText);
+    responseText = 'Opa, tive um probleminha técnico aqui agora 😕 Pode mandar sua mensagem de novo, por favor?';
   }
 
   // ── Afiliados: a tool já enviou cards + lista direto pela Evolution. Não manda
