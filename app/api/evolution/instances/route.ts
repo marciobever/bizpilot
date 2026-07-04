@@ -1,10 +1,19 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
+import { requireUser, userOwnsAgent } from '@/lib/api-auth';
 
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   try {
     const { instanceName, agentId } = await req.json();
+
+    if (agentId && !(await userOwnsAgent(agentId, auth.user.id))) {
+      return NextResponse.json({ error: 'Agente não pertence à sua conta.' }, { status: 403 });
+    }
+
     const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL;
     const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY;
     const WINDMILL_WEBHOOK_URL = process.env.WINDMILL_WEBHOOK_URL;

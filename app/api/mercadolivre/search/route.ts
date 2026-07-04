@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireInternalSecret } from "@/lib/api-auth";
 
 const SERPER_SHOPPING_URL = "https://google.serper.dev/shopping";
 const SERPER_SEARCH_URL = "https://google.serper.dev/search";
@@ -32,6 +33,9 @@ function isMercadoLivreProductUrl(url: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = requireInternalSecret(req);
+  if (!auth.ok) return auth.response;
+
   const serperKey = process.env.SERPER_API_KEY;
   if (!serperKey) {
     return NextResponse.json({ error: "SERPER_API_KEY não configurada." }, { status: 500 });

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { authFetch } from "@/lib/api-client";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { interpolateTemplate, type PromptTemplate } from "@/lib/agentTemplates";
@@ -12,7 +13,6 @@ export function useAgentForm(isNew: boolean) {
   const [systemPrompt, setSystemPrompt] = useState(
     "Você é o Lucas, um especialista de vendas da BizPilot. Seu objetivo principal é entender a dor do cliente, apresentar nossos planos SaaS e agendar uma reunião com um atendente humano caso o cliente demonstre alto interesse."
   );
-  const [selectedModel, setSelectedModel] = useState("gpt-5.4-mini");
   const [role, setRole] = useState("Especialista em Vendas");
   const [niche, setNiche] = useState("Software B2B / SaaS");
   const [tone, setTone] = useState("Profissional e Direto");
@@ -114,7 +114,7 @@ ${limitations.map((l) => "- " + l).join("\n") || "- Nenhuma limitação definida
     if (!greetingAIDescription.trim()) return;
     setGreetingAILoading(true);
     try {
-      const res = await fetch("/api/agents/generate", {
+      const res = await authFetch("/api/agents/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -139,7 +139,7 @@ ${limitations.map((l) => "- " + l).join("\n") || "- Nenhuma limitação definida
     if (!instructionsAIDescription.trim()) return;
     setInstructionsAILoading(true);
     try {
-      const res = await fetch("/api/agents/generate", {
+      const res = await authFetch("/api/agents/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -175,7 +175,6 @@ ${limitations.map((l) => "- " + l).join("\n") || "- Nenhuma limitação definida
   return {
     agentName, setAgentName,
     systemPrompt, setSystemPrompt,
-    selectedModel, setSelectedModel,
     role, setRole,
     niche, setNiche,
     tone, setTone,

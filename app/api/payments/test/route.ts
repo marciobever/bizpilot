@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
+import { requireUser } from '@/lib/api-auth';
 
 // Valida a credencial do provedor de pagamentos consultando um endpoint
 // autenticado simples. Usado pelo botão "Salvar Conexão" da integração
 // "Links de Pagamento".
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   try {
     const { provider, apiKey } = await req.json();
     if (!provider || !apiKey) {

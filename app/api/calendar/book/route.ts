@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireInternalSecret } from '@/lib/api-auth';
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -77,6 +78,9 @@ async function bookCalendly(config: any) {
 // POST /api/calendar/book { agentId, datetime, name, email, description, leadId, conversationId }
 // Chamado pelo Windmill (tool `agendar_horario`).
 export async function POST(req: NextRequest) {
+  const auth = requireInternalSecret(req);
+  if (!auth.ok) return auth.response;
+
   const { agentId, datetime, name, email, description, leadId, conversationId } = await req.json();
   if (!agentId || !name) return NextResponse.json({ error: 'agentId e name são obrigatórios' }, { status: 400 });
 

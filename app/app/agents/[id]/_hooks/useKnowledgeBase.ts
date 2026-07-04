@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { authFetch } from "@/lib/api-client";
 import type { KnowledgeEntry } from "../_types";
 
 export function useKnowledgeBase(id: string, activeTab: string, isNew: boolean) {
@@ -33,7 +34,7 @@ export function useKnowledgeBase(id: string, activeTab: string, isNew: boolean) 
     if (!id || id === "new") return;
     setLoadingKnowledge(true);
     try {
-      const res = await fetch(`/api/knowledge?agentId=${id}`);
+      const res = await authFetch(`/api/knowledge?agentId=${id}`);
       if (res.ok) {
         const d = await res.json();
         setKnowledgeEntries(d.entries || []);
@@ -49,7 +50,7 @@ export function useKnowledgeBase(id: string, activeTab: string, isNew: boolean) 
     if (knowledgeForm.sourceType === "url" && !knowledgeForm.sourceUrl.trim()) return;
     setAddingKnowledge(true);
     try {
-      const res = await fetch("/api/knowledge", {
+      const res = await authFetch("/api/knowledge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -78,7 +79,7 @@ export function useKnowledgeBase(id: string, activeTab: string, isNew: boolean) 
     setImportingSitemap(true);
     setSitemapResult(null);
     try {
-      const res = await fetch("/api/knowledge/import-sitemap", {
+      const res = await authFetch("/api/knowledge/import-sitemap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -102,7 +103,7 @@ export function useKnowledgeBase(id: string, activeTab: string, isNew: boolean) 
 
   const handleDeleteKnowledge = async (entryId: string) => {
     if (!confirm("Remover este conhecimento?")) return;
-    await fetch(`/api/knowledge/${entryId}`, { method: "DELETE" });
+    await authFetch(`/api/knowledge/${entryId}`, { method: "DELETE" });
     setKnowledgeEntries((prev) => prev.filter((e) => e.id !== entryId));
   };
 

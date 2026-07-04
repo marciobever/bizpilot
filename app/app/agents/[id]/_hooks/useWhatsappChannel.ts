@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import { authFetch } from "@/lib/api-client";
 import { supabase } from "@/lib/supabase";
 
 export function useWhatsappChannel(id: string, agentName: string, isNew: boolean) {
@@ -47,7 +48,7 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
   const checkWhatsappStatus = async () => {
     if (!id || id === "new") return;
     try {
-      const res = await fetch(`/api/evolution/instances/agent_${id}/connectionState`);
+      const res = await authFetch(`/api/evolution/instances/agent_${id}/connectionState`);
       if (res.ok) {
         const data = await res.json();
         if (data.instance?.state === "open") {
@@ -76,7 +77,7 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
       ? `agent_${id}_${customInstanceName.trim().replace(/\s+/g, "")}`
       : `agent_${id}`;
     try {
-      const res = await fetch("/api/evolution/instances", {
+      const res = await authFetch("/api/evolution/instances", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ instanceName: finalInstanceName, agentId: id }),
@@ -94,7 +95,7 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
 
   const pollConnectionState = async (instName: string) => {
     try {
-      const res = await fetch(`/api/evolution/instances/${instName}/connectionState`);
+      const res = await authFetch(`/api/evolution/instances/${instName}/connectionState`);
       if (res.ok) {
         const data = await res.json();
         if (data.instance?.state === "open") {
@@ -118,7 +119,7 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
 
   const fetchQrCode = async (instName: string = `agent_${id}`) => {
     try {
-      const res = await fetch(`/api/evolution/instances/${instName}/connect`);
+      const res = await authFetch(`/api/evolution/instances/${instName}/connect`);
       if (res.ok) {
         const data = await res.json();
         if (data.instance?.state === "open") {
@@ -177,7 +178,7 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
     if (!confirm("Tem certeza que deseja desconectar?")) return;
     setWaLoading(true);
     try {
-      await fetch(`/api/evolution/instances/agent_${id}`, { method: "DELETE" });
+      await authFetch(`/api/evolution/instances/agent_${id}`, { method: "DELETE" });
       setWaConnected(false);
       setWaQrCode("");
       setCheckingWa(false);
@@ -196,7 +197,7 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
       );
       if (!ok) return;
       try {
-        await fetch(`/api/evolution/instances/agent_${id}`, { method: "DELETE" });
+        await authFetch(`/api/evolution/instances/agent_${id}`, { method: "DELETE" });
         setWaConnected(false);
         setWaQrCode("");
         setCheckingWa(false);
@@ -226,7 +227,7 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
     setMetaTesting(true);
     setMetaTestMsg(null);
     try {
-      const res = await fetch("/api/meta/test", {
+      const res = await authFetch("/api/meta/test", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

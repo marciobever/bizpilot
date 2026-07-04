@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
+import { requireUser, assertPublicHttpUrl, SsrfError } from '@/lib/api-auth';
 
 // Valida as credenciais do banco de dados externo do usuário (Supabase ou
 // Firebase/Firestore) consultando a tabela/coleção informada. Usado pelo
 // botão "Salvar Conexão" da integração "Banco de Dados Externo".
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   try {
     const body = await req.json();
     const { provider } = body;
@@ -13,7 +17,8 @@ export async function POST(req: Request) {
       if (!projectUrl || !apiKey || !table) {
         return NextResponse.json({ success: false, error: 'Informe a URL do projeto, a chave de API e o nome da tabela.' }, { status: 400 });
       }
-      const url = `${String(projectUrl).replace(/\/$/, '')}/rest/v1/${encodeURIComponent(table)}?select=*&limit=1`;
+      const base = await assertPublicHttpUrl(String(projectUrl));
+      const url = `${base.toString().replace(/\/$/, '')}/rest/v1/${encodeURIComponent(table)}?select=*&limit=1`;
       const res = await fetch(url, { headers: { apikey: apiKey, Authorization: `Bearer ${apiKey}` } });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -38,6 +43,9 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ success: false, error: 'Provedor não suportado.' }, { status: 400 });
   } catch (error: any) {
+    if (error instanceof SsrfError) {
+      return NextResponse.json({ success: false, error: `URL não permitida: ${error.message}` }, { status: 400 });
+    }
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

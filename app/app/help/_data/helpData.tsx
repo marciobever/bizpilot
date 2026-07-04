@@ -120,7 +120,7 @@ export const SECTIONS: Section[] = [
             <strong className="text-foreground">Conhecimento</strong>.
           </Step>
           <Step n={3} title="Configurações">
-            Escolha o modelo de IA (GPT-4o, Gemini…), ative resposta em áudio e ajuste outros parâmetros como temperatura do modelo.
+            Defina as regras de atendimento: contatos para transferência humana, se o bot responde em grupos e a lista de bloqueio.
           </Step>
           <Step n={4} title="Addons">
             Ative módulos extras: <strong className="text-foreground">Voz</strong> (resposta em áudio), <strong className="text-foreground">Memória</strong> de longo prazo, <strong className="text-foreground">Ferramentas</strong> (webhooks) e envio de <strong className="text-foreground">Mídia</strong> (imagens, PDFs, QR Pix).

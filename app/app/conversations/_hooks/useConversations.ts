@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
+import { authFetch } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { Conversation, Message } from "@/types/database";
@@ -103,9 +104,9 @@ export function useConversations() {
       if (activeConv.agent_id && activeConv.lead?.phone) {
         const cfg = (activeConv.agent?.config && typeof activeConv.agent.config === "object") ? activeConv.agent.config : {};
         if (cfg?.whatsapp?.provider === "meta") {
-          fetch("/api/meta/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agentId: activeConv.agent_id, to: activeConv.lead.phone, text }) }).catch(() => {});
+          authFetch("/api/meta/send", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ agentId: activeConv.agent_id, to: activeConv.lead.phone, text }) }).catch(() => {});
         } else {
-          fetch(`/api/evolution/instances/agent_${activeConv.agent_id}/sendText`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ number: activeConv.lead.phone + "@s.whatsapp.net", text }) }).catch(() => {});
+          authFetch(`/api/evolution/instances/agent_${activeConv.agent_id}/sendText`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ number: activeConv.lead.phone + "@s.whatsapp.net", text }) }).catch(() => {});
         }
       }
     } catch (error) {

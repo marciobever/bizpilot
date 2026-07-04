@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TOOL_DEFINITIONS, executeTool, getUserPlan } from "./tools";
 import { PLAN_LABEL, type PlanId } from "@/lib/plans";
+import { requireUser } from "@/lib/api-auth";
 
 const SYSTEM_PROMPT = `Você é o assistente do BizPilot — sistema de bots de WhatsApp para empresas brasileiras.
 Você responde dúvidas E também pode fazer configurações diretamente pelo chat.
@@ -88,6 +89,9 @@ function parseReply(raw: string): { reply: string; suggestions: string[] } {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   const { messages, context } = await req.json() as {
     messages: { role: "user" | "assistant"; content: string }[];
     context?: { userId?: string; agentId?: string };
@@ -95,7 +99,8 @@ export async function POST(req: NextRequest) {
 
   if (!messages?.length) return NextResponse.json({ error: "messages obrigatório" }, { status: 400 });
 
-  const userId = context?.userId || "";
+  // userId vem SEMPRE da sessão (nunca do corpo) para gatear plano e tools.
+  const userId = auth.user.id;
   const agentId = context?.agentId || "";
 
   const userPlan = userId ? await getUserPlan(userId) : "basico";

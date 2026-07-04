@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/api-auth';
 
 const GREETING_RULES = `Estrutura ideal de cada saudação (2 a 4 linhas curtas, fáceis de ler no celular):
 1. Boas-vindas calorosas citando o nome da empresa/negócio (quando houver um claro).
@@ -70,6 +71,9 @@ function parseGreetingOptions(raw: string): string[] {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   const body = await req.json();
   const { field, description, context } = body as {
     field: 'greeting' | 'greetings' | 'instructions' | 'generate_function';

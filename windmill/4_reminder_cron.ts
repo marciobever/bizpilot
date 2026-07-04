@@ -4,11 +4,11 @@
 // Chama /api/calendar/reminders, que envia confirmações de agendamento
 // dentro da janela configurada (padrão 2h antes do horário).
 
-export async function main(APP_BASE_URL?: string, CRON_SECRET?: string) {
+export async function main(APP_BASE_URL?: string, INTERNAL_API_SECRET?: string) {
   let appBaseUrl = APP_BASE_URL || process.env.APP_BASE_URL || '';
-  let cronSecret = CRON_SECRET || process.env.CRON_SECRET || '';
+  let internalSecret = INTERNAL_API_SECRET || process.env.INTERNAL_API_SECRET || '';
 
-  if (!appBaseUrl || !cronSecret) {
+  if (!appBaseUrl || !internalSecret) {
     try {
       const { getVariable } = await import('windmill-client');
       const tryGet = async (...paths: string[]) => {
@@ -16,19 +16,20 @@ export async function main(APP_BASE_URL?: string, CRON_SECRET?: string) {
         return '';
       };
       if (!appBaseUrl) appBaseUrl = await tryGet('u/bevervansomarcio/synapseai/APP_BASE_URL');
-      if (!cronSecret) cronSecret = await tryGet('u/bevervansomarcio/synapseai/CRON_SECRET');
+      if (!internalSecret) internalSecret = await tryGet('u/bevervansomarcio/synapseai/INTERNAL_API_SECRET');
     } catch (e: any) {
       console.warn('windmill-client:', e.message);
     }
   }
 
   if (!appBaseUrl) return { ok: false, reason: 'APP_BASE_URL ausente.' };
+  if (!internalSecret) return { ok: false, reason: 'INTERNAL_API_SECRET ausente.' };
 
   const res = await fetch(`${appBaseUrl}/api/calendar/reminders`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      ...(cronSecret ? { Authorization: `Bearer ${cronSecret}` } : {}),
+      'x-internal-secret': internalSecret,
     },
   });
   const data = await res.json().catch(() => ({}));

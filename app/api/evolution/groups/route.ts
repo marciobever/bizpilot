@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireUser, userOwnsAgent } from '@/lib/api-auth';
 
 export async function GET(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   try {
     const { searchParams } = new URL(req.url);
     const agentId = searchParams.get('agentId');
     if (!agentId) return NextResponse.json({ error: 'agentId obrigatório' }, { status: 400 });
+    if (!(await userOwnsAgent(agentId, auth.user.id))) {
+      return NextResponse.json({ error: 'Agente não pertence à sua conta.' }, { status: 403 });
+    }
 
     const supabase = createClient(
       (process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL)!,

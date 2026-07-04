@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
-import { createClient } from '@supabase/supabase-js';
-
-function getServiceSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error('SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY ausente.');
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-}
+import { requireUser, getServiceSupabase } from '@/lib/api-auth';
 
 function planFromPriceId(priceId: string | undefined): string | null {
   if (!priceId) return null;
@@ -29,6 +22,9 @@ function addonFromPriceId(priceId: string | undefined): string | null {
 // Confirma o pagamento na volta do Stripe, sem depender do webhook.
 // Busca a sessão de checkout, valida que está paga e ativa a assinatura no perfil.
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   const { sessionId } = await req.json() as { sessionId?: string };
   if (!sessionId) return NextResponse.json({ error: 'sessionId obrigatório.' }, { status: 400 });
   if (!process.env.STRIPE_SECRET_KEY) {
@@ -51,6 +47,11 @@ export async function POST(req: NextRequest) {
     const userId = (session.client_reference_id as string) || (session.metadata?.user_id as string);
     if (!userId) {
       return NextResponse.json({ error: 'Sessão sem usuário vinculado.' }, { status: 400 });
+    }
+    // A sessão do Stripe precisa pertencer ao usuário logado (evita ativar/ler
+    // a assinatura de outra conta passando um sessionId alheio).
+    if (userId !== auth.user.id) {
+      return NextResponse.json({ error: 'Esta sessão de pagamento não pertence à sua conta.' }, { status: 403 });
     }
 
     const sub = session.subscription as Stripe.Subscription | null;

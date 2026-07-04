@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { authFetch } from "@/lib/api-client";
 import { useAuth } from "@/lib/auth";
 import { INTEGRATIONS_META, SMTP_PRESETS, EMAIL_TEMPLATES } from "../_constants";
 
@@ -197,7 +198,7 @@ export function useIntegrations() {
           return;
         }
         if (!key) { setPaymentsMsg({ ok: false, text: "Informe a chave/token." }); return; }
-        const res = await fetch("/api/payments/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, apiKey: key }) });
+        const res = await authFetch("/api/payments/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, apiKey: key }) });
         const data = await res.json();
         if (!data.success) { setPaymentsMsg({ ok: false, text: data.error || "Credencial inválida." }); return; }
         await upsertIntegration("payments", "Links de Pagamento", "connected", { provider, apiKey: key });
@@ -219,7 +220,7 @@ export function useIntegrations() {
           const apiKey = calendarForm.apiKey.trim();
           const finalApiKey = apiKey.startsWith("•") ? existing.apiKey : apiKey;
           if (!finalApiKey || !calendarForm.eventTypeId.trim()) { setCalendarMsg({ ok: false, text: "Informe a API Key e o Event Type ID." }); return; }
-          const res = await fetch("/api/calendar/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, apiKey: finalApiKey, eventTypeId: calendarForm.eventTypeId }) });
+          const res = await authFetch("/api/calendar/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, apiKey: finalApiKey, eventTypeId: calendarForm.eventTypeId }) });
           const data = await res.json();
           if (!data.success) { setCalendarMsg({ ok: false, text: data.error || "Credencial inválida." }); return; }
           await upsertIntegration("calendar", "Calendário / Agenda", "connected", { provider, apiKey: finalApiKey, eventTypeId: calendarForm.eventTypeId, reminderHours: Number(calendarForm.reminderHours) || 2 });
@@ -228,7 +229,7 @@ export function useIntegrations() {
           const apiToken = calendarForm.apiToken.trim();
           const finalToken = apiToken.startsWith("•") ? existing.apiToken : apiToken;
           if (!finalToken || !calendarForm.schedulingUrl.trim()) { setCalendarMsg({ ok: false, text: "Informe o token de acesso e o link de agendamento." }); return; }
-          const res = await fetch("/api/calendar/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, apiToken: finalToken, schedulingUrl: calendarForm.schedulingUrl }) });
+          const res = await authFetch("/api/calendar/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, apiToken: finalToken, schedulingUrl: calendarForm.schedulingUrl }) });
           const data = await res.json();
           if (!data.success) { setCalendarMsg({ ok: false, text: data.error || "Credencial inválida." }); return; }
           await upsertIntegration("calendar", "Calendário / Agenda", "connected", { provider, apiToken: finalToken, schedulingUrl: calendarForm.schedulingUrl, eventTypeUri: data.eventTypeUri, userUri: data.userUri });
@@ -238,7 +239,7 @@ export function useIntegrations() {
           const clientSecret = calendarForm.clientSecret.trim();
           const finalSecret = clientSecret.startsWith("•") ? existing.clientSecret : clientSecret;
           if (!clientId || !finalSecret) { setCalendarMsg({ ok: false, text: "Informe o Client ID e o Client Secret." }); return; }
-          const res = await fetch("/api/calendar/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, clientId, clientSecret: finalSecret }) });
+          const res = await authFetch("/api/calendar/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, clientId, clientSecret: finalSecret }) });
           const data = await res.json();
           if (!data.success) { setCalendarMsg({ ok: false, text: data.error || "Dados inválidos." }); return; }
           await upsertIntegration("calendar", "Calendário / Agenda", existing.refreshToken ? "connected" : "disconnected", { ...existing, provider, clientId, clientSecret: finalSecret, reminderHours: Number(calendarForm.reminderHours) || 2 });
@@ -260,7 +261,7 @@ export function useIntegrations() {
           if (!projectId.trim() || !finalApiKey || !collection.trim() || !searchField.trim()) { setExternalDbMsg({ ok: false, text: "Informe o ID do projeto, a chave de API, a coleção e o campo de busca." }); return; }
           config = { provider, projectId: projectId.trim(), apiKey: finalApiKey, collection: collection.trim(), searchField: searchField.trim() };
         }
-        const res = await fetch("/api/external-db/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
+        const res = await authFetch("/api/external-db/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
         const data = await res.json();
         if (!data.success) { setExternalDbMsg({ ok: false, text: data.error || "Credenciais inválidas." }); return; }
         await upsertIntegration("external_db", "Banco de Dados Externo", "connected", config);
@@ -282,7 +283,7 @@ export function useIntegrations() {
           const passInput = emailForm.pass.trim();
           const finalPass = passInput.startsWith("•") ? existing.pass : passInput;
           if (!finalPass) { setEmailMsg({ ok: false, text: "Informe a senha (ou senha de app)." }); return; }
-          const res = await fetch("/api/email/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: "smtp", host, port, secure: emailForm.secure, user: smtpUser, pass: finalPass }) });
+          const res = await authFetch("/api/email/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider: "smtp", host, port, secure: emailForm.secure, user: smtpUser, pass: finalPass }) });
           const data = await res.json();
           if (!data.success) { setEmailMsg({ ok: false, text: data.error || "Não foi possível conectar ao servidor." }); return; }
           await upsertIntegration("email", "E-mail", "connected", { provider: "smtp", host, port, secure: emailForm.secure, user: smtpUser, pass: finalPass, fromEmail, fromName, templateId, brandColor });
@@ -294,7 +295,7 @@ export function useIntegrations() {
         const keyInput = emailForm.apiKey.trim();
         const finalApiKey = keyInput.startsWith("•") ? existing.apiKey : keyInput;
         if (!finalApiKey) { setEmailMsg({ ok: false, text: "Informe a chave de API." }); return; }
-        const res = await fetch("/api/email/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, apiKey: finalApiKey }) });
+        const res = await authFetch("/api/email/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider, apiKey: finalApiKey }) });
         const data = await res.json();
         if (!data.success) { setEmailMsg({ ok: false, text: data.error || "Credencial inválida." }); return; }
         await upsertIntegration("email", "E-mail", "connected", { provider, apiKey: finalApiKey, fromEmail, fromName, templateId, brandColor });

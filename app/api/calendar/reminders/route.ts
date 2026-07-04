@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { graphUrl, getMetaConfig } from '../../meta/utils';
 import { resolveInstanceToken } from '../../evolution/utils';
+import { requireInternalSecret } from '@/lib/api-auth';
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -54,11 +55,8 @@ async function sendReminder(agentConfig: any, agentId: string, phone: string, te
 // Chamado por um cron (Windmill) a cada poucos minutos. Envia lembretes de
 // confirmação de agendamento dentro da janela configurada (padrão 2h antes).
 export async function POST(req: NextRequest) {
-  const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const auth = req.headers.get('authorization');
-    if (auth !== `Bearer ${secret}`) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  }
+  const auth = requireInternalSecret(req);
+  if (!auth.ok) return auth.response;
 
   const supabase = getServiceSupabase();
 

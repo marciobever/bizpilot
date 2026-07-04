@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
+import { requireInternalSecret } from '@/lib/api-auth';
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -181,6 +182,9 @@ async function sendViaGoogle(refreshToken: string, from: string, to: string, sub
 // Chamado pelo Windmill (tool `enviar_email`) quando o agente decide enviar
 // um e-mail para o lead durante a conversa.
 export async function POST(req: NextRequest) {
+  const auth = requireInternalSecret(req);
+  if (!auth.ok) return auth.response;
+
   const { agentId, to, subject, body } = await req.json();
 
   if (!agentId || !to || !subject || !body) {

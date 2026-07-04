@@ -1,9 +1,13 @@
 import { NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
+import { requireUser } from '@/lib/api-auth';
 
 // Valida a credencial do provedor de e-mail consultando um endpoint
 // autenticado simples. Usado pelo botão "Salvar Conexão" da integração "E-mail".
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+
   try {
     const { provider, apiKey, host, port, secure, user, pass } = await req.json();
 

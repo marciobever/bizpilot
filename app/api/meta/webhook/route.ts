@@ -1,5 +1,19 @@
 import { NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { getServiceSupabase, getMetaConfig, graphUrl } from '../utils';
+
+// Valida a assinatura X-Hub-Signature-256 que a Meta envia em todo POST.
+// Só é aplicada se META_APP_SECRET estiver configurado. Modelo BYO-app:
+// guarde o app secret por agente e valide contra ele.
+function verifyMetaSignature(rawBody: string, signatureHeader: string | null): boolean {
+  const appSecret = process.env.META_APP_SECRET;
+  if (!appSecret) return true; // sem secret configurado, não há como validar
+  if (!signatureHeader) return false;
+  const expected = 'sha256=' + crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex');
+  const a = Buffer.from(signatureHeader);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 
 // Busca o access token salvo na config do agente cujo canal Meta usa este phone_number_id.
 async function resolveAccessToken(phoneNumberId: string | undefined): Promise<string | null> {
@@ -94,7 +108,13 @@ export async function GET(req: Request) {
 // POST: mensagens recebidas. Extraímos o essencial e repassamos ao Windmill.
 export async function POST(req: Request) {
   try {
-    const payload = await req.json();
+    const rawBody = await req.text();
+
+    if (!verifyMetaSignature(rawBody, req.headers.get('x-hub-signature-256'))) {
+      return new NextResponse('Invalid signature', { status: 401 });
+    }
+
+    const payload = JSON.parse(rawBody);
     const WINDMILL_WEBHOOK_URL = process.env.WINDMILL_WEBHOOK_URL;
 
     const entries = payload?.entry || [];
