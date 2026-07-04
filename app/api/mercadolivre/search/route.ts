@@ -9,14 +9,14 @@ function extractPrice(text: string): string | null {
   return m ? m[0].trim() : null;
 }
 
-function buildAffiliateUrl(url: string, tag: string): string {
-  try {
-    const u = new URL(url);
-    u.searchParams.set("tag", tag);
-    return u.toString();
-  } catch {
-    return url + (url.includes("?") ? "&" : "?") + `tag=${encodeURIComponent(tag)}`;
-  }
+// Deeplink de afiliado via Awin (rede oficial do Mercado Livre no Brasil).
+// Formato: awin1.com/cread.php?awinmid=<anunciante ML>&awinaffid=<publisher>&ued=<url produto>
+// Este link ATRIBUI comissão (diferente de appendar ?tag=, que não credita).
+// `clickref` é um sub-id opcional para rastrear a origem (ex: id do agente).
+function buildAwinDeeplink(productUrl: string, awinMid: string, awinAffid: string, clickref?: string): string {
+  const params = new URLSearchParams({ awinmid: awinMid, awinaffid: awinAffid, ued: productUrl });
+  if (clickref) params.set("clickref", clickref);
+  return `https://www.awin1.com/cread.php?${params.toString()}`;
 }
 
 function isMercadoLivreProductUrl(url: string): boolean {
@@ -36,11 +36,21 @@ export async function POST(req: NextRequest) {
   const auth = requireInternalSecret(req);
   if (!auth.ok) return auth.response;
 
+  // Afiliado ML roda pela rede Awin. Enquanto a conta Awin não estiver
+  // configurada (AWIN_ADVERTISER_ID_ML + AWIN_PUBLISHER_ID), o recurso fica
+  // "em breve": não buscamos nem geramos links que não creditam comissão.
+  const awinMid = process.env.AWIN_ADVERTISER_ID_ML;
+  const awinAffid = process.env.AWIN_PUBLISHER_ID;
+  if (!awinMid || !awinAffid) {
+    return NextResponse.json({ comingSoon: true, products: [] });
+  }
+
   const serperKey = process.env.SERPER_API_KEY;
   if (!serperKey) {
     return NextResponse.json({ error: "SERPER_API_KEY não configurada." }, { status: 500 });
   }
 
+  // `tag` (legado) vira o clickref/sub-id do deeplink Awin.
   const { q, tag } = await req.json();
   if (!q?.trim()) {
     return NextResponse.json({ error: "Parâmetro 'q' obrigatório." }, { status: 400 });
@@ -71,7 +81,7 @@ export async function POST(req: NextRequest) {
           const link = r.link || r.productLink || "";
           return {
             title: r.title?.trim() || "",
-            url: tag ? buildAffiliateUrl(link, tag) : link,
+            url: buildAwinDeeplink(link, awinMid, awinAffid, tag),
             snippet: r.rating ? `⭐ ${r.rating} (${r.ratingCount ?? 0} avaliações)` : "",
             price: r.price || null,
             imageUrl: r.imageUrl || null,
@@ -106,7 +116,7 @@ export async function POST(req: NextRequest) {
       const price = extractPrice(r.snippet || "");
       return {
         title: r.title?.replace(/\s*-\s*Mercado Livre$/, "").trim() || "",
-        url: tag ? buildAffiliateUrl(r.link, tag) : r.link,
+        url: buildAwinDeeplink(r.link, awinMid, awinAffid, tag),
         snippet: r.snippet || "",
         price,
         imageUrl: r.imageUrl || null,

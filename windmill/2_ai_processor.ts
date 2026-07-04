@@ -514,7 +514,7 @@ type MLProduct = {
 
 async function searchMLProducts(
   termo: string, tag: string, appBaseUrl: string
-): Promise<{ ok: boolean; products: MLProduct[]; error?: string }> {
+): Promise<{ ok: boolean; products: MLProduct[]; error?: string; comingSoon?: boolean }> {
   if (!termo.trim()) return { ok: false, products: [], error: 'Informe o que o cliente quer buscar.' };
   if (!appBaseUrl) return { ok: false, products: [], error: 'APP_BASE_URL não configurada.' };
   try {
@@ -524,6 +524,7 @@ async function searchMLProducts(
       body: JSON.stringify({ q: termo, tag }),
     });
     const data = await res.json();
+    if (data?.comingSoon) return { ok: false, products: [], comingSoon: true };
     if (!res.ok) return { ok: false, products: [], error: data.error || `Erro ${res.status}` };
     return { ok: true, products: data.products || [] };
   } catch (e: any) {
@@ -1085,7 +1086,8 @@ async function executeTool(
   if (name === 'buscar_produto_ml') {
     const mlTag = config.affiliateMLTag || '';
     const termo = String(args.termo || '');
-    const { ok, products, error } = await searchMLProducts(termo, mlTag, appBaseUrl);
+    const { ok, products, error, comingSoon } = await searchMLProducts(termo, mlTag, appBaseUrl);
+    if (comingSoon) return 'A busca de produtos do Mercado Livre ainda está em desenvolvimento — em breve! Avise o cliente com simpatia que essa opção chega em breve e, se fizer sentido, ofereça buscar na Shopee.';
     if (!ok) return error || 'Não consegui buscar no ML agora.';
     if (!products.length) return `Nenhum produto encontrado para "${termo}" no Mercado Livre. Sugira ao cliente tentar um termo diferente.`;
 

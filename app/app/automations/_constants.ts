@@ -86,7 +86,7 @@ export const INTEGRATIONS_META = [
 
 export const AFFILIATE_PROVIDERS: { value: string; label: string; available: boolean }[] = [
   { value: "shopee", label: "Shopee Afiliados", available: true },
-  { value: "mercadolivre", label: "Mercado Livre Afiliados", available: true },
+  { value: "mercadolivre", label: "Mercado Livre Afiliados (em breve)", available: false },
   { value: "amazon", label: "Amazon Associates (em breve)", available: false },
 ];
 
