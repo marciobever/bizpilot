@@ -14,7 +14,7 @@ async function getInternalSecret(): Promise<string> {
   if (!_internalSecret) {
     try {
       const { getVariable } = await import('windmill-client');
-      _internalSecret = await getVariable('u/bevervansomarcio/synapseai/INTERNAL_API_SECRET').catch(() => '');
+      _internalSecret = await getVariable('u/bevervansomarcio/bizpilot/INTERNAL_API_SECRET').catch(() => '');
     } catch { /* ignore */ }
   }
   return _internalSecret;
@@ -612,9 +612,9 @@ async function resolveEvolutionCreds(agentConfig?: any): Promise<{ url: string; 
   try {
     const { getVariable } = await import('windmill-client');
     const tryGet = async (...paths: string[]) => { for (const p of paths) { try { const v = await getVariable(p); if (v) return v; } catch {} } return ''; };
-    const url = await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_URL', 'u/bevervansomarcio/EVOLUTION_API_URL');
+    const url = await tryGet('u/bevervansomarcio/bizpilot/EVOLUTION_API_URL', 'u/bevervansomarcio/EVOLUTION_API_URL');
     const instanceToken = agentConfig?.whatsapp?.instanceToken;
-    const key = instanceToken || await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_KEY', 'u/bevervansomarcio/EVOLUTION_API_KEY');
+    const key = instanceToken || await tryGet('u/bevervansomarcio/bizpilot/EVOLUTION_API_KEY', 'u/bevervansomarcio/EVOLUTION_API_KEY');
     return { url, key };
   } catch { return { url: '', key: '' }; }
 }
@@ -1035,9 +1035,9 @@ async function notifyHandoff(
       for (const p of paths) { try { const v = await getVariable(p); if (v) return v; } catch {} }
       return '';
     };
-    const evoUrl = await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_URL', 'u/bevervansomarcio/EVOLUTION_API_URL');
+    const evoUrl = await tryGet('u/bevervansomarcio/bizpilot/EVOLUTION_API_URL', 'u/bevervansomarcio/EVOLUTION_API_URL');
     // evolution-go: token por instância (não a chave admin global)
-    const evoKey = channelInfo?.instanceToken || await tryGet('u/bevervansomarcio/synapseai/EVOLUTION_API_KEY', 'u/bevervansomarcio/EVOLUTION_API_KEY');
+    const evoKey = channelInfo?.instanceToken || await tryGet('u/bevervansomarcio/bizpilot/EVOLUTION_API_KEY', 'u/bevervansomarcio/EVOLUTION_API_KEY');
     if (!evoUrl || !evoKey) { console.error('[handoff] EVOLUTION_API_URL/KEY não resolvidos via getVariable.'); return 'sem-creds'; }
 
     const sendNumber = `${handoffPhone}@s.whatsapp.net`;
@@ -1267,9 +1267,9 @@ export async function main(
         for (const p of paths) { try { const v = await getVariable(p); if (v) return v; } catch {} }
         return '';
       };
-      if (!finalOpenAiKey)       finalOpenAiKey       = await tryGet('u/bevervansomarcio/OPENAI_API_KEY', 'u/bevervansomarcio/synapseai/OPENAI_API_KEY');
-      if (!finalSupabaseUrl)     finalSupabaseUrl     = await tryGet('u/bevervansomarcio/synapseai/SUPABASE_URL', 'u/bevervansomarcio/SUPABASE_URL');
-      if (!finalSupabaseRoleKey) finalSupabaseRoleKey = await tryGet('u/bevervansomarcio/synapseai/SUPABASE_SERVICE_ROLE_KEY', 'u/bevervansomarcio/SUPABASE_SERVICE_ROLE_KEY');
+      if (!finalOpenAiKey)       finalOpenAiKey       = await tryGet('u/bevervansomarcio/bizpilot/OPENAI_API_KEY', 'u/bevervansomarcio/OPENAI_API_KEY');
+      if (!finalSupabaseUrl)     finalSupabaseUrl     = await tryGet('u/bevervansomarcio/bizpilot/SUPABASE_URL', 'u/bevervansomarcio/SUPABASE_URL');
+      if (!finalSupabaseRoleKey) finalSupabaseRoleKey = await tryGet('u/bevervansomarcio/bizpilot/SUPABASE_SERVICE_ROLE_KEY', 'u/bevervansomarcio/SUPABASE_SERVICE_ROLE_KEY');
     } catch (e: any) {
       console.warn('windmill-client:', e.message);
     }
@@ -1454,7 +1454,7 @@ export async function main(
   if (!appBaseUrl) {
     try {
       const { getVariable } = await import('windmill-client');
-      appBaseUrl = await getVariable('u/bevervansomarcio/synapseai/APP_BASE_URL').catch(() => '');
+      appBaseUrl = await getVariable('u/bevervansomarcio/bizpilot/APP_BASE_URL').catch(() => '');
     } catch { /* ignore */ }
   }
 

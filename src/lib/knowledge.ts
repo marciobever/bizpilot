@@ -33,7 +33,7 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
 }
 
 export async function fetchUrlContent(url: string): Promise<string> {
-  const res = await fetch(url, { headers: { 'User-Agent': 'SynapseAI-Bot/1.0' } });
+  const res = await fetch(url, { headers: { 'User-Agent': 'BizPilotBot/1.0' } });
   if (!res.ok) throw new Error(`Não foi possível acessar a URL: ${res.status}`);
   const html = await res.text();
   return html
@@ -90,7 +90,7 @@ export async function ingestKnowledgeEntry(params: {
 
 // Extrai as URLs <loc> de um sitemap.xml (suporta sitemap simples; não segue sitemap index recursivamente).
 export async function fetchSitemapUrls(sitemapUrl: string): Promise<string[]> {
-  const res = await fetch(sitemapUrl, { headers: { 'User-Agent': 'SynapseAI-Bot/1.0' } });
+  const res = await fetch(sitemapUrl, { headers: { 'User-Agent': 'BizPilotBot/1.0' } });
   if (!res.ok) throw new Error(`Não foi possível acessar o sitemap: ${res.status}`);
   const xml = await res.text();
   const matches = Array.from(xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi));

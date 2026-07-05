@@ -65,7 +65,7 @@ async function downloadMetaMedia(mediaId: string, accessToken: string): Promise<
 // Webhook do WhatsApp Cloud API (Meta Oficial)
 //
 // O cliente cadastra esta URL no painel de Webhooks do app dele na Meta,
-// junto com o "Verify Token" que ele definiu no Synapse.
+// junto com o "Verify Token" que ele definiu no BizPilot.
 //
 //   GET  -> verificação do webhook (Meta envia hub.challenge na configuração).
 //   POST -> recebimento das mensagens. Normalizamos o payload para o mesmo

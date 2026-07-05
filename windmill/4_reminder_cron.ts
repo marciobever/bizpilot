@@ -15,8 +15,8 @@ export async function main(APP_BASE_URL?: string, INTERNAL_API_SECRET?: string) 
         for (const p of paths) { try { const v = await getVariable(p); if (v) return v; } catch {} }
         return '';
       };
-      if (!appBaseUrl) appBaseUrl = await tryGet('u/bevervansomarcio/synapseai/APP_BASE_URL');
-      if (!internalSecret) internalSecret = await tryGet('u/bevervansomarcio/synapseai/INTERNAL_API_SECRET');
+      if (!appBaseUrl) appBaseUrl = await tryGet('u/bevervansomarcio/bizpilot/APP_BASE_URL');
+      if (!internalSecret) internalSecret = await tryGet('u/bevervansomarcio/bizpilot/INTERNAL_API_SECRET');
     } catch (e: any) {
       console.warn('windmill-client:', e.message);
     }

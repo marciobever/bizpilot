@@ -83,8 +83,8 @@ async function resolveCreds(appIdParam?: string, secretParam?: string): Promise<
         for (const p of paths) { try { const v = await getVariable(p); if (v) return v; } catch {} }
         return "";
       };
-      if (!appId)  appId  = await tryGet("u/bevervansomarcio/synapseai/SHOPEE_AFFILIATE_APP_ID", "u/bevervansomarcio/SHOPEE_AFFILIATE_APP_ID");
-      if (!secret) secret = await tryGet("u/bevervansomarcio/synapseai/SHOPEE_AFFILIATE_SECRET", "u/bevervansomarcio/SHOPEE_AFFILIATE_SECRET");
+      if (!appId)  appId  = await tryGet("u/bevervansomarcio/bizpilot/SHOPEE_AFFILIATE_APP_ID", "u/bevervansomarcio/SHOPEE_AFFILIATE_APP_ID");
+      if (!secret) secret = await tryGet("u/bevervansomarcio/bizpilot/SHOPEE_AFFILIATE_SECRET", "u/bevervansomarcio/SHOPEE_AFFILIATE_SECRET");
     } catch (e: any) {
       console.warn("windmill-client indisponível:", e.message);
     }

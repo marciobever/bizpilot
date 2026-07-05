@@ -143,11 +143,11 @@ export async function main(payload: any) {
       for (const p of paths) { try { const v = await getVariable(p); if (v) return v; } catch {} }
       return "";
     };
-    EVOLUTION_API_URL   = await tryGet("u/bevervansomarcio/synapseai/EVOLUTION_API_URL",   "u/bevervansomarcio/EVOLUTION_API_URL");
-    EVOLUTION_API_KEY   = await tryGet("u/bevervansomarcio/synapseai/EVOLUTION_API_KEY",   "u/bevervansomarcio/EVOLUTION_API_KEY");
-    OPENAI_API_KEY      = await tryGet("u/bevervansomarcio/OPENAI_API_KEY",                "u/bevervansomarcio/synapseai/OPENAI_API_KEY");
-    SUPABASE_URL        = await tryGet("u/bevervansomarcio/synapseai/SUPABASE_URL",        "u/bevervansomarcio/SUPABASE_URL");
-    SUPABASE_SERVICE_KEY= await tryGet("u/bevervansomarcio/synapseai/SUPABASE_SERVICE_ROLE_KEY", "u/bevervansomarcio/SUPABASE_SERVICE_ROLE_KEY");
+    EVOLUTION_API_URL   = await tryGet("u/bevervansomarcio/bizpilot/EVOLUTION_API_URL",   "u/bevervansomarcio/EVOLUTION_API_URL");
+    EVOLUTION_API_KEY   = await tryGet("u/bevervansomarcio/bizpilot/EVOLUTION_API_KEY",   "u/bevervansomarcio/EVOLUTION_API_KEY");
+    OPENAI_API_KEY      = await tryGet("u/bevervansomarcio/bizpilot/OPENAI_API_KEY",      "u/bevervansomarcio/OPENAI_API_KEY");
+    SUPABASE_URL        = await tryGet("u/bevervansomarcio/bizpilot/SUPABASE_URL",        "u/bevervansomarcio/SUPABASE_URL");
+    SUPABASE_SERVICE_KEY= await tryGet("u/bevervansomarcio/bizpilot/SUPABASE_SERVICE_ROLE_KEY", "u/bevervansomarcio/SUPABASE_SERVICE_ROLE_KEY");
   } catch (e) { console.warn("windmill-client indisponível:", e); }
 
   const eventName = (payload.event || "").toLowerCase();

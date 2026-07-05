@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   const body = JSON.stringify({ event, payload, timestamp: new Date().toISOString() });
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (config.secret) {
-    headers['X-Synapse-Signature'] = crypto.createHmac('sha256', config.secret).update(body).digest('hex');
+    headers['X-BizPilot-Signature'] = crypto.createHmac('sha256', config.secret).update(body).digest('hex');
   }
 
   try {

@@ -28,7 +28,7 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
     if (typeof window !== "undefined") {
       setWebhookOrigin(window.location.origin);
     }
-    setMetaVerifyToken((prev) => prev || `synapse_${Math.random().toString(36).slice(2, 10)}`);
+    setMetaVerifyToken((prev) => prev || `bizpilot_${Math.random().toString(36).slice(2, 10)}`);
   }, []);
 
   useEffect(() => {
