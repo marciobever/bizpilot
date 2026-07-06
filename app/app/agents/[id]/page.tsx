@@ -26,7 +26,6 @@ import { KnowledgeTab } from "./_tabs/KnowledgeTab";
 import { ChannelsTab } from "./_tabs/ChannelsTab";
 import { AfiliadosTab } from "./_tabs/AfiliadosTab";
 // Views
-import { NewAgentView } from "./_views/NewAgentView";
 import { SetupWhatsappView } from "./_views/SetupWhatsappView";
 // Components
 import { AgentTour } from "./_components/AgentTour";
@@ -203,26 +202,7 @@ export default function AgentConfig() {
     };
   };
 
-  // ── Save / Create ─────────────────────────────────────────────────────────
-  const handleCreateAndContinue = async () => {
-    if (!user) return;
-    if (!form.agentName.trim()) { alert("Por favor, preencha o nome do seu agente virtual."); return; }
-    form.setSaving(true);
-    try {
-      const { data, error } = await supabase
-        .from("agents")
-        .insert([{ user_id: user.id, name: form.agentName, type: agentType, system_prompt: form.systemPrompt, status: "online", config: buildConfigData() }])
-        .select();
-      if (error) throw error;
-      if (data && data.length > 0) navigate.push(`/app/agents/${data[0].id}`);
-    } catch (error) {
-      console.error("Erro ao criar agente:", error);
-      alert("Erro ao criar agente.");
-    } finally {
-      form.setSaving(false);
-    }
-  };
-
+  // ── Save ──────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!user) return;
     form.setSaving(true);
@@ -250,19 +230,14 @@ export default function AgentConfig() {
     );
   }
 
+  // Criação de agente é sempre pelo wizard — /agents/new era um formulário
+  // antigo duplicado (redireciona quem chegar pela URL).
   if (isNew) {
+    navigate.replace("/app/agents/wizard");
     return (
-      <NewAgentView
-        agentName={form.agentName} setAgentName={form.setAgentName}
-        niche={form.niche} setNiche={form.setNiche}
-        role={form.role} setRole={form.setRole}
-        capabilities={capabilities} setCapabilities={setCapabilities}
-        setAgentType={setAgentType}
-        setTone={form.setTone}
-        setSystemPrompt={form.setSystemPrompt}
-        setLimitations={form.setLimitations}
-        saving={form.saving} onCreateAndContinue={handleCreateAndContinue}
-      />
+      <div className="flex items-center justify-center h-[50vh]">
+        <Loader2 className="h-8 w-8 text-brand-500 animate-spin" />
+      </div>
     );
   }
 
