@@ -99,6 +99,19 @@ export function computeEffectiveLimits(
   };
 }
 
+// ─── Limite de consumo de IA (proteção de margem) ─────────────────────────────
+// 35% do preço do plano reservado para custo bruto de IA (tokens OpenAI/Gemini),
+// convertido em USD a este câmbio fixo — revisar periodicamente.
+// Preços de referência (src/lib/planTiers.ts): Starter R$29,90 / Pro R$79,90 / Business R$149,00.
+// Por ora é só instrumentação (exibido em Configurações > Plano) — sem bloqueio automático.
+export const USD_BRL_RATE = 5.5;
+
+export const AI_COST_LIMIT_USD: Record<PlanId, number> = {
+  starter: 1.90,
+  pro: 5.08,
+  business: 9.48,
+};
+
 // Normaliza nomes de planos antigos → novo padrão
 export function normalizePlan(plan: string | null | undefined): PlanId {
   if (!plan) return "starter";

@@ -48,6 +48,7 @@ function SettingsInner() {
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [hasStripeCustomer, setHasStripeCustomer] = useState(false);
   const [addonCounts, setAddonCounts] = useState<Record<string, number>>({});
+  const [usage, setUsage] = useState<any>(null);
   const [planActionLoading, setPlanActionLoading] = useState<string | null>(null);
   const [planFeedback, setPlanFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
@@ -71,6 +72,7 @@ function SettingsInner() {
     supabase.from("user_addons").select("addon_id, status").eq("user_id", user.id).then(({ data }) => {
       setAddonCounts(addonCountsFromRows(data as any));
     });
+    authFetch("/api/usage").then((res) => res.json()).then(setUsage).catch(() => setUsage(null));
   }, [user]);
 
   const handleSaveProfile = async () => {
@@ -153,7 +155,7 @@ function SettingsInner() {
       )}
       {activeTab === "aparencia" && <AparenciaTab theme={theme} setTheme={(v) => setTheme(v as any)} />}
       {activeTab === "plano" && (
-        <PlanoTab plan={plan} loadingPlan={loadingPlan} subscriptionStatus={subscriptionStatus} hasStripeCustomer={hasStripeCustomer} planActionLoading={planActionLoading} planFeedback={planFeedback} addonCounts={addonCounts} onUpgrade={handleUpgrade} onManageSubscription={handleManageSubscription} />
+        <PlanoTab plan={plan} loadingPlan={loadingPlan} subscriptionStatus={subscriptionStatus} hasStripeCustomer={hasStripeCustomer} planActionLoading={planActionLoading} planFeedback={planFeedback} addonCounts={addonCounts} usage={usage} onUpgrade={handleUpgrade} onManageSubscription={handleManageSubscription} />
       )}
       {activeTab === "seguranca" && (
         <SegurancaTab newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} savingPassword={savingPassword} passwordFeedback={passwordFeedback} onChangePassword={handleChangePassword} onSignOut={handleSignOut} />

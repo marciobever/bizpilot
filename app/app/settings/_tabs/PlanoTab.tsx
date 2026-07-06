@@ -5,6 +5,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription }
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import { USD_BRL_RATE } from "@/lib/plans";
 
 const PLANS = [
   {
@@ -89,6 +90,15 @@ const ADDONS = [
   },
 ];
 
+interface UsageMetric { used: number; limit: number }
+interface UsageResponse {
+  usage?: {
+    conversations?: UsageMetric;
+    kbDocs?: UsageMetric;
+    aiCost?: { used_usd: number; limit_usd: number };
+  };
+}
+
 interface Props {
   plan: string | null;
   loadingPlan: boolean;
@@ -97,13 +107,34 @@ interface Props {
   planActionLoading: string | null;
   planFeedback: { type: "success" | "error"; message: string } | null;
   addonCounts?: Record<string, number>;
+  usage?: UsageResponse | null;
   onUpgrade: (targetPlan: string) => void;
   onManageSubscription: () => void;
 }
 
+function UsageBar({ label, used, limit, currency }: { label: string; used: number; limit: number; currency?: boolean }) {
+  const unlimited = limit === -1;
+  const pct = unlimited ? 0 : Math.min(100, (used / Math.max(limit, 0.01)) * 100);
+  const barColor = pct >= 100 ? "bg-red-500" : pct >= 80 ? "bg-warning" : "bg-brand-500";
+  const fmt = (n: number) => currency ? `R$ ${n.toFixed(2).replace(".", ",")}` : `${Math.round(n)}`;
+  return (
+    <div>
+      <div className="flex items-center justify-between text-sm mb-1.5">
+        <span className="text-muted-foreground">{label}</span>
+        <span className="font-medium tabular-nums">{unlimited ? "Ilimitado" : `${fmt(used)} de ${fmt(limit)}`}</span>
+      </div>
+      {!unlimited && (
+        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+          <div className={cn("h-full rounded-full transition-all", barColor)} style={{ width: `${pct}%` }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function PlanoTab({
   plan, loadingPlan, subscriptionStatus, hasStripeCustomer,
-  planActionLoading, planFeedback, addonCounts = {}, onUpgrade, onManageSubscription,
+  planActionLoading, planFeedback, addonCounts = {}, usage, onUpgrade, onManageSubscription,
 }: Props) {
   // Normaliza nomes antigos
   const normalizedPlan = plan === "basico" ? "starter" : plan === "profissional" ? "pro" : plan === "avancado" ? "business" : (plan || "starter");
@@ -179,6 +210,29 @@ export function PlanoTab({
           )}
         </CardFooter>
       </Card>
+
+      {/* Consumo do mês */}
+      {!loadingPlan && usage?.usage && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Consumo deste mês</CardTitle>
+            <CardDescription>Uso do seu plano, incluindo o custo de IA por trás das respostas do bot.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {usage.usage.aiCost && (
+              <UsageBar label="Custo de IA" currency
+                used={usage.usage.aiCost.used_usd * USD_BRL_RATE}
+                limit={usage.usage.aiCost.limit_usd * USD_BRL_RATE} />
+            )}
+            {usage.usage.conversations && (
+              <UsageBar label="Conversas no mês" used={usage.usage.conversations.used} limit={usage.usage.conversations.limit} />
+            )}
+            {usage.usage.kbDocs && (
+              <UsageBar label="Documentos na base de conhecimento" used={usage.usage.kbDocs.used} limit={usage.usage.kbDocs.limit} />
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Upgrade */}
       {!loadingPlan && (
