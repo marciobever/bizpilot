@@ -20,6 +20,7 @@ export default function Agents() {
   const [plan, setPlan] = useState<string>("starter");
   const [extraBots, setExtraBots] = useState(0);
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
+  const [deleteAction, setDeleteAction] = useState<"archive" | "delete" | null>(null);
   const [showLimitModal, setShowLimitModal] = useState(false);
 
   useEffect(() => {
@@ -41,7 +42,7 @@ export default function Agents() {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('agents').select('*').order('created_at', { ascending: false });
+        .from('agents').select('*').is('deleted_at', null).order('created_at', { ascending: false });
       if (error) throw error;
       setAgents(data || []);
     } catch (error) {
@@ -73,15 +74,42 @@ export default function Agents() {
     }
   };
 
-  const handleDeleteAgent = async (id: string) => {
+  const handleArchiveAndDelete = async (id: string) => {
+    setDeleteAction("archive");
     try {
+      const res = await authFetch(`/api/agents/${id}/export`);
+      const archive = await res.json();
+      const agentName = agents.find((a) => a.id === id)?.name || "agente";
+      const blob = new Blob([JSON.stringify(archive, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `historico-${agentName.replace(/[^a-z0-9-]/gi, "_")}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+
       try { await authFetch(`/api/evolution/instances/agent_${id}`, { method: 'DELETE' }); } catch {}
-      const { error } = await supabase.from('agents').delete().eq('id', id);
-      if (error) throw error;
+      await authFetch(`/api/agents/${id}/purge`, { method: "POST" });
       setAgents(agents.filter(a => a.id !== id));
       setShowDeleteModal(null);
     } catch (error) {
-      console.error('Erro ao deletar agente:', error);
+      console.error('Erro ao arquivar agente:', error);
+    } finally {
+      setDeleteAction(null);
+    }
+  };
+
+  const handleSoftDelete = async (id: string) => {
+    setDeleteAction("delete");
+    try {
+      try { await authFetch(`/api/evolution/instances/agent_${id}`, { method: 'DELETE' }); } catch {}
+      await authFetch(`/api/agents/${id}/soft-delete`, { method: "POST" });
+      setAgents(agents.filter(a => a.id !== id));
+      setShowDeleteModal(null);
+    } catch (error) {
+      console.error('Erro ao apagar agente:', error);
+    } finally {
+      setDeleteAction(null);
     }
   };
 
@@ -209,16 +237,22 @@ export default function Agents() {
         </div>
       )}
 
-      {/* Modal: confirmar exclusão */}
+      {/* Modal: excluir agente — arquivar ou apagar */}
       {showDeleteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4">
           <div className="bg-card w-full max-w-sm rounded-2xl border border-border shadow-2xl p-6">
             <h3 className="text-lg font-bold mb-1 text-destructive">Excluir Agente</h3>
-            <p className="text-sm text-muted-foreground mb-6">Esta ação é irreversível. O agente e todo o seu histórico serão removidos.</p>
-            <div className="flex justify-end gap-3">
-              <Button type="button" variant="outline" onClick={() => setShowDeleteModal(null)}>Cancelar</Button>
-              <Button type="button" variant="destructive" onClick={() => showDeleteModal && handleDeleteAgent(showDeleteModal)}>Excluir</Button>
+            <p className="text-sm text-muted-foreground mb-4">O que fazer com o histórico de conversas deste agente?</p>
+            <div className="flex flex-col gap-2 mb-4">
+              <Button type="button" variant="outline" disabled={deleteAction !== null} onClick={() => handleArchiveAndDelete(showDeleteModal)} className="justify-center">
+                {deleteAction === "archive" && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Arquivar e baixar histórico
+              </Button>
+              <Button type="button" variant="destructive" disabled={deleteAction !== null} onClick={() => handleSoftDelete(showDeleteModal)} className="justify-center">
+                {deleteAction === "delete" && <Loader2 className="h-4 w-4 mr-2 animate-spin" />} Apagar sem arquivar
+              </Button>
+              <Button type="button" variant="ghost" disabled={deleteAction !== null} onClick={() => setShowDeleteModal(null)}>Cancelar</Button>
             </div>
+            <p className="text-xs text-muted-foreground">Arquivar baixa um arquivo com todas as conversas e já libera o espaço. Apagar sem arquivar esconde o agente na hora; os dados somem de vez do banco em 15 dias.</p>
           </div>
         </div>
       )}

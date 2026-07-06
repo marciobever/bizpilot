@@ -21,11 +21,11 @@ export async function GET(req: NextRequest) {
       { data: usageRows },
     ] = await Promise.all([
       supabase.from('profiles').select('plan').eq('id', userId).single(),
-      supabase.from('agents').select('id').eq('user_id', userId),
+      supabase.from('agents').select('id').eq('user_id', userId).is('deleted_at', null),
       supabase.from('conversations').select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
         .gte('created_at', monthStart),
-      supabase.from('agents').select('id').eq('user_id', userId),
+      supabase.from('agents').select('id').eq('user_id', userId).is('deleted_at', null),
       supabase.from('user_addons').select('addon_id, status').eq('user_id', userId),
       supabase.from('usage_logs').select('cost_usd').eq('user_id', userId).gte('created_at', monthStart),
     ]);

@@ -82,7 +82,7 @@ export default function DashboardMetrics() {
       const fourteenDaysAgo = new Date(todayStart); fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 13);
 
       const [agentsRes, leadsRes, messagesRes, resolvedRes] = await Promise.all([
-        supabase.from('agents').select('*').order('created_at', { ascending: false }),
+        supabase.from('agents').select('*').is('deleted_at', null).order('created_at', { ascending: false }),
         supabase.from('leads').select('id, status, created_at').gte('created_at', fourteenDaysAgo.toISOString()),
         supabase.from('messages').select('id, sender_type, created_at').gte('created_at', sevenDaysAgo.toISOString()),
         supabase.from('conversations').select('id, last_message_at').eq('status', 'closed').gte('last_message_at', fourteenDaysAgo.toISOString()),

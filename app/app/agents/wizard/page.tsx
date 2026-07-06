@@ -38,7 +38,7 @@ export default function AgentWizard() {
       if (!user) return;
       const [{ data: profile }, { data: agentRows }, { data: addonRows }] = await Promise.all([
         supabase.from("profiles").select("plan").eq("id", user.id).single(),
-        supabase.from("agents").select("id"),
+        supabase.from("agents").select("id").is("deleted_at", null),
         supabase.from("user_addons").select("addon_id, status").eq("user_id", user.id),
       ]);
       const counts = addonCountsFromRows(addonRows as any);

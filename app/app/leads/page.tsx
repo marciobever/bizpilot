@@ -63,14 +63,15 @@ export default function Leads() {
       if (error) throw error;
       setLeads(data || []);
 
-      // Origem do lead: deriva o(s) agente(s) a partir das conversas.
+      // Origem do lead: deriva o(s) agente(s) a partir das conversas (agentes
+      // apagados, mesmo em carência, não contam mais como origem visível).
       const { data: convs } = await supabase
         .from('conversations')
-        .select('lead_id, agent_id, agent:agents(name)')
+        .select('lead_id, agent_id, agent:agents(name, deleted_at)')
         .order('created_at', { ascending: true });
       const map: Record<string, { id: string; name: string }[]> = {};
       (convs || []).forEach((c: any) => {
-        if (!c.lead_id || !c.agent_id) return;
+        if (!c.lead_id || !c.agent_id || c.agent?.deleted_at) return;
         const arr = map[c.lead_id] || [];
         if (!arr.some(a => a.id === c.agent_id)) arr.push({ id: c.agent_id, name: c.agent?.name || 'Agente' });
         map[c.lead_id] = arr;
