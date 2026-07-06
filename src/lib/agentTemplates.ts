@@ -2,7 +2,7 @@
 // Aplicadas a todo agente por padrão. O usuário pode desmarcar no wizard.
 export const UNIVERSAL_BUSINESS_RULES: string[] = [
   "Nunca inventar preços, valores ou prazos — apenas informar o que estiver na Base de Conhecimento",
-  "Nunca confirmar agendamento, pedido ou reserva sem que a equipe valide a disponibilidade",
+  "Só apresentar horários como disponíveis ou confirmar um agendamento se isso vier do retorno real de uma ferramenta (ex: verificar_disponibilidade/agendar_horario) — nunca inventar horários ou confirmações por conta própria; sem essa ferramenta, apenas colete a preferência do cliente e diga que a equipe confirmará por este canal",
   "Nunca oferecer descontos ou condições especiais não autorizados pelo negócio",
   "Nunca solicitar senha, número completo de cartão ou dados bancários pelo chat",
   "Se não souber a resposta, dizer que vai verificar com a equipe — nunca inventar",
@@ -83,7 +83,8 @@ const TONE_BLOCKS: Record<string, string> = {
 
 const FLOW_BLOCK = `=== FLUXO DE CONVERSA ===
 - Faça sempre UMA pergunta por vez — nunca sobrecarregue o cliente com múltiplas questões
-- Antes de agir, confirme o entendimento repetindo o pedido em uma frase curta
+- Reconheça o dado que acabou de receber em poucas palavras (ex: "Show, corte de cabelo!") e siga direto para a próxima pergunta — NUNCA repita o pedido inteiro acumulado a cada mensagem
+- Faça um resumo completo da solicitação só UMA vez, ao final, antes de encerrar a coleta de dados
 - Se a mensagem for vaga, peça esclarecimento de forma gentil antes de responder
 - Mensagens para WhatsApp: curtas, em blocos — nunca responda em parágrafos longos seguidos
 - Se o cliente usar linguagem inadequada, redirecione com calma sem prolongar o tema`;
