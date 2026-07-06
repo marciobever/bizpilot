@@ -5,10 +5,10 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { Conversation, Message } from "@/types/database";
 
-export function useConversations() {
+export function useConversations(initialId?: string | null) {
   const { user, loading: authLoading } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(initialId || null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -64,9 +64,11 @@ export function useConversations() {
         .order("last_message_at", { ascending: false })
         .limit(300);
       if (error) throw error;
-      setConversations(data || []);
-      if (!activeId && data && data.length > 0) {
-        const firstOpen = data.find((c: any) => c.status !== "closed") || data[0];
+      // Some da lista assim que o agente é apagado (mesmo durante a carência de 15 dias).
+      const visible = (data || []).filter((c: any) => !c.agent_id || !c.agent?.deleted_at);
+      setConversations(visible);
+      if (!activeId && visible.length > 0) {
+        const firstOpen = visible.find((c: any) => c.status !== "closed") || visible[0];
         setActiveId(firstOpen.id);
       }
       setLoading(false);

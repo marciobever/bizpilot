@@ -1,11 +1,13 @@
 "use client";
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useConversations } from "./_hooks/useConversations";
 import { ConversationList } from "./_components/ConversationList";
 import { ChatView } from "./_components/ChatView";
 
 export default function Conversations() {
+  const searchParams = useSearchParams();
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState("all");
   const [showResolved, setShowResolved] = useState(false);
@@ -14,7 +16,7 @@ export default function Conversations() {
     conversations, activeId, setActiveId, messages, loading,
     activeConv, messagesEndRef,
     handleSendMessage, togglePause, markResolved,
-  } = useConversations();
+  } = useConversations(searchParams.get("c"));
 
   if (loading) {
     return (

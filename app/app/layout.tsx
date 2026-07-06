@@ -20,7 +20,8 @@ import {
   CreditCard,
   Palette,
   Shield,
-  User as UserIcon
+  User as UserIcon,
+  Cpu
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo, LogoWordmark } from "@/components/ui/Logo";
@@ -38,6 +39,7 @@ const SIDEBAR_ITEMS = [
   { icon: Bot, label: "Agentes", path: "/app/agents" },
   { icon: MessageSquare, label: "Conversas", path: "/app/conversations" },
   { icon: Users, label: "Leads", path: "/app/leads" },
+  { icon: Cpu, label: "Uso de IA", path: "/app/uso" },
   { icon: Puzzle, label: "Integrações", path: "/app/automations" },
   { icon: HelpCircle, label: "Ajuda", path: "/app/help" },
   { icon: LifeBuoy, label: "Suporte", path: "/app/suporte" },

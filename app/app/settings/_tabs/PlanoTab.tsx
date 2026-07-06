@@ -5,7 +5,6 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription }
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { USD_BRL_RATE } from "@/lib/plans";
 
 const PLANS = [
   {
@@ -216,14 +215,9 @@ export function PlanoTab({
         <Card>
           <CardHeader>
             <CardTitle>Consumo deste mês</CardTitle>
-            <CardDescription>Uso do seu plano, incluindo o custo de IA por trás das respostas do bot.</CardDescription>
+            <CardDescription>Uso do seu plano de acordo com os limites contratados.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {usage.usage.aiCost && (
-              <UsageBar label="Custo de IA" currency
-                used={usage.usage.aiCost.used_usd * USD_BRL_RATE}
-                limit={usage.usage.aiCost.limit_usd * USD_BRL_RATE} />
-            )}
             {usage.usage.conversations && (
               <UsageBar label="Conversas no mês" used={usage.usage.conversations.used} limit={usage.usage.conversations.limit} />
             )}
@@ -231,6 +225,11 @@ export function PlanoTab({
               <UsageBar label="Documentos na base de conhecimento" used={usage.usage.kbDocs.used} limit={usage.usage.kbDocs.limit} />
             )}
           </CardContent>
+          <CardFooter>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/app/uso">Ver consumo de IA por bot, dia e conversa <ArrowUpRight className="h-4 w-4 ml-2" /></Link>
+            </Button>
+          </CardFooter>
         </Card>
       )}
 
