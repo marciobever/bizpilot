@@ -10,31 +10,23 @@ import {
   UNIVERSAL_BUSINESS_RULES,
 } from "@/lib/agentTemplates";
 import { BUSINESS_GROUPS, type BusinessType } from "../../[id]/_data/businessTypes";
+import { GROUP_FUNCTIONS, TYPE_EXTRA_FUNCTIONS } from "../../[id]/_data/businessFunctions";
 import type { ChatMsg } from "./useTypewriter";
 
-// Converte um BusinessType (nosso catálogo) em um Sector (formato do wizard)
-function businessTypeToSector(bt: BusinessType, groupEmoji: string): Sector {
+const DUVIDAS_FUNCTION: AgentFunction = { id: "duvidas", label: "Responder dúvidas gerais", emoji: "❓",
+  prompt: "=== DÚVIDAS ===\nResponda sobre serviços, preços, horários e políticas com base na Base de Conhecimento." };
+
+// Converte um BusinessType (nosso catálogo) em um Sector (formato do wizard).
+// Funções = universal (dúvidas) + baseline do grupo + extras específicas do tipo,
+// dedupadas por id (extras do tipo têm prioridade sobre o baseline do grupo).
+function businessTypeToSector(bt: BusinessType, groupId: string, groupEmoji: string): Sector {
+  const merged = [DUVIDAS_FUNCTION, ...(GROUP_FUNCTIONS[groupId] || []), ...(TYPE_EXTRA_FUNCTIONS[bt.id] || [])];
   const fns: AgentFunction[] = [];
-  fns.push({ id: "duvidas", label: "Responder dúvidas gerais", emoji: "❓",
-    prompt: "=== DÚVIDAS ===\nResponda sobre serviços, preços, horários e políticas com base na Base de Conhecimento." });
-  if (bt.capabilities.commerce) {
-    fns.push({ id: "agendamento", label: "Agendar atendimento / serviço", emoji: "📅",
-      prompt: "=== AGENDAMENTO ===\nColete: serviço desejado, nome, contato e 1ª/2ª opção de data e horário. Informe que a equipe confirmará por este canal.",
-      limitations: ["Nunca confirmar agendamento sem que a equipe valide a disponibilidade"] });
-    fns.push({ id: "pagamento", label: "Cobranças e formas de pagamento", emoji: "💳",
-      prompt: "=== PAGAMENTO ===\nEsclareça formas de pagamento disponíveis. NUNCA peça dados completos de cartão pelo chat.",
-      limitations: ["Nunca solicitar número completo de cartão, CVV ou senha pelo chat"] });
-  }
-  if (bt.capabilities.dataRecords) {
-    fns.push({ id: "registro", label: "Registrar dados do cliente", emoji: "📝", enableDataRecords: true,
-      prompt: "=== REGISTRO ===\nRegistre as informações relevantes mencionadas pelo cliente (preferências, histórico, dados solicitados) usando a ferramenta salvar_dado para consultas futuras." });
-  }
-  if (bt.capabilities.affiliate) {
-    fns.push({ id: "buscar", label: "Buscar e divulgar produtos", emoji: "🔎",
-      prompt: "=== BUSCA DE PRODUTOS ===\nAo receber uma solicitação, use imediatamente buscar_produto_afiliado — não peça mais informações antes de buscar. Os produtos são enviados com foto e link de afiliado automaticamente.",
-      limitations: ["Nunca inventar preço, avaliação ou link — usar apenas o que a busca retornar"] });
-    fns.push({ id: "posts", label: "Criar post para redes sociais", emoji: "📝",
-      prompt: "=== CRIAÇÃO DE POSTS ===\nApós o cliente escolher um produto, monte legenda curta e persuasiva: gancho + benefício principal + chamada para ação + link de afiliado. Máximo 2-3 emojis." });
+  const seen = new Set<string>();
+  for (const f of merged) {
+    if (seen.has(f.id)) continue;
+    seen.add(f.id);
+    fns.push(f);
   }
   return {
     id: bt.id,
@@ -402,7 +394,7 @@ Use SEMPRE a ferramenta buscar_conhecimento antes de responder sobre produtos, s
   const groupSectors: Sector[] = activeGroup
     ? activeGroup.types
         .filter((t) => !t.isCustom)
-        .map((t) => businessTypeToSector(t, activeGroup.emoji))
+        .map((t) => businessTypeToSector(t, activeGroup.id, activeGroup.emoji))
     : [];
 
   return {
