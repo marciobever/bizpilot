@@ -5,6 +5,8 @@ import { Sparkles, Bot, ArrowRight, Play, CheckCircle2, Calendar, PackageCheck, 
 import { Button } from "@/components/ui/Button";
 import { motion, AnimatePresence } from "motion/react";
 import { DemoChatModal } from "@/components/DemoChat";
+import { FactsStrip, HowItWorks, UseCaseBubbles } from "./_components/HomeSections";
+import { PricingTeaser, FaqSection, FinalCta } from "./_components/HomePricingFaq";
 
 type LiveMessage =
   | { from: "user" | "bot"; type: "text"; text: string }
@@ -107,7 +109,7 @@ export default function Home() {
               <Link href="/auth/registro?plan=starter">Começar Agora <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
             <Button size="lg" variant="outline" className="h-12 px-8 w-full sm:w-auto text-base border-border" onClick={() => setDemoOpen(true)}>
-              <Play className="mr-2 h-4 w-4" /> Simular Atendimento
+              <Play className="mr-2 h-4 w-4" /> Testar agora — sem cadastro
             </Button>
           </div>
         </motion.div>
@@ -322,6 +324,14 @@ export default function Home() {
           </div>
         </motion.div>
       </section>
+
+      {/* Espinha de conversão: fatos → como funciona → casos → planos → FAQ → CTA */}
+      <FactsStrip />
+      <HowItWorks />
+      <UseCaseBubbles />
+      <PricingTeaser />
+      <FaqSection />
+      <FinalCta />
 
       <DemoChatModal open={demoOpen} onClose={() => setDemoOpen(false)} />
     </div>

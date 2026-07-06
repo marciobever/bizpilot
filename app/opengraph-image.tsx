@@ -118,7 +118,16 @@ export default function OpengraphImage() {
               fontWeight: 700,
             }}
           >
-            ✓ Agendamento confirmado
+            <div
+              style={{
+                width: 14,
+                height: 14,
+                borderRadius: 7,
+                background: "#4ade80",
+                display: "flex",
+              }}
+            />
+            Agendamento confirmado
           </div>
         </div>
       </div>

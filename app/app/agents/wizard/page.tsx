@@ -107,60 +107,55 @@ export default function AgentWizard() {
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden rounded-xl border border-border bg-card min-h-0">
-        {/* Transcript */}
-        <div className="flex-1 overflow-auto p-4 font-mono text-sm space-y-0.5 min-h-0">
-          {messages.map((m, idx) => {
-            const isLastMsg = idx === messages.length - 1;
+        {/* Transcript — bolhas de chat, mesma linguagem visual do resto do produto */}
+        <div className="flex-1 overflow-auto p-4 text-sm space-y-3 min-h-0">
+          {messages.map((m) => {
             if (m.role === "bot") {
               const displayText = tw.getDisplayText(m);
-              const lines = displayText.split("\n");
               return (
-                <div key={m.id} className="mb-4 animate-in fade-in-0 duration-300">
-                  {lines.map((line, li) =>
-                    line === "" ? (
-                      <div key={li} className="h-2" />
-                    ) : (
-                      <div key={li} className="flex gap-3 leading-6">
-                        <span className={li === 0 ? "text-brand-400 shrink-0" : "w-4 shrink-0"}>
-                          {li === 0 ? "❯" : ""}
-                        </span>
-                        <span className={isLastMsg ? "text-foreground" : "text-muted-foreground"}>{line}</span>
-                      </div>
-                    )
-                  )}
-                </div>
-              );
-            } else {
-              return (
-                <div key={m.id} className="flex gap-3 leading-5 mb-3 animate-in fade-in-0 duration-200">
-                  <Check className="h-3.5 w-3.5 text-brand-500 shrink-0 mt-0.5" />
-                  <span className="text-muted-foreground italic text-xs">{m.text}</span>
+                <div key={m.id} className="flex animate-in fade-in-0 duration-300">
+                  <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-brand-500/10 border border-brand-500/20 px-4 py-3 leading-relaxed whitespace-pre-line">
+                    {displayText}
+                  </div>
                 </div>
               );
             }
+            return (
+              <div key={m.id} className="flex justify-end animate-in fade-in-0 duration-200">
+                <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-brand-500 text-white px-4 py-2.5 leading-relaxed">
+                  {m.text}
+                </div>
+              </div>
+            );
           })}
 
           {botTyping && !flow.creating && (
-            <div className="flex gap-3 leading-6 mb-4 animate-in fade-in-0 duration-150">
-              <span className="text-brand-400 shrink-0">❯</span>
-              <span className="inline-block w-2 h-[18px] bg-brand-400/60 animate-pulse" />
+            <div className="flex animate-in fade-in-0 duration-150">
+              <div className="rounded-2xl rounded-tl-sm bg-brand-500/10 border border-brand-500/20 px-4 py-3 flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-bounce [animation-delay:0ms]" />
+                <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-bounce [animation-delay:150ms]" />
+                <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-bounce [animation-delay:300ms]" />
+              </div>
             </div>
           )}
 
           {flow.creating && (
-            <div className="mt-2 space-y-2">
-              {CREATION_LINES.slice(0, creationStep).map((line, i) => (
-                <div key={i} className="flex gap-3 animate-in fade-in-0 slide-in-from-left-2 duration-300">
-                  <Check className="h-3.5 w-3.5 text-brand-500 shrink-0 mt-0.5" />
-                  <span className="text-muted-foreground text-xs">{line}</span>
-                </div>
-              ))}
-              {creationStep < CREATION_LINES.length && (
-                <div className="flex gap-3 leading-6">
-                  <span className="text-brand-400">❯</span>
-                  <span className="inline-block w-2 h-[18px] bg-brand-400/60 animate-pulse" />
-                </div>
-              )}
+            <div className="flex animate-in fade-in-0 duration-300">
+              <div className="max-w-[85%] rounded-2xl rounded-tl-sm bg-brand-500/10 border border-brand-500/20 px-4 py-3 space-y-2">
+                {CREATION_LINES.slice(0, creationStep).map((line, i) => (
+                  <div key={i} className="flex gap-2.5 items-start animate-in fade-in-0 slide-in-from-left-2 duration-300">
+                    <Check className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" />
+                    <span className="text-muted-foreground text-xs">{line}</span>
+                  </div>
+                ))}
+                {creationStep < CREATION_LINES.length && (
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-bounce [animation-delay:0ms]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-bounce [animation-delay:150ms]" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-bounce [animation-delay:300ms]" />
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
