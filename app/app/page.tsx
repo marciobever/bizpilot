@@ -183,7 +183,7 @@ export default function DashboardMetrics() {
             <MessageSquare className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{messagesToday}</div>
+            <div className="text-2xl font-bold tabular-nums">{messagesToday}</div>
             {messagesChange ? (
               <p className={`text-xs mt-1 font-medium ${messagesChange.positive ? 'text-emerald-500' : 'text-red-500'}`}>
                 {messagesChange.label.includes('vs') ? messagesChange.label.replace('vs. semana anterior', 'vs. ontem') : messagesChange.label}
@@ -199,7 +199,7 @@ export default function DashboardMetrics() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalLeads}</div>
+            <div className="text-2xl font-bold tabular-nums">{totalLeads}</div>
             {leadsChange ? (
               <p className={`text-xs mt-1 font-medium ${leadsChange.positive ? 'text-emerald-500' : 'text-red-500'}`}>{leadsChange.label}</p>
             ) : (
@@ -213,7 +213,7 @@ export default function DashboardMetrics() {
             <Bot className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{conversionRate}%</div>
+            <div className="text-2xl font-bold tabular-nums text-success">{conversionRate}%</div>
             <p className="text-xs text-muted-foreground mt-1">{convertedLeads} de {totalLeads} leads convertidos</p>
           </CardContent>
         </Card>
@@ -223,7 +223,7 @@ export default function DashboardMetrics() {
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{estimatedHoursSaved}h</div>
+            <div className="text-2xl font-bold tabular-nums">{estimatedHoursSaved}h</div>
             <p className="text-xs text-muted-foreground mt-1">{agentMessagesTotal} respostas automatizadas (estimativa)</p>
           </CardContent>
         </Card>
@@ -241,20 +241,20 @@ export default function DashboardMetrics() {
               <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorLeads" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                   </linearGradient>
                   <linearGradient id="colorConvos" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#1e88ff" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#1e88ff" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === "dark" ? "#27272a" : "#e4e4e7"} />
                 <XAxis dataKey="name" stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="#a1a1aa" fontSize={12} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip contentStyle={{ backgroundColor: theme === "dark" ? "#09090b" : "#ffffff", borderColor: theme === "dark" ? "#27272a" : "#e4e4e7", borderRadius: '8px', color: theme === "dark" ? "#fafafa" : "#18181b" }} />
-                <Area type="monotone" name="Mensagens" dataKey="convos" stroke="#a855f7" strokeWidth={2} fillOpacity={1} fill="url(#colorConvos)" />
-                <Area type="monotone" name="Leads" dataKey="leads" stroke="#6366f1" strokeWidth={2} fillOpacity={1} fill="url(#colorLeads)" />
+                <Area type="monotone" name="Mensagens" dataKey="convos" stroke="#1e88ff" strokeWidth={2} fillOpacity={1} fill="url(#colorConvos)" />
+                <Area type="monotone" name="Leads" dataKey="leads" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorLeads)" />
               </AreaChart>
             </ResponsiveContainer>
           </CardContent>

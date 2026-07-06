@@ -1,6 +1,14 @@
 import React from "react";
 import type { Metadata } from "next";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-jakarta",
+  display: "swap",
+});
 import { AuthProvider } from "../src/lib/auth";
 import { ThemeProvider } from "../src/lib/theme";
 
@@ -87,7 +95,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt-BR" suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning className={jakarta.variable}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <script
