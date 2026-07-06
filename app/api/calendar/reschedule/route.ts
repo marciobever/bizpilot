@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireInternalSecret } from '@/lib/api-auth';
+import { resolveCalendarConfig } from '@/lib/calendarConfig';
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -61,18 +62,9 @@ export async function POST(req: NextRequest) {
 
   const supabase = getServiceSupabase();
 
-  const { data: agent, error: agentErr } = await supabase.from('agents').select('user_id').eq('id', agentId).single();
-  if (agentErr || !agent) return NextResponse.json({ error: 'Agente não encontrado' }, { status: 404 });
-
-  const { data: integration, error: intErr } = await supabase
-    .from('integrations').select('status, config')
-    .eq('user_id', agent.user_id).eq('provider', 'calendar').maybeSingle();
-
-  if (intErr || !integration || integration.status !== 'connected') {
-    return NextResponse.json({ error: 'Calendário não conectado para este usuário.' }, { status: 400 });
-  }
-
-  const config = integration.config as any;
+  const resolved = await resolveCalendarConfig(supabase, agentId);
+  if (!resolved) return NextResponse.json({ error: 'Calendário não conectado para este agente.' }, { status: 400 });
+  const config = resolved.config;
   if (config.provider !== 'calcom' && config.provider !== 'google') {
     return NextResponse.json({ error: 'Reagendamento não suportado para este provedor.' }, { status: 400 });
   }

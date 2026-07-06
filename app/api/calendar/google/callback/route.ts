@@ -8,12 +8,17 @@ function getServiceSupabase() {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-// GET /api/calendar/google/callback?code=...&state=<userId>
-// Troca o código de autorização por um refresh token e salva a integração.
+// GET /api/calendar/google/callback?code=...&state=<userId>:<agentId?>
+// Troca o código de autorização por um refresh token. Sem agentId, salva no
+// calendário padrão da conta; com agentId, salva como override daquele bot.
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code');
-  const userId = req.nextUrl.searchParams.get('state');
-  const redirectBack = (status: string) => NextResponse.redirect(`${req.nextUrl.origin}/app/automations?calendar=${status}`);
+  const state = req.nextUrl.searchParams.get('state') || '';
+  const [userId, agentId] = state.split(':');
+  const redirectBack = (status: string) =>
+    NextResponse.redirect(agentId
+      ? `${req.nextUrl.origin}/app/agents/${agentId}?tab=channels&calendar=${status}`
+      : `${req.nextUrl.origin}/app/automations?calendar=${status}`);
 
   if (!code || !userId) return redirectBack('error');
 
@@ -41,13 +46,24 @@ export async function GET(req: NextRequest) {
     const tokens = await tokenRes.json();
     if (!tokenRes.ok || !tokens.refresh_token) return redirectBack('error');
 
-    await supabase.from('integrations').upsert({
-      user_id: userId,
-      provider: 'calendar',
-      name: 'Calendário / Agenda',
-      status: 'connected',
-      config: { ...integration?.config, refreshToken: tokens.refresh_token, calendarId: integration?.config?.calendarId || 'primary' },
-    }, { onConflict: 'user_id,provider' });
+    if (agentId) {
+      await supabase.from('agent_calendar_integrations').upsert({
+        agent_id: agentId,
+        user_id: userId,
+        provider: 'google',
+        status: 'connected',
+        config: { provider: 'google', clientId, clientSecret, refreshToken: tokens.refresh_token, calendarId: 'primary' },
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'agent_id' });
+    } else {
+      await supabase.from('integrations').upsert({
+        user_id: userId,
+        provider: 'calendar',
+        name: 'Calendário / Agenda',
+        status: 'connected',
+        config: { ...integration?.config, refreshToken: tokens.refresh_token, calendarId: integration?.config?.calendarId || 'primary' },
+      }, { onConflict: 'user_id,provider' });
+    }
 
     return redirectBack('connected');
   } catch {

@@ -29,6 +29,7 @@ import { AfiliadosTab } from "./_tabs/AfiliadosTab";
 import { SetupWhatsappView } from "./_views/SetupWhatsappView";
 // Components
 import { AgentTour } from "./_components/AgentTour";
+import { AgentCalendarCard } from "./_components/AgentCalendarCard";
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -48,7 +49,7 @@ export default function AgentConfig() {
   const agentId = Array.isArray(id) ? id[0] : (id as string);
   const isNew = agentId === "new";
 
-  const [activeTab, setActiveTab] = useState("identity");
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "identity");
   const [agentType, setAgentType] = useState("atendimento");
   const [capabilities, setCapabilities] = useState<AgentCapabilities>({});
   const [affiliateGroups, setAffiliateGroups] = useState<{ id: string; name: string }[]>([]);
@@ -431,6 +432,11 @@ export default function AgentConfig() {
               onDisconnectMeta={waChannel.handleDisconnectMeta}
               onCopyToClipboard={waChannel.copyToClipboard}
             />
+          )}
+          {activeTab === "channels" && (
+            <div className="mt-4">
+              <AgentCalendarCard agentId={agentId} isNew={isNew} />
+            </div>
           )}
           {activeTab === "afiliados" && (
             <AfiliadosTab

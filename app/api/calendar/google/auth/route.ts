@@ -8,11 +8,14 @@ function getServiceSupabase() {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-// GET /api/calendar/google/auth?userId=...
+// GET /api/calendar/google/auth?userId=...&agentId=... (agentId opcional)
 // Redireciona o usuário para a tela de consentimento do Google usando o
-// Client ID/Secret que ele mesmo cadastrou (BYO OAuth app).
+// Client ID/Secret que ele mesmo cadastrou (BYO OAuth app, sempre no nível da
+// conta). Se vier agentId, o refresh token resultante é salvo como override
+// específico daquele bot em vez do calendário padrão da conta.
 export async function GET(req: NextRequest) {
   const userId = req.nextUrl.searchParams.get('userId');
+  const agentId = req.nextUrl.searchParams.get('agentId') || '';
   if (!userId) return NextResponse.json({ error: 'userId é obrigatório' }, { status: 400 });
 
   const supabase = getServiceSupabase();
@@ -31,7 +34,7 @@ export async function GET(req: NextRequest) {
     scope: 'https://www.googleapis.com/auth/calendar',
     access_type: 'offline',
     prompt: 'consent',
-    state: userId,
+    state: `${userId}:${agentId}`,
   });
 
   return NextResponse.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
