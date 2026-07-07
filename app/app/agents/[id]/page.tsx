@@ -252,6 +252,11 @@ export default function AgentConfig() {
         onConnectWhatsapp={waChannel.handleConnectWhatsapp}
         onFetchQrCode={waChannel.fetchQrCode}
         onCancelQr={() => { waChannel.setCheckingWa(false); waChannel.setWaQrCode(""); }}
+        onChooseMeta={() => {
+          waChannel.setWhatsappProvider("meta");
+          setActiveTab("channels");
+          navigate.replace(`/app/agents/${agentId}?tab=channels`);
+        }}
       />
     );
   }
