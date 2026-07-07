@@ -69,13 +69,24 @@ export interface EffectiveLimits {
   extraWhatsappNumbers: number; // qtde de addon_whatsapp_number
 }
 
-// Soma linhas de user_addons em contagem por addon_id (apenas status ativo/trialing).
+// 7 dias de carência após vencer (mesmo prazo do gate do plano) antes de
+// parar de contar o complemento — dá tempo do Pix de renovação compensar.
+const ADDON_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Soma linhas de user_addons em contagem por addon_id (apenas status ativo/trialing
+// E dentro do período pago + carência — complemento pago por Pix que venceu
+// há mais de 7 dias para de contar, mesmo que a linha ainda diga "active").
 export function addonCountsFromRows(
-  rows: Array<{ addon_id: string; status?: string | null }> | null | undefined
+  rows: Array<{ addon_id: string; status?: string | null; current_period_end?: string | null }> | null | undefined
 ): Record<string, number> {
   const counts: Record<string, number> = {};
+  const now = Date.now();
   for (const r of rows ?? []) {
     if (r.status && r.status !== "active" && r.status !== "trialing") continue;
+    if (r.current_period_end) {
+      const endMs = new Date(r.current_period_end).getTime();
+      if (Number.isFinite(endMs) && now > endMs + ADDON_GRACE_MS) continue;
+    }
     counts[r.addon_id] = (counts[r.addon_id] ?? 0) + 1;
   }
   return counts;

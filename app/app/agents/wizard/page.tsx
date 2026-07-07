@@ -39,7 +39,7 @@ export default function AgentWizard() {
       const [{ data: profile }, { data: agentRows }, { data: addonRows }] = await Promise.all([
         supabase.from("profiles").select("plan").eq("id", user.id).single(),
         supabase.from("agents").select("id").is("deleted_at", null),
-        supabase.from("user_addons").select("addon_id, status").eq("user_id", user.id),
+        supabase.from("user_addons").select("addon_id, status, current_period_end").eq("user_id", user.id),
       ]);
       const counts = addonCountsFromRows(addonRows as any);
       const limit = computeEffectiveLimits(profile?.plan, counts).bots;

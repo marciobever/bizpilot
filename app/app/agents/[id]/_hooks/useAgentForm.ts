@@ -71,7 +71,7 @@ export function useAgentForm(isNew: boolean) {
       });
     supabase
       .from("user_addons")
-      .select("addon_id, status")
+      .select("addon_id, status, current_period_end")
       .eq("user_id", user.id)
       .eq("addon_id", "addon_voice")
       .then(({ data }) => {

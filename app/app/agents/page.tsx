@@ -28,7 +28,7 @@ export default function Agents() {
       fetchAgents();
       supabase.from("profiles").select("plan").eq("id", user.id).single()
         .then(({ data }) => { if (data?.plan) setPlan(data.plan); });
-      supabase.from("user_addons").select("addon_id, status").eq("user_id", user.id)
+      supabase.from("user_addons").select("addon_id, status, current_period_end").eq("user_id", user.id)
         .then(({ data }) => {
           const counts = addonCountsFromRows(data as any);
           setExtraBots(counts["addon_bot"] ?? 0);

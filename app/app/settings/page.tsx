@@ -82,7 +82,7 @@ function SettingsInner() {
       setHasEfiSubscription(!!data?.efi_subscription_id);
       setLoadingPlan(false);
     });
-    supabase.from("user_addons").select("addon_id, status").eq("user_id", user.id).then(({ data }) => {
+    supabase.from("user_addons").select("addon_id, status, current_period_end").eq("user_id", user.id).then(({ data }) => {
       setAddonCounts(addonCountsFromRows(data as any));
     });
     authFetch("/api/usage").then((res) => res.json()).then(setUsage).catch(() => setUsage(null));

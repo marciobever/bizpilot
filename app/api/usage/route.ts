@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
         .eq('user_id', userId)
         .gte('created_at', monthStart),
       supabase.from('agents').select('id').eq('user_id', userId).is('deleted_at', null),
-      supabase.from('user_addons').select('addon_id, status').eq('user_id', userId),
+      supabase.from('user_addons').select('addon_id, status, current_period_end').eq('user_id', userId),
       supabase.from('usage_logs').select('cost_usd').eq('user_id', userId).gte('created_at', monthStart),
     ]);
 
