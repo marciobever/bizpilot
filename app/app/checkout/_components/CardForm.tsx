@@ -164,6 +164,7 @@ export function CardForm({ item, amountCents, onPaid, onPending }: Props) {
       </button>
       <p className="text-xs text-muted-foreground text-center">
         Os dados do cartão são criptografados no seu navegador e não passam pelos nossos servidores.
+        Na fatura do seu cartão a cobrança aparecerá como <span className="font-semibold whitespace-nowrap">Efí *MMVDIGITAL</span>.
       </p>
     </form>
   );
