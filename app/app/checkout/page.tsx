@@ -3,7 +3,10 @@ import { Suspense, useEffect, useState } from "react";
 import { authFetch } from "@/lib/api-client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Loader2, Check, LogOut } from "lucide-react";
+import { Loader2, Check, LogOut, QrCode, CreditCard, ArrowLeft } from "lucide-react";
+import { BILLING_ITEMS, normalizeBillingItem } from "@/lib/billing/prices";
+import { PixPanel } from "./_components/PixPanel";
+import { CardForm } from "./_components/CardForm";
 
 const PLANS = [
   {
@@ -26,37 +29,73 @@ const PLANS = [
   },
 ];
 
+type Phase = "loading" | "confirming" | "picking" | "method" | "pix" | "card" | "cardPending";
+type PixData = { chargeId: string; qrImage: string; copiaECola: string; amountCents: number };
+
 function CheckoutInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planParam = searchParams.get("plan");
-  const sessionId = searchParams.get("session_id");
+  const sessionId = searchParams.get("session_id"); // volta do Stripe (legado)
   const canceled = searchParams.get("canceled");
+  // change=1: upgrade/renovação/add-on de quem JÁ tem assinatura ativa
+  // (sem isso, assinatura ativa redireciona pro painel).
+  const isChange = searchParams.get("change") === "1";
 
-  const [phase, setPhase] = useState<"loading" | "confirming" | "picking" | "redirecting" | "error">("loading");
+  const [phase, setPhase] = useState<Phase>("loading");
   const [errorMsg, setErrorMsg] = useState("");
   const [busyPlan, setBusyPlan] = useState<string | null>(null);
+  const [efi, setEfi] = useState<{ pix: boolean; card: boolean }>({ pix: false, card: false });
+  const [selectedItem, setSelectedItem] = useState<string | null>(null);
+  const [pixData, setPixData] = useState<PixData | null>(null);
+  const [pendingChargeId, setPendingChargeId] = useState<string | null>(null);
 
-  // Inicia o checkout no Stripe para um plano específico.
-  async function startCheckout(plan: string) {
-    setBusyPlan(plan);
-    setErrorMsg("");
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { router.replace(`/auth/login?plan=${plan}`); return; }
+  const selectedBilling = selectedItem ? BILLING_ITEMS[selectedItem] : null;
 
+  function finishPaid(item: string) {
+    // Reload real força o layout a reler o subscription_status já ativo.
+    window.location.href = item.startsWith("addon_") ? "/app/settings?tab=plano&addon=ok" : "/app";
+  }
+
+  // ── Fallback Stripe (conta legada / Efí sem envs) ──────────────────────────
+  async function stripeCheckout(plan: string) {
     const res = await authFetch("/api/stripe/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan, userId: user.id, email: user.email }),
+      body: JSON.stringify({ plan }),
     });
     const json = await res.json();
     if (!res.ok || !json.url) {
       setErrorMsg(json.error || "Não foi possível abrir o checkout.");
-      setPhase("error");
+      setPhase("picking");
       setBusyPlan(null);
       return;
     }
     window.location.href = json.url;
+  }
+
+  async function beginPix(item: string) {
+    setBusyPlan(item);
+    setErrorMsg("");
+    const res = await authFetch("/api/efi/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ item, method: "pix" }),
+    });
+    const json = await res.json();
+    setBusyPlan(null);
+    if (res.status === 501 && json.fallback === "stripe") { stripeCheckout(item); return; }
+    if (!res.ok) { setErrorMsg(json.error || "Não foi possível gerar o Pix."); setPhase(selectedItem ? "method" : "picking"); return; }
+    setPixData({ chargeId: json.chargeId, qrImage: json.qrImage, copiaECola: json.copiaECola, amountCents: json.amountCents });
+    setPhase("pix");
+  }
+
+  function startCheckout(item: string) {
+    setErrorMsg("");
+    setSelectedItem(item);
+    if (!efi.pix && !efi.card) { setBusyPlan(item); stripeCheckout(item); return; }
+    if (efi.pix && !efi.card) { beginPix(item); return; }
+    setPhase("method");
   }
 
   useEffect(() => {
@@ -76,7 +115,7 @@ function CheckoutInner() {
       const user = (await supabase.auth.getUser()).data.user;
       if (!user) { router.replace("/auth/login"); return; }
 
-      // 1) Voltou do Stripe: confirma o pagamento e libera o app.
+      // 1) Volta do Stripe (legado): confirma e libera.
       if (sessionId) {
         setPhase("confirming");
         const res = await authFetch("/api/stripe/confirm", {
@@ -87,63 +126,191 @@ function CheckoutInner() {
         const json = await res.json();
         if (cancelledFlag) return;
         if (res.ok && json.active) {
-          // Complemento: volta pras configurações. Plano: entra no app.
-          // Reload real força o layout a reler o subscription_status já ativo.
           window.location.href = json.addon ? "/app/settings?tab=plano&addon=ok" : "/app";
           return;
         }
         setErrorMsg(json.error || "Não foi possível confirmar o pagamento. Se o valor foi cobrado, aguarde alguns segundos e recarregue.");
-        setPhase("error");
+        setPhase("picking");
         return;
       }
 
-      // 2) Já tem assinatura ativa? Vai pro app.
-      const { data: profile } = await supabase.from("profiles")
-        .select("subscription_status").eq("id", user.id).single();
-      if (profile?.subscription_status === "active" || profile?.subscription_status === "trialing") {
-        router.replace("/app");
+      // 2) Quais métodos Efí estão disponíveis?
+      let methods = { pix: false, card: false };
+      try {
+        const res = await authFetch("/api/efi/checkout");
+        if (res.ok) methods = await res.json();
+      } catch { /* segue com fallback Stripe */ }
+      if (cancelledFlag) return;
+      setEfi(methods);
+
+      // 3) Já tem assinatura ativa? Vai pro app — exceto upgrade/add-on (change=1).
+      if (!isChange) {
+        const { data: profile } = await supabase.from("profiles")
+          .select("subscription_status").eq("id", user.id).single();
+        if (profile?.subscription_status === "active" || profile?.subscription_status === "trialing") {
+          router.replace("/app");
+          return;
+        }
+      }
+
+      // 4) Item explícito (landing/upgrade): pula a escolha de plano.
+      const item = planParam ? normalizeBillingItem(planParam) : null;
+      if (item && BILLING_ITEMS[item] && !canceled) {
+        setSelectedItem(item);
+        if (!methods.pix && !methods.card) { setPhase("loading"); stripeCheckout(item); return; }
+        if (methods.pix && !methods.card) {
+          // beginPix usa o estado efi via closure — chama com o item direto.
+          setPhase("loading");
+          (async () => {
+            const res = await authFetch("/api/efi/checkout", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ item, method: "pix" }),
+            });
+            const json = await res.json();
+            if (cancelledFlag) return;
+            if (!res.ok) { setErrorMsg(json.error || "Não foi possível gerar o Pix."); setPhase("picking"); return; }
+            setPixData({ chargeId: json.chargeId, qrImage: json.qrImage, copiaECola: json.copiaECola, amountCents: json.amountCents });
+            setPhase("pix");
+          })();
+          return;
+        }
+        setPhase("method");
         return;
       }
 
-      // 3) Plano explícito (veio da landing): manda direto pro Stripe.
-      if (planParam && !canceled) {
-        setPhase("redirecting");
-        startCheckout(planParam);
-        return;
-      }
-
-      // 4) Caso geral: mostra os planos pra escolher.
+      // 5) Caso geral: mostra os planos.
       setPhase("picking");
     }
 
     run();
     return () => { cancelledFlag = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [planParam, sessionId, canceled, router]);
+  }, [planParam, sessionId, canceled, isChange, router]);
+
+  // Polling do cartão pendente (análise antifraude pode segurar uns segundos).
+  useEffect(() => {
+    if (phase !== "cardPending" || !pendingChargeId) return;
+    let tries = 0;
+    const timer = setInterval(async () => {
+      tries += 1;
+      try {
+        const res = await authFetch("/api/efi/confirm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chargeId: pendingChargeId }),
+        });
+        const json = await res.json();
+        if (json.active) { clearInterval(timer); finishPaid(selectedItem || "plan"); return; }
+        if (json.failed) {
+          clearInterval(timer);
+          setErrorMsg("O pagamento não foi aprovado pela operadora do cartão. Tente outro cartão ou pague com Pix.");
+          setPhase("method");
+        }
+      } catch { /* tenta de novo */ }
+      if (tries >= 20) { clearInterval(timer); } // ~80s; webhook assume depois
+    }, 4000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, pendingChargeId]);
 
   async function handleSignOut() {
     await supabase.auth.signOut();
     router.replace("/auth/login");
   }
 
-  if (phase === "loading" || phase === "redirecting" || phase === "confirming") {
+  if (phase === "loading" || phase === "confirming") {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-brand-400" />
         <p className="text-sm text-muted-foreground">
-          {phase === "confirming" ? "Confirmando seu pagamento…" : "Abrindo checkout seguro…"}
+          {phase === "confirming" ? "Confirmando seu pagamento…" : "Preparando checkout seguro…"}
         </p>
       </div>
     );
   }
 
-  // Tela de escolha de plano (e também o estado de erro com os planos visíveis).
+  // ── Método / Pix / Cartão (item já escolhido) ──────────────────────────────
+  if ((phase === "method" || phase === "pix" || phase === "card" || phase === "cardPending") && selectedBilling && selectedItem) {
+    const price = `R$ ${(selectedBilling.cents / 100).toFixed(2).replace(".", ",")}`;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
+        <div className="w-full max-w-md rounded-2xl border border-border p-6 space-y-6">
+          <div className="flex items-center gap-3">
+            <button onClick={() => { setPhase(phase === "method" ? "picking" : "method"); setErrorMsg(""); }} className="p-1.5 rounded-md hover:bg-secondary">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div>
+              <h1 className="font-bold">{selectedBilling.name.replace("BizPilot — ", "")}</h1>
+              <p className="text-sm text-muted-foreground">{price}/mês</p>
+            </div>
+          </div>
+
+          {errorMsg && <p className="text-sm text-red-400">{errorMsg}</p>}
+
+          {phase === "method" && (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">Como você prefere pagar?</p>
+              {efi.pix && (
+                <button onClick={() => beginPix(selectedItem)} disabled={busyPlan !== null} className="w-full flex items-center gap-3 p-4 rounded-xl border border-border hover:border-brand-500 hover:bg-brand-500/5 transition-all text-left disabled:opacity-60">
+                  {busyPlan ? <Loader2 className="h-5 w-5 animate-spin" /> : <QrCode className="h-5 w-5 text-emerald-500" />}
+                  <div>
+                    <div className="font-medium text-sm">Pix</div>
+                    <div className="text-xs text-muted-foreground">QR Code na hora — renovação mensal por novo Pix.</div>
+                  </div>
+                </button>
+              )}
+              {efi.card && (
+                <button onClick={() => setPhase("card")} disabled={busyPlan !== null} className="w-full flex items-center gap-3 p-4 rounded-xl border border-border hover:border-brand-500 hover:bg-brand-500/5 transition-all text-left disabled:opacity-60">
+                  <CreditCard className="h-5 w-5 text-brand-500" />
+                  <div>
+                    <div className="font-medium text-sm">Cartão de crédito</div>
+                    <div className="text-xs text-muted-foreground">Assinatura recorrente — renova sozinha todo mês.</div>
+                  </div>
+                </button>
+              )}
+            </div>
+          )}
+
+          {phase === "pix" && pixData && (
+            <PixPanel
+              {...pixData}
+              onPaid={() => finishPaid(selectedItem)}
+              onRegenerate={() => beginPix(selectedItem)}
+            />
+          )}
+
+          {phase === "card" && (
+            <CardForm
+              item={selectedItem}
+              amountCents={selectedBilling.cents}
+              onPaid={() => finishPaid(selectedItem)}
+              onPending={(chargeId) => { setPendingChargeId(chargeId); setPhase("cardPending"); }}
+            />
+          )}
+
+          {phase === "cardPending" && (
+            <div className="flex flex-col items-center gap-3 py-6 text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-brand-400" />
+              <p className="text-sm font-medium">Processando o pagamento…</p>
+              <p className="text-xs text-muted-foreground max-w-xs">
+                A operadora está validando o cartão. Isso costuma levar poucos segundos —
+                assim que aprovar, seu acesso é liberado automaticamente.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Escolha de plano ───────────────────────────────────────────────────────
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-8 px-4 py-12">
       <div className="text-center max-w-2xl">
         <h1 className="text-3xl font-bold mb-2">Escolha seu plano</h1>
         <p className="text-muted-foreground">
-          Para começar a usar a plataforma, escolha o plano ideal. Use o cupom no checkout para desconto no 1º mês.
+          Pague com Pix ou cartão. Sem fidelidade — cancele quando quiser.
         </p>
         {canceled && (
           <p className="mt-3 text-sm text-amber-400">Pagamento cancelado. Você pode escolher um plano abaixo quando quiser.</p>

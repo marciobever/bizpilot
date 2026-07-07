@@ -62,11 +62,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [periodEnd, setPeriodEnd] = useState<string | null>(null);
+  const [billingProvider, setBillingProvider] = useState<string | null>(null);
   const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Assinaturas que liberam o acesso ao painel.
-  const hasAccess = subscriptionStatus === "active" || subscriptionStatus === "trialing";
+  // Assinaturas que liberam o acesso ao painel. No modelo Efí (Pix mensal),
+  // o período pago manda: ativo tem 7 dias de carência após vencer; cancelado
+  // mantém acesso até o fim do período já pago. Contas legadas Stripe seguem
+  // só pelo status (lá a renovação era automática).
+  const statusOk = subscriptionStatus === "active" || subscriptionStatus === "trialing";
+  const GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+  const endMs = periodEnd ? new Date(periodEnd).getTime() : null;
+  const hasAccess = billingProvider === "efi" && endMs
+    ? (statusOk ? Date.now() < endMs + GRACE_MS : Date.now() < endMs)
+    : statusOk;
   // A rota de checkout fica fora do bloqueio (senão entraria em loop de redirect).
   const onCheckoutRoute = location.startsWith("/app/checkout");
 
@@ -78,9 +88,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("profiles").select("subscription_status").eq("id", user.id).single()
-      .then(({ data }) => {
+    supabase.from("profiles").select("subscription_status, current_period_end, billing_provider").eq("id", user.id).single()
+      .then(async ({ data, error }) => {
+        // Migration 019 ainda não aplicada (coluna nova ausente): não pode
+        // trancar todo mundo pra fora — recai no select antigo.
+        if (error) {
+          const { data: legacy } = await supabase.from("profiles").select("subscription_status").eq("id", user.id).single();
+          setSubscriptionStatus(legacy?.subscription_status ?? null);
+          setSubscriptionLoaded(true);
+          return;
+        }
         setSubscriptionStatus(data?.subscription_status ?? null);
+        setPeriodEnd(data?.current_period_end ?? null);
+        setBillingProvider(data?.billing_provider ?? null);
         setSubscriptionLoaded(true);
       });
   }, [user]);

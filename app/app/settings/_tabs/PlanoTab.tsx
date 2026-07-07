@@ -103,12 +103,16 @@ interface Props {
   loadingPlan: boolean;
   subscriptionStatus: string | null;
   hasStripeCustomer: boolean;
+  billingProvider?: string | null;
+  currentPeriodEnd?: string | null;
+  hasEfiSubscription?: boolean; // assinatura de cartão Efí (renova sozinha)
   planActionLoading: string | null;
   planFeedback: { type: "success" | "error"; message: string } | null;
   addonCounts?: Record<string, number>;
   usage?: UsageResponse | null;
   onUpgrade: (targetPlan: string) => void;
   onManageSubscription: () => void;
+  onCancelEfi?: () => void;
 }
 
 function UsageBar({ label, used, limit, currency }: { label: string; used: number; limit: number; currency?: boolean }) {
@@ -133,11 +137,17 @@ function UsageBar({ label, used, limit, currency }: { label: string; used: numbe
 
 export function PlanoTab({
   plan, loadingPlan, subscriptionStatus, hasStripeCustomer,
-  planActionLoading, planFeedback, addonCounts = {}, usage, onUpgrade, onManageSubscription,
+  billingProvider, currentPeriodEnd, hasEfiSubscription,
+  planActionLoading, planFeedback, addonCounts = {}, usage,
+  onUpgrade, onManageSubscription, onCancelEfi,
 }: Props) {
   // Normaliza nomes antigos
   const normalizedPlan = plan === "basico" ? "starter" : plan === "profissional" ? "pro" : plan === "avancado" ? "business" : (plan || "starter");
   const currentPlan = PLANS.find((p) => p.id === normalizedPlan) || PLANS[0];
+  const isEfi = billingProvider === "efi";
+  const periodEndLabel = currentPeriodEnd
+    ? new Date(currentPeriodEnd).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : null;
 
   return (
     <div className="space-y-6">
@@ -196,17 +206,50 @@ export function PlanoTab({
           )}
         </CardContent>
         <CardFooter className="justify-between gap-2 flex-wrap">
-          <Button asChild variant="outline">
-            <Link href="/precos">Ver todos os planos <ArrowUpRight className="h-4 w-4 ml-2" /></Link>
-          </Button>
-          {hasStripeCustomer && (
-            <Button variant="outline" onClick={onManageSubscription} disabled={planActionLoading !== null}>
-              {planActionLoading === "portal"
-                ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                : <CreditCard className="h-4 w-4 mr-2" />}
-              Gerenciar assinatura
+          <div className="flex items-center gap-3 flex-wrap">
+            <Button asChild variant="outline">
+              <Link href="/precos">Ver todos os planos <ArrowUpRight className="h-4 w-4 ml-2" /></Link>
             </Button>
-          )}
+            {isEfi && periodEndLabel && (
+              <span className="text-xs text-muted-foreground">
+                {hasEfiSubscription
+                  ? `Renova automaticamente em ${periodEndLabel}.`
+                  : subscriptionStatus === "canceled"
+                    ? `Acesso até ${periodEndLabel}.`
+                    : `Pago até ${periodEndLabel} — renove com um novo Pix.`}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Pix mensal: renovar gera um novo QR do plano atual. */}
+            {isEfi && !hasEfiSubscription && subscriptionStatus !== "canceled" && (
+              <Button asChild variant="outline">
+                <Link href={`/app/checkout?plan=${normalizedPlan}&change=1`}>
+                  <CreditCard className="h-4 w-4 mr-2" /> Renovar agora
+                </Link>
+              </Button>
+            )}
+            {isEfi && subscriptionStatus === "canceled" && (
+              <Button asChild>
+                <Link href={`/app/checkout?plan=${normalizedPlan}&change=1`}>Reativar assinatura</Link>
+              </Button>
+            )}
+            {isEfi && subscriptionStatus === "active" && onCancelEfi && (
+              <Button variant="outline" className="text-destructive hover:bg-destructive/10 border-destructive/20" onClick={onCancelEfi} disabled={planActionLoading !== null}>
+                {planActionLoading === "cancel" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                Cancelar assinatura
+              </Button>
+            )}
+            {/* Conta legada Stripe: portal antigo continua disponível. */}
+            {!isEfi && hasStripeCustomer && (
+              <Button variant="outline" onClick={onManageSubscription} disabled={planActionLoading !== null}>
+                {planActionLoading === "portal"
+                  ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  : <CreditCard className="h-4 w-4 mr-2" />}
+                Gerenciar assinatura
+              </Button>
+            )}
+          </div>
         </CardFooter>
       </Card>
 

@@ -47,6 +47,9 @@ function SettingsInner() {
   const [loadingPlan, setLoadingPlan] = useState(true);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [hasStripeCustomer, setHasStripeCustomer] = useState(false);
+  const [billingProvider, setBillingProvider] = useState<string | null>(null);
+  const [periodEnd, setPeriodEnd] = useState<string | null>(null);
+  const [hasEfiSubscription, setHasEfiSubscription] = useState(false);
   const [addonCounts, setAddonCounts] = useState<Record<string, number>>({});
   const [usage, setUsage] = useState<any>(null);
   const [planActionLoading, setPlanActionLoading] = useState<string | null>(null);
@@ -63,10 +66,22 @@ function SettingsInner() {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("profiles").select("plan, subscription_status, stripe_customer_id").eq("id", user.id).single().then(({ data }) => {
+    supabase.from("profiles").select("plan, subscription_status, stripe_customer_id, billing_provider, current_period_end, efi_subscription_id").eq("id", user.id).single().then(async ({ data, error }) => {
+      // Migration 019 ainda não aplicada: recai nas colunas antigas.
+      if (error) {
+        const { data: legacy } = await supabase.from("profiles").select("plan, subscription_status, stripe_customer_id").eq("id", user.id).single();
+        setPlan(legacy?.plan || "basico");
+        setSubscriptionStatus(legacy?.subscription_status || null);
+        setHasStripeCustomer(!!legacy?.stripe_customer_id);
+        setLoadingPlan(false);
+        return;
+      }
       setPlan(data?.plan || "basico");
       setSubscriptionStatus(data?.subscription_status || null);
       setHasStripeCustomer(!!data?.stripe_customer_id);
+      setBillingProvider(data?.billing_provider || null);
+      setPeriodEnd(data?.current_period_end || null);
+      setHasEfiSubscription(!!data?.efi_subscription_id);
       setLoadingPlan(false);
     });
     supabase.from("user_addons").select("addon_id, status").eq("user_id", user.id).then(({ data }) => {
@@ -85,17 +100,29 @@ function SettingsInner() {
       : { type: "success", message: "Informações do perfil atualizadas com sucesso." });
   };
 
-  const handleUpgrade = async (targetPlan: string) => {
-    if (!user) return;
+  // Upgrade/add-on passa pelo checkout unificado (Efí com fallback Stripe).
+  // change=1 evita o redirect de "assinatura já ativa" da página de checkout.
+  const handleUpgrade = (targetPlan: string) => {
     setPlanFeedback(null);
     setPlanActionLoading(targetPlan);
+    router.push(`/app/checkout?plan=${targetPlan}&change=1`);
+  };
+
+  const handleCancelEfi = async () => {
+    if (!user) return;
+    if (!confirm("Cancelar sua assinatura? Você mantém o acesso até o fim do período já pago.")) return;
+    setPlanFeedback(null);
+    setPlanActionLoading("cancel");
     try {
-      const res = await authFetch("/api/stripe/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan: targetPlan, userId: user.id, email: user.email }) });
+      const res = await authFetch("/api/efi/cancel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao iniciar checkout.");
-      window.location.href = data.url;
+      if (!res.ok) throw new Error(data.error || "Erro ao cancelar assinatura.");
+      setSubscriptionStatus("canceled");
+      setHasEfiSubscription(false);
+      setPlanFeedback({ type: "success", message: "Assinatura cancelada. Seu acesso continua até o fim do período pago." });
     } catch (e: any) {
       setPlanFeedback({ type: "error", message: e.message });
+    } finally {
       setPlanActionLoading(null);
     }
   };
@@ -155,7 +182,7 @@ function SettingsInner() {
       )}
       {activeTab === "aparencia" && <AparenciaTab theme={theme} setTheme={(v) => setTheme(v as any)} />}
       {activeTab === "plano" && (
-        <PlanoTab plan={plan} loadingPlan={loadingPlan} subscriptionStatus={subscriptionStatus} hasStripeCustomer={hasStripeCustomer} planActionLoading={planActionLoading} planFeedback={planFeedback} addonCounts={addonCounts} usage={usage} onUpgrade={handleUpgrade} onManageSubscription={handleManageSubscription} />
+        <PlanoTab plan={plan} loadingPlan={loadingPlan} subscriptionStatus={subscriptionStatus} hasStripeCustomer={hasStripeCustomer} billingProvider={billingProvider} currentPeriodEnd={periodEnd} hasEfiSubscription={hasEfiSubscription} planActionLoading={planActionLoading} planFeedback={planFeedback} addonCounts={addonCounts} usage={usage} onUpgrade={handleUpgrade} onManageSubscription={handleManageSubscription} onCancelEfi={handleCancelEfi} />
       )}
       {activeTab === "seguranca" && (
         <SegurancaTab newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} savingPassword={savingPassword} passwordFeedback={passwordFeedback} onChangePassword={handleChangePassword} onSignOut={handleSignOut} />
