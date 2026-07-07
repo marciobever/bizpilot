@@ -3,7 +3,7 @@ import { Suspense, useEffect, useState } from "react";
 import { authFetch } from "@/lib/api-client";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { Loader2, Check, LogOut, QrCode, CreditCard, ArrowLeft } from "lucide-react";
+import { Loader2, Check, LogOut, QrCode, CreditCard, ArrowLeft, Lock, ShieldCheck, Bot } from "lucide-react";
 import { BILLING_ITEMS, normalizeBillingItem } from "@/lib/billing/prices";
 import { PixPanel } from "./_components/PixPanel";
 import { CardForm } from "./_components/CardForm";
@@ -29,6 +29,38 @@ const PLANS = [
   },
 ];
 
+// Resumo mostrado ao lado do pagamento (o que a pessoa está comprando).
+const ITEM_DETAILS: Record<string, { desc: string; features?: string[] }> = {
+  starter: {
+    desc: "Para começar a automatizar o essencial.",
+    features: ["1 agente inteligente", "500 conversas/mês", "50 documentos na base", "Histórico de 30 dias", "WhatsApp Evolution ou Meta Oficial"],
+  },
+  pro: {
+    desc: "Para escalar com múltiplos agentes.",
+    features: ["3 agentes inteligentes", "3.000 conversas/mês", "200 documentos na base", "Histórico de 90 dias", "Suporte prioritário"],
+  },
+  business: {
+    desc: "Operação sem limites.",
+    features: ["Agentes ilimitados", "Conversas ilimitadas", "Documentos ilimitados", "Histórico de 1 ano", "Suporte dedicado"],
+  },
+  addon_bot: {
+    desc: "Mais um agente inteligente além do limite do seu plano — ideal pra atender outro número ou outra área do negócio.",
+    features: ["+1 agente no seu limite", "Vale enquanto a assinatura estiver ativa", "Pode contratar mais de um"],
+  },
+  addon_campaigns: {
+    desc: "Amplie seus disparos em massa para campanhas e promoções.",
+    features: ["+1.000 disparos/mês", "Soma com o limite do plano"],
+  },
+  addon_voice: {
+    desc: "Seu agente responde também em áudio, com voz natural.",
+    features: ["Respostas em áudio (TTS)", "Vozes em português", "Liga/desliga por agente"],
+  },
+  addon_whatsapp_number: {
+    desc: "Número virtual dedicado conectado à nossa infraestrutura — sem usar seu chip.",
+    features: ["Número exclusivo do seu bot", "Provisionamento pela nossa equipe"],
+  },
+};
+
 type Phase = "loading" | "picking" | "method" | "pix" | "card" | "cardPending";
 type PixData = { chargeId: string; qrImage: string; copiaECola: string; amountCents: number };
 
@@ -48,6 +80,8 @@ function CheckoutInner() {
   const [selectedItem, setSelectedItem] = useState<string | null>(null);
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [pendingChargeId, setPendingChargeId] = useState<string | null>(null);
+  const [pendingSlow, setPendingSlow] = useState(false);
+  const [pendingRound, setPendingRound] = useState(0); // re-arma o polling no "Verificar novamente"
 
   const selectedBilling = selectedItem ? BILLING_ITEMS[selectedItem] : null;
 
@@ -79,7 +113,6 @@ function CheckoutInner() {
       setSelectedItem(null);
       return;
     }
-    if (efi.pix && !efi.card) { beginPix(item); return; }
     setPhase("method");
   }
 
@@ -129,23 +162,6 @@ function CheckoutInner() {
           setPhase("picking");
           return;
         }
-        if (methods.pix && !methods.card) {
-          // beginPix usa o estado efi via closure — chama com o item direto.
-          setPhase("loading");
-          (async () => {
-            const res = await authFetch("/api/efi/checkout", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ item, method: "pix" }),
-            });
-            const json = await res.json();
-            if (cancelledFlag) return;
-            if (!res.ok) { setErrorMsg(json.error || "Não foi possível gerar o Pix."); setPhase("picking"); return; }
-            setPixData({ chargeId: json.chargeId, qrImage: json.qrImage, copiaECola: json.copiaECola, amountCents: json.amountCents });
-            setPhase("pix");
-          })();
-          return;
-        }
         setPhase("method");
         return;
       }
@@ -179,11 +195,12 @@ function CheckoutInner() {
           setPhase("method");
         }
       } catch { /* tenta de novo */ }
-      if (tries >= 20) { clearInterval(timer); } // ~80s; webhook assume depois
+      // ~80s sem resposta: mostra o estado "demorando" (webhook/confirm cobrem depois).
+      if (tries >= 20) { clearInterval(timer); setPendingSlow(true); }
     }, 4000);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, pendingChargeId]);
+  }, [phase, pendingChargeId, pendingRound]);
 
   async function handleSignOut() {
     await supabase.auth.signOut();
@@ -202,72 +219,157 @@ function CheckoutInner() {
   // ── Método / Pix / Cartão (item já escolhido) ──────────────────────────────
   if ((phase === "method" || phase === "pix" || phase === "card" || phase === "cardPending") && selectedBilling && selectedItem) {
     const price = `R$ ${(selectedBilling.cents / 100).toFixed(2).replace(".", ",")}`;
+    const details = ITEM_DETAILS[selectedItem];
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md rounded-2xl border border-border p-6 space-y-6">
-          <div className="flex items-center gap-3">
-            <button onClick={() => { setPhase(phase === "method" ? "picking" : "method"); setErrorMsg(""); }} className="p-1.5 rounded-md hover:bg-secondary">
-              <ArrowLeft className="h-4 w-4" />
-            </button>
-            <div>
-              <h1 className="font-bold">{selectedBilling.name.replace("BizPilot — ", "")}</h1>
-              <p className="text-sm text-muted-foreground">{price}/mês</p>
+      <div className="min-h-screen flex items-center justify-center bg-secondary/20 px-4 py-8">
+        <div className="w-full max-w-4xl rounded-2xl border border-border bg-card shadow-xl overflow-hidden grid md:grid-cols-11">
+          {/* ── Resumo do produto ── */}
+          <div className="md:col-span-5 bg-secondary/40 border-b md:border-b-0 md:border-r border-border p-6 sm:p-8 flex flex-col">
+            <div className="flex items-center gap-2.5 mb-8">
+              <button onClick={() => { setPhase(phase === "method" ? "picking" : "method"); setErrorMsg(""); }} className="p-2 -ml-2 rounded-lg hover:bg-secondary" aria-label="Voltar">
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              <div className="h-8 w-8 rounded-lg bg-brand-500 flex items-center justify-center">
+                <Bot className="h-5 w-5 text-white" />
+              </div>
+              <span className="font-bold text-lg">BizPilot</span>
             </div>
+
+            <p className="text-sm text-muted-foreground">
+              Assinar {selectedBilling.kind === "plan" ? "o plano" : "o complemento"}
+            </p>
+            <p className="text-xl font-bold mb-2">{selectedBilling.name.replace("BizPilot — ", "").replace("Plano ", "")}</p>
+            <p className="mb-5">
+              <span className="text-4xl font-bold tracking-tight">{price}</span>
+              <span className="text-base text-muted-foreground ml-1">/mês</span>
+            </p>
+
+            {details?.desc && <p className="text-sm text-muted-foreground mb-5">{details.desc}</p>}
+
+            {details?.features && (
+              <ul className="space-y-2.5">
+                {details.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2.5 text-sm">
+                    <div className="h-5 w-5 rounded-full bg-emerald-500/15 flex items-center justify-center shrink-0">
+                      <Check className="h-3 w-3 text-emerald-500" />
+                    </div>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <p className="text-xs text-muted-foreground mt-6 pt-4 border-t border-border">
+              Cobrança mensal. Sem fidelidade — cancele quando quiser.
+            </p>
           </div>
 
-          {errorMsg && <p className="text-sm text-red-400">{errorMsg}</p>}
+          {/* ── Pagamento ── */}
+          <div className="md:col-span-6 p-6 sm:p-8 flex flex-col">
+            {errorMsg && (
+              <div className="mb-5 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">{errorMsg}</div>
+            )}
 
-          {phase === "method" && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Como você prefere pagar?</p>
-              {efi.pix && (
-                <button onClick={() => beginPix(selectedItem)} disabled={busyPlan !== null} className="w-full flex items-center gap-3 p-4 rounded-xl border border-border hover:border-brand-500 hover:bg-brand-500/5 transition-all text-left disabled:opacity-60">
-                  {busyPlan ? <Loader2 className="h-5 w-5 animate-spin" /> : <QrCode className="h-5 w-5 text-emerald-500" />}
+            {phase === "method" && (
+              <div className="space-y-3.5 checkout-in">
+                <h2 className="text-lg font-bold mb-4">Forma de pagamento</h2>
+                {efi.pix && (
+                  <button onClick={() => beginPix(selectedItem)} disabled={busyPlan !== null} className="w-full flex items-start gap-3.5 p-4 rounded-xl border-2 border-border hover:border-brand-500 hover:bg-brand-500/5 transition-all text-left disabled:opacity-60">
+                    {busyPlan ? <Loader2 className="h-6 w-6 animate-spin shrink-0 mt-0.5" /> : <QrCode className="h-6 w-6 text-emerald-500 shrink-0 mt-0.5" />}
+                    <div>
+                      <div className="font-semibold text-base flex items-center gap-2 flex-wrap">
+                        Pix
+                        <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-full px-2 py-0.5">Aprovação na hora</span>
+                      </div>
+                      <div className="text-sm text-muted-foreground mt-0.5">
+                        QR Code aqui na tela, confirmado em segundos. Renovação mensal por um novo Pix.
+                      </div>
+                    </div>
+                  </button>
+                )}
+                <button onClick={() => efi.card && setPhase("card")} disabled={!efi.card || busyPlan !== null} className={`w-full flex items-start gap-3.5 p-4 rounded-xl border-2 border-border transition-all text-left ${efi.card ? "hover:border-brand-500 hover:bg-brand-500/5 disabled:opacity-60" : "opacity-50 cursor-not-allowed"}`}>
+                  <CreditCard className="h-6 w-6 text-brand-500 shrink-0 mt-0.5" />
                   <div>
-                    <div className="font-medium text-sm">Pix</div>
-                    <div className="text-xs text-muted-foreground">QR Code na hora — renovação mensal por novo Pix.</div>
+                    <div className="font-semibold text-base flex items-center gap-2 flex-wrap">
+                      Cartão de crédito
+                      {efi.card
+                        ? <span className="text-[11px] font-semibold text-brand-500 bg-brand-500/10 rounded-full px-2 py-0.5">Renova sozinho</span>
+                        : <span className="text-[11px] font-semibold text-muted-foreground bg-secondary rounded-full px-2 py-0.5">Indisponível no momento</span>}
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-0.5">
+                      Assinatura recorrente: cobra automaticamente todo mês. Não guardamos os dados do seu cartão.
+                    </div>
                   </div>
                 </button>
-              )}
-              {efi.card && (
-                <button onClick={() => setPhase("card")} disabled={busyPlan !== null} className="w-full flex items-center gap-3 p-4 rounded-xl border border-border hover:border-brand-500 hover:bg-brand-500/5 transition-all text-left disabled:opacity-60">
-                  <CreditCard className="h-5 w-5 text-brand-500" />
-                  <div>
-                    <div className="font-medium text-sm">Cartão de crédito</div>
-                    <div className="text-xs text-muted-foreground">Assinatura recorrente — renova sozinha todo mês.</div>
-                  </div>
+              </div>
+            )}
+
+            {phase === "pix" && pixData && (
+              <div className="checkout-in">
+                <PixPanel
+                  {...pixData}
+                  onPaid={() => finishPaid(selectedItem)}
+                  onRegenerate={() => beginPix(selectedItem)}
+                />
+              </div>
+            )}
+
+            {phase === "card" && (
+              <div className="checkout-in">
+                <CardForm
+                  item={selectedItem}
+                  amountCents={selectedBilling.cents}
+                  onPaid={() => finishPaid(selectedItem)}
+                  onPending={(chargeId) => { setPendingChargeId(chargeId); setPhase("cardPending"); }}
+                />
+              </div>
+            )}
+
+            {phase === "cardPending" && !pendingSlow && (
+              <div className="flex flex-col items-center gap-4 py-12 text-center checkout-in">
+                <Loader2 className="h-10 w-10 animate-spin text-brand-400" />
+                <p className="text-base font-semibold">Processando o pagamento…</p>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  A operadora está validando o cartão. Isso costuma levar poucos segundos —
+                  assim que aprovar, seu acesso é liberado automaticamente.
+                </p>
+              </div>
+            )}
+
+            {phase === "cardPending" && pendingSlow && (
+              <div className="flex flex-col items-center gap-4 py-12 text-center checkout-in">
+                <div className="h-12 w-12 rounded-full bg-amber-500/15 flex items-center justify-center">
+                  <Loader2 className="h-6 w-6 text-amber-500" />
+                </div>
+                <p className="text-base font-semibold">Ainda estamos confirmando com a operadora</p>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  Está demorando mais que o normal, mas não se preocupe: assim que a operadora
+                  aprovar, seu acesso é liberado automaticamente — mesmo que você feche esta página.
+                </p>
+                <button
+                  onClick={() => { setPendingSlow(false); setPendingRound((r) => r + 1); }}
+                  className="h-11 px-5 rounded-lg border border-border hover:bg-secondary text-sm font-semibold"
+                >
+                  Verificar novamente
                 </button>
-              )}
-            </div>
-          )}
+              </div>
+            )}
 
-          {phase === "pix" && pixData && (
-            <PixPanel
-              {...pixData}
-              onPaid={() => finishPaid(selectedItem)}
-              onRegenerate={() => beginPix(selectedItem)}
-            />
-          )}
-
-          {phase === "card" && (
-            <CardForm
-              item={selectedItem}
-              amountCents={selectedBilling.cents}
-              onPaid={() => finishPaid(selectedItem)}
-              onPending={(chargeId) => { setPendingChargeId(chargeId); setPhase("cardPending"); }}
-            />
-          )}
-
-          {phase === "cardPending" && (
-            <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <Loader2 className="h-8 w-8 animate-spin text-brand-400" />
-              <p className="text-sm font-medium">Processando o pagamento…</p>
-              <p className="text-xs text-muted-foreground max-w-xs">
-                A operadora está validando o cartão. Isso costuma levar poucos segundos —
-                assim que aprovar, seu acesso é liberado automaticamente.
+            {/* Selos de segurança */}
+            <div className="mt-auto pt-6">
+              <div className="flex items-center justify-center gap-5 flex-wrap pt-4 pb-2 border-t border-border">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Lock className="h-3.5 w-3.5 text-emerald-500" /> Pagamento 100% seguro
+                </span>
+                <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" /> Dados criptografados
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
+                Processado pela <span className="font-semibold">Efí Bank</span>, instituição de pagamento autorizada pelo Banco Central do Brasil.
               </p>
             </div>
-          )}
+          </div>
         </div>
       </div>
     );

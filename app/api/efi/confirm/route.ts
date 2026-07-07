@@ -46,18 +46,28 @@ export async function POST(req: NextRequest) {
     if (charge.method === "card" && charge.efi_subscription_id) {
       const efi = getEfi();
       const res = await efi.detailSubscription({ id: Number(charge.efi_subscription_id) });
+      const subStatus = String(res?.data?.status ?? "").toLowerCase();
       const history: any[] = res?.data?.history || [];
       const lastCharge = history[history.length - 1];
-      const st = String(lastCharge?.status ?? res?.data?.status ?? "").toLowerCase();
-      if (["paid", "active", "settled", "identified", "approved"].includes(st)) {
+      const st = String(lastCharge?.status ?? "").toLowerCase();
+
+      // Cobrança recusada/cancelada: encerra.
+      const failed = ["unpaid", "refused", "canceled"].includes(st) || subStatus === "canceled";
+      if (failed) {
+        await supabase.from("billing_charges").update({ status: "failed" }).eq("id", charge.id).eq("status", "pending");
+        return NextResponse.json({ active: false, failed: true, status: st || subStatus });
+      }
+
+      // A autorização do cartão é síncrona na criação (recusa viraria erro na
+      // hora). Assinatura "active" = cartão autorizado — libera o acesso; o
+      // "waiting" é só a liquidação, e se a captura falhar depois a notificação
+      // da Efí rebaixa pra past_due.
+      const approved = subStatus === "active" || ["paid", "settled", "identified", "approved"].includes(st);
+      if (approved) {
         await applyPaidCharge(supabase, charge as ChargeRow);
         return NextResponse.json({ active: true });
       }
-      const failed = ["unpaid", "refused", "canceled"].includes(st);
-      if (failed) {
-        await supabase.from("billing_charges").update({ status: "failed" }).eq("id", charge.id).eq("status", "pending");
-      }
-      return NextResponse.json({ active: false, failed, status: st });
+      return NextResponse.json({ active: false, status: st || subStatus });
     }
 
     return NextResponse.json({ active: false });

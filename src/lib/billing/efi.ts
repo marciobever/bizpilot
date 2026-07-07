@@ -109,17 +109,21 @@ export async function createCardSubscription(
   item: string,
   paymentToken: string,
   customer: CardCustomer,
-  notificationUrl: string,
+  notificationUrl: string | null,
   customId: string,
 ): Promise<CardSubscriptionResult> {
   const billing = BILLING_ITEMS[item];
   const efi = getEfi();
-  const res = await efi.oneStepSubscription({ id: planId }, {
+  // A Efí só aceita notification_url HTTPS público — em dev local vai sem
+  // (o /api/efi/confirm cobre a confirmação por polling).
+  const metadata: Record<string, string> = { custom_id: customId };
+  if (notificationUrl?.startsWith("https://")) metadata.notification_url = notificationUrl;
+  // Sem "installments": assinatura cobra 1x por ciclo (o schema rejeita o campo).
+  const res = await efi.createOneStepSubscription({ id: planId }, {
     items: [{ name: billing.name, value: billing.cents, amount: 1 }],
-    metadata: { notification_url: notificationUrl, custom_id: customId },
+    metadata,
     payment: {
       credit_card: {
-        installments: 1,
         payment_token: paymentToken,
         customer,
       },

@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       const sub = await createCardSubscription(
         planId, item, card.paymentToken, customer,
         `${origin}/api/efi/webhook/${secret}`,
-        `${userId}|${item}`,
+        `${userId} ${item}`,
       );
 
       const { data: row, error } = await supabase.from("billing_charges").insert({

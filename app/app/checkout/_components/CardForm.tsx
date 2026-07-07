@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Loader2, Lock } from "lucide-react";
 import { authFetch } from "@/lib/api-client";
+import { CardBrandRow } from "./CardBrands";
 
 interface Props {
   item: string;
@@ -10,7 +11,16 @@ interface Props {
   onPending: (chargeId: string) => void;
 }
 
-const inputCls = "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+const inputCls = "flex h-11 w-full rounded-lg border border-input bg-background px-3.5 text-base placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500";
+const labelCls = "block text-sm font-medium mb-1.5";
+
+function formatCardNumber(v: string) {
+  return v.replace(/\D/g, "").slice(0, 19).replace(/(\d{4})(?=\d)/g, "$1 ");
+}
+function formatExpiry(v: string) {
+  const d = v.replace(/\D/g, "").slice(0, 4);
+  return d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
+}
 
 // Assinatura de cartão via Efí. O número do cartão NUNCA vai pro nosso
 // servidor: vira payment_token no browser (payment-token-efi) e só o token
@@ -25,8 +35,24 @@ export function CardForm({ item, amountCents, onPaid, onPending }: Props) {
   const [cvv, setCvv] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [detectedBrand, setDetectedBrand] = useState<string | null>(null);
 
   const price = `R$ ${(amountCents / 100).toFixed(2).replace(".", ",")}`;
+
+  // Detecta a bandeira enquanto digita (destaca o logo, estilo Stripe).
+  useEffect(() => {
+    const digits = number.replace(/\D/g, "");
+    if (digits.length < 6) { setDetectedBrand(null); return; }
+    let stale = false;
+    (async () => {
+      try {
+        const EfiPay = (await import("payment-token-efi")).default;
+        const brand = await EfiPay.CreditCard.setCardNumber(digits).verifyCardBrand();
+        if (!stale) setDetectedBrand(brand && brand !== "undefined" && brand !== "unsupported" ? brand : null);
+      } catch { if (!stale) setDetectedBrand(null); }
+    })();
+    return () => { stale = true; };
+  }, [number]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -86,29 +112,58 @@ export function CardForm({ item, amountCents, onPaid, onPending }: Props) {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3 max-w-sm mx-auto">
-      <div className="grid grid-cols-2 gap-3">
-        <input className={`${inputCls} col-span-2`} placeholder="Nome impresso no cartão" value={name} onChange={(e) => setName(e.target.value)} required />
-        <input className={inputCls} placeholder="CPF do titular" value={cpf} onChange={(e) => setCpf(e.target.value)} required inputMode="numeric" />
-        <input className={inputCls} placeholder="Celular (DDD)" value={phone} onChange={(e) => setPhone(e.target.value)} required inputMode="numeric" />
-        <div className="col-span-2">
-          <label className="text-[11px] text-muted-foreground">Data de nascimento do titular</label>
-          <input type="date" className={inputCls} value={birth} onChange={(e) => setBirth(e.target.value)} required />
-        </div>
-        <input className={`${inputCls} col-span-2`} placeholder="Número do cartão" value={number} onChange={(e) => setNumber(e.target.value)} required inputMode="numeric" autoComplete="cc-number" />
-        <input className={inputCls} placeholder="Validade (MM/AA)" value={expiry} onChange={(e) => setExpiry(e.target.value)} required autoComplete="cc-exp" />
-        <input className={inputCls} placeholder="CVV" value={cvv} onChange={(e) => setCvv(e.target.value)} required inputMode="numeric" autoComplete="cc-csc" />
+    <form onSubmit={submit} className="space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h2 className="text-lg font-bold">Dados do cartão</h2>
+        <CardBrandRow active={detectedBrand} />
       </div>
 
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      <div>
+        <label className={labelCls}>Número do cartão</label>
+        <input className={inputCls} placeholder="0000 0000 0000 0000" value={number} onChange={(e) => setNumber(formatCardNumber(e.target.value))} required inputMode="numeric" autoComplete="cc-number" />
+      </div>
 
-      <button type="submit" disabled={busy} className="w-full h-11 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-60">
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelCls}>Validade</label>
+          <input className={inputCls} placeholder="MM/AA" value={expiry} onChange={(e) => setExpiry(formatExpiry(e.target.value))} required autoComplete="cc-exp" inputMode="numeric" />
+        </div>
+        <div>
+          <label className={labelCls}>CVV</label>
+          <input className={inputCls} placeholder="123" value={cvv} onChange={(e) => setCvv(e.target.value.replace(/\D/g, "").slice(0, 4))} required inputMode="numeric" autoComplete="cc-csc" />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelCls}>Nome impresso no cartão</label>
+        <input className={inputCls} placeholder="Como está no cartão" value={name} onChange={(e) => setName(e.target.value)} required autoComplete="cc-name" />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className={labelCls}>CPF do titular</label>
+          <input className={inputCls} placeholder="000.000.000-00" value={cpf} onChange={(e) => setCpf(e.target.value)} required inputMode="numeric" />
+        </div>
+        <div>
+          <label className={labelCls}>Celular</label>
+          <input className={inputCls} placeholder="(00) 90000-0000" value={phone} onChange={(e) => setPhone(e.target.value)} required inputMode="numeric" />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelCls}>Data de nascimento do titular</label>
+        <input type="date" className={inputCls} value={birth} onChange={(e) => setBirth(e.target.value)} required />
+        <p className="text-xs text-muted-foreground mt-1.5">Exigida pela operadora para validação antifraude.</p>
+      </div>
+
+      {error && <p className="text-sm text-red-400">{error}</p>}
+
+      <button type="submit" disabled={busy} className="w-full h-12 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold text-base flex items-center justify-center gap-2 disabled:opacity-60 transition-colors">
+        {busy ? <Loader2 className="h-5 w-5 animate-spin" /> : <Lock className="h-5 w-5" />}
         Assinar por {price}/mês
       </button>
-      <p className="text-[10px] text-muted-foreground text-center">
-        Cobrança recorrente mensal via Efí Bank. Cancele quando quiser em Minha Conta.
-        Os dados do cartão são criptografados e não passam pelos nossos servidores.
+      <p className="text-xs text-muted-foreground text-center">
+        Os dados do cartão são criptografados no seu navegador e não passam pelos nossos servidores.
       </p>
     </form>
   );
