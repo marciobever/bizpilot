@@ -44,7 +44,7 @@ const ITEM_DETAILS: Record<string, { desc: string; features?: string[] }> = {
     features: ["Agentes ilimitados", "Conversas ilimitadas", "Documentos ilimitados", "Histórico de 1 ano", "Suporte dedicado"],
   },
   addon_test: {
-    desc: "Cobrança real de R$ 1,00 para validar o fluxo de pagamento em produção (visível só pro admin).",
+    desc: "Cobrança real de R$ 3,00 para validar o fluxo de pagamento em produção (visível só pro admin).",
     features: ["Pix ou cartão", "Valor simbólico de teste"],
   },
   addon_bot: {

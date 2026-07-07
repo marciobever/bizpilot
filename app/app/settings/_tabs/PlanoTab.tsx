@@ -62,9 +62,9 @@ const PLANS = [
 const TEST_ADDON = {
   id: "addon_test",
   name: "Teste de Pagamento",
-  price: "R$ 1,00",
+  price: "R$ 3,00",
   icon: Zap,
-  desc: "Cobrança real de R$ 1,00 para validar Pix e cartão em produção.",
+  desc: "Cobrança real de R$ 3,00 para validar Pix e cartão em produção (mínimo do cartão na Efí).",
 };
 
 const ADDONS = [
