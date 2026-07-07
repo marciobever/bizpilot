@@ -29,14 +29,13 @@ const PLANS = [
   },
 ];
 
-type Phase = "loading" | "confirming" | "picking" | "method" | "pix" | "card" | "cardPending";
+type Phase = "loading" | "picking" | "method" | "pix" | "card" | "cardPending";
 type PixData = { chargeId: string; qrImage: string; copiaECola: string; amountCents: number };
 
 function CheckoutInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const planParam = searchParams.get("plan");
-  const sessionId = searchParams.get("session_id"); // volta do Stripe (legado)
   const canceled = searchParams.get("canceled");
   // change=1: upgrade/renovação/add-on de quem JÁ tem assinatura ativa
   // (sem isso, assinatura ativa redireciona pro painel).
@@ -57,23 +56,6 @@ function CheckoutInner() {
     window.location.href = item.startsWith("addon_") ? "/app/settings?tab=plano&addon=ok" : "/app";
   }
 
-  // ── Fallback Stripe (conta legada / Efí sem envs) ──────────────────────────
-  async function stripeCheckout(plan: string) {
-    const res = await authFetch("/api/stripe/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan }),
-    });
-    const json = await res.json();
-    if (!res.ok || !json.url) {
-      setErrorMsg(json.error || "Não foi possível abrir o checkout.");
-      setPhase("picking");
-      setBusyPlan(null);
-      return;
-    }
-    window.location.href = json.url;
-  }
-
   async function beginPix(item: string) {
     setBusyPlan(item);
     setErrorMsg("");
@@ -84,7 +66,6 @@ function CheckoutInner() {
     });
     const json = await res.json();
     setBusyPlan(null);
-    if (res.status === 501 && json.fallback === "stripe") { stripeCheckout(item); return; }
     if (!res.ok) { setErrorMsg(json.error || "Não foi possível gerar o Pix."); setPhase(selectedItem ? "method" : "picking"); return; }
     setPixData({ chargeId: json.chargeId, qrImage: json.qrImage, copiaECola: json.copiaECola, amountCents: json.amountCents });
     setPhase("pix");
@@ -93,7 +74,11 @@ function CheckoutInner() {
   function startCheckout(item: string) {
     setErrorMsg("");
     setSelectedItem(item);
-    if (!efi.pix && !efi.card) { setBusyPlan(item); stripeCheckout(item); return; }
+    if (!efi.pix && !efi.card) {
+      setErrorMsg("Pagamentos temporariamente indisponíveis. Tente novamente em alguns minutos ou fale com o suporte.");
+      setSelectedItem(null);
+      return;
+    }
     if (efi.pix && !efi.card) { beginPix(item); return; }
     setPhase("method");
   }
@@ -115,35 +100,16 @@ function CheckoutInner() {
       const user = (await supabase.auth.getUser()).data.user;
       if (!user) { router.replace("/auth/login"); return; }
 
-      // 1) Volta do Stripe (legado): confirma e libera.
-      if (sessionId) {
-        setPhase("confirming");
-        const res = await authFetch("/api/stripe/confirm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId }),
-        });
-        const json = await res.json();
-        if (cancelledFlag) return;
-        if (res.ok && json.active) {
-          window.location.href = json.addon ? "/app/settings?tab=plano&addon=ok" : "/app";
-          return;
-        }
-        setErrorMsg(json.error || "Não foi possível confirmar o pagamento. Se o valor foi cobrado, aguarde alguns segundos e recarregue.");
-        setPhase("picking");
-        return;
-      }
-
-      // 2) Quais métodos Efí estão disponíveis?
+      // 1) Quais métodos de pagamento estão disponíveis?
       let methods = { pix: false, card: false };
       try {
         const res = await authFetch("/api/efi/checkout");
         if (res.ok) methods = await res.json();
-      } catch { /* segue com fallback Stripe */ }
+      } catch { /* mostra "indisponível" ao tentar pagar */ }
       if (cancelledFlag) return;
       setEfi(methods);
 
-      // 3) Já tem assinatura ativa? Vai pro app — exceto upgrade/add-on (change=1).
+      // 2) Já tem assinatura ativa? Vai pro app — exceto upgrade/add-on (change=1).
       if (!isChange) {
         const { data: profile } = await supabase.from("profiles")
           .select("subscription_status").eq("id", user.id).single();
@@ -153,11 +119,16 @@ function CheckoutInner() {
         }
       }
 
-      // 4) Item explícito (landing/upgrade): pula a escolha de plano.
+      // 3) Item explícito (landing/upgrade): pula a escolha de plano.
       const item = planParam ? normalizeBillingItem(planParam) : null;
       if (item && BILLING_ITEMS[item] && !canceled) {
         setSelectedItem(item);
-        if (!methods.pix && !methods.card) { setPhase("loading"); stripeCheckout(item); return; }
+        if (!methods.pix && !methods.card) {
+          setErrorMsg("Pagamentos temporariamente indisponíveis. Tente novamente em alguns minutos ou fale com o suporte.");
+          setSelectedItem(null);
+          setPhase("picking");
+          return;
+        }
         if (methods.pix && !methods.card) {
           // beginPix usa o estado efi via closure — chama com o item direto.
           setPhase("loading");
@@ -179,14 +150,14 @@ function CheckoutInner() {
         return;
       }
 
-      // 5) Caso geral: mostra os planos.
+      // 4) Caso geral: mostra os planos.
       setPhase("picking");
     }
 
     run();
     return () => { cancelledFlag = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [planParam, sessionId, canceled, isChange, router]);
+  }, [planParam, canceled, isChange, router]);
 
   // Polling do cartão pendente (análise antifraude pode segurar uns segundos).
   useEffect(() => {
@@ -219,13 +190,11 @@ function CheckoutInner() {
     router.replace("/auth/login");
   }
 
-  if (phase === "loading" || phase === "confirming") {
+  if (phase === "loading") {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-brand-400" />
-        <p className="text-sm text-muted-foreground">
-          {phase === "confirming" ? "Confirmando seu pagamento…" : "Preparando checkout seguro…"}
-        </p>
+        <p className="text-sm text-muted-foreground">Preparando checkout seguro…</p>
       </div>
     );
   }

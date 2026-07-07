@@ -7,8 +7,8 @@ import {
   type CardCustomer,
 } from "@/lib/billing/efi";
 
-// GET: quais métodos Efí estão habilitados (frontend decide Pix/cartão ou
-// cai no fallback Stripe se nada estiver configurado).
+// GET: quais métodos de pagamento estão habilitados (sem envs EFI_* o
+// frontend mostra "pagamentos temporariamente indisponíveis").
 export async function GET(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     // ── Pix: gera a cobrança do mês e devolve o QR ──────────────────────────
     if (body.method === "pix") {
       if (!isEfiPixConfigured()) {
-        return NextResponse.json({ error: "Pix Efí não configurado.", fallback: "stripe" }, { status: 501 });
+        return NextResponse.json({ error: "Pix Efí não configurado." }, { status: 501 });
       }
       const pix = await createPixCharge(item);
       const { data: row, error } = await supabase.from("billing_charges").insert({
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
     // ── Cartão: assinatura recorrente da Efí ────────────────────────────────
     if (body.method === "card") {
       if (!isEfiCardConfigured()) {
-        return NextResponse.json({ error: "Cartão Efí não configurado.", fallback: "stripe" }, { status: 501 });
+        return NextResponse.json({ error: "Cartão Efí não configurado." }, { status: 501 });
       }
       const card = body.card;
       if (!card?.paymentToken || !card.name || !card.cpf || !card.birth || !card.phone) {

@@ -46,7 +46,6 @@ function SettingsInner() {
   const [plan, setPlan] = useState<string | null>(null);
   const [loadingPlan, setLoadingPlan] = useState(true);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
-  const [hasStripeCustomer, setHasStripeCustomer] = useState(false);
   const [billingProvider, setBillingProvider] = useState<string | null>(null);
   const [periodEnd, setPeriodEnd] = useState<string | null>(null);
   const [hasEfiSubscription, setHasEfiSubscription] = useState(false);
@@ -66,19 +65,17 @@ function SettingsInner() {
 
   useEffect(() => {
     if (!user) return;
-    supabase.from("profiles").select("plan, subscription_status, stripe_customer_id, billing_provider, current_period_end, efi_subscription_id").eq("id", user.id).single().then(async ({ data, error }) => {
+    supabase.from("profiles").select("plan, subscription_status, billing_provider, current_period_end, efi_subscription_id").eq("id", user.id).single().then(async ({ data, error }) => {
       // Migration 019 ainda não aplicada: recai nas colunas antigas.
       if (error) {
-        const { data: legacy } = await supabase.from("profiles").select("plan, subscription_status, stripe_customer_id").eq("id", user.id).single();
+        const { data: legacy } = await supabase.from("profiles").select("plan, subscription_status").eq("id", user.id).single();
         setPlan(legacy?.plan || "basico");
         setSubscriptionStatus(legacy?.subscription_status || null);
-        setHasStripeCustomer(!!legacy?.stripe_customer_id);
         setLoadingPlan(false);
         return;
       }
       setPlan(data?.plan || "basico");
       setSubscriptionStatus(data?.subscription_status || null);
-      setHasStripeCustomer(!!data?.stripe_customer_id);
       setBillingProvider(data?.billing_provider || null);
       setPeriodEnd(data?.current_period_end || null);
       setHasEfiSubscription(!!data?.efi_subscription_id);
@@ -127,21 +124,6 @@ function SettingsInner() {
     }
   };
 
-  const handleManageSubscription = async () => {
-    if (!user) return;
-    setPlanFeedback(null);
-    setPlanActionLoading("portal");
-    try {
-      const res = await authFetch("/api/stripe/portal", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro ao abrir portal de cobrança.");
-      window.location.href = data.url;
-    } catch (e: any) {
-      setPlanFeedback({ type: "error", message: e.message });
-      setPlanActionLoading(null);
-    }
-  };
-
   const handleChangePassword = async () => {
     setPasswordFeedback(null);
     if (newPassword.length < 6) { setPasswordFeedback({ type: "error", message: "A senha deve ter pelo menos 6 caracteres." }); return; }
@@ -182,7 +164,7 @@ function SettingsInner() {
       )}
       {activeTab === "aparencia" && <AparenciaTab theme={theme} setTheme={(v) => setTheme(v as any)} />}
       {activeTab === "plano" && (
-        <PlanoTab plan={plan} loadingPlan={loadingPlan} subscriptionStatus={subscriptionStatus} hasStripeCustomer={hasStripeCustomer} billingProvider={billingProvider} currentPeriodEnd={periodEnd} hasEfiSubscription={hasEfiSubscription} planActionLoading={planActionLoading} planFeedback={planFeedback} addonCounts={addonCounts} usage={usage} onUpgrade={handleUpgrade} onManageSubscription={handleManageSubscription} onCancelEfi={handleCancelEfi} />
+        <PlanoTab plan={plan} loadingPlan={loadingPlan} subscriptionStatus={subscriptionStatus} billingProvider={billingProvider} currentPeriodEnd={periodEnd} hasEfiSubscription={hasEfiSubscription} planActionLoading={planActionLoading} planFeedback={planFeedback} addonCounts={addonCounts} usage={usage} onUpgrade={handleUpgrade} onCancelEfi={handleCancelEfi} />
       )}
       {activeTab === "seguranca" && (
         <SegurancaTab newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} savingPassword={savingPassword} passwordFeedback={passwordFeedback} onChangePassword={handleChangePassword} onSignOut={handleSignOut} />

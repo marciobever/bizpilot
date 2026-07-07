@@ -102,7 +102,6 @@ interface Props {
   plan: string | null;
   loadingPlan: boolean;
   subscriptionStatus: string | null;
-  hasStripeCustomer: boolean;
   billingProvider?: string | null;
   currentPeriodEnd?: string | null;
   hasEfiSubscription?: boolean; // assinatura de cartão Efí (renova sozinha)
@@ -111,7 +110,6 @@ interface Props {
   addonCounts?: Record<string, number>;
   usage?: UsageResponse | null;
   onUpgrade: (targetPlan: string) => void;
-  onManageSubscription: () => void;
   onCancelEfi?: () => void;
 }
 
@@ -136,10 +134,10 @@ function UsageBar({ label, used, limit, currency }: { label: string; used: numbe
 }
 
 export function PlanoTab({
-  plan, loadingPlan, subscriptionStatus, hasStripeCustomer,
+  plan, loadingPlan, subscriptionStatus,
   billingProvider, currentPeriodEnd, hasEfiSubscription,
   planActionLoading, planFeedback, addonCounts = {}, usage,
-  onUpgrade, onManageSubscription, onCancelEfi,
+  onUpgrade, onCancelEfi,
 }: Props) {
   // Normaliza nomes antigos
   const normalizedPlan = plan === "basico" ? "starter" : plan === "profissional" ? "pro" : plan === "avancado" ? "business" : (plan || "starter");
@@ -238,15 +236,6 @@ export function PlanoTab({
               <Button variant="outline" className="text-destructive hover:bg-destructive/10 border-destructive/20" onClick={onCancelEfi} disabled={planActionLoading !== null}>
                 {planActionLoading === "cancel" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                 Cancelar assinatura
-              </Button>
-            )}
-            {/* Conta legada Stripe: portal antigo continua disponível. */}
-            {!isEfi && hasStripeCustomer && (
-              <Button variant="outline" onClick={onManageSubscription} disabled={planActionLoading !== null}>
-                {planActionLoading === "portal"
-                  ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  : <CreditCard className="h-4 w-4 mr-2" />}
-                Gerenciar assinatura
               </Button>
             )}
           </div>

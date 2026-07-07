@@ -1,7 +1,7 @@
 // Cliente Efí (ex-Gerencianet) — PSP único do BizPilot.
 // Pix usa mTLS (certificado .p12 em base64 na env); cartão usa só client/secret.
 // Sem as envs setadas, isEfiPixConfigured/isEfiCardConfigured retornam false e
-// o checkout cai no fallback Stripe — mesmo padrão de gate do Awin.
+// o checkout mostra "pagamentos indisponíveis" — mesmo padrão de gate do Awin.
 
 import EfiPay from "sdk-node-apis-efi";
 import { BILLING_ITEMS, centsToReais } from "./prices";

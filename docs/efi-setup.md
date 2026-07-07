@@ -1,8 +1,12 @@
 # Setup do billing Efí (Pix + cartão)
 
-A Efí Bank é o PSP único do BizPilot (decisão de jul/2026, Stripe abandonada).
-Sem as envs abaixo, o checkout cai automaticamente no fallback Stripe — nada
-quebra, mas nada é cobrado via Efí.
+A Efí Bank é o PSP único do BizPilot (decisão de jul/2026; o Stripe foi
+REMOVIDO do projeto — conta suspensa por falso positivo MATCH). Sem as envs
+abaixo, o checkout mostra "pagamentos temporariamente indisponíveis" — ou
+seja, as envs são pré-requisito pra vender.
+
+O checkout é 100% nosso (`/app/checkout`): QR Pix e formulário de cartão
+renderizam na nossa página, sem redirect pra página da Efí.
 
 ## Como funciona
 
@@ -73,5 +77,9 @@ MATCH, usar o mesmo dossiê da contestação Stripe (PDF do WHOIS).
 - Add-ons Pix não têm botão de renovação na UI (a coluna
   `user_addons.current_period_end` já existe; o `addonRowId` do
   `/api/efi/checkout` já renova a linha certa).
-- Migrar assinantes Stripe existentes (conta suspensa — quando expirar o
-  período deles, renovam via Efí pelo próprio checkout).
+- Assinantes Stripe antigos: as rotas `/api/stripe/*` foram removidas; o
+  status deles no banco fica como está e, quando precisarem renovar/mudar,
+  passam pelo checkout Efí. As colunas `stripe_*` foram mantidas no banco
+  (histórico). A integração "Pagamentos" do BOT (cliente conecta a própria
+  conta Stripe/MercadoPago/etc pra cobrar os clientes dele) NÃO foi removida —
+  é conta do cliente, não nossa.

@@ -3,9 +3,8 @@ import { requireUser, getServiceSupabase } from "@/lib/api-auth";
 import { isEfiPixConfigured, pixChargeStatus, getEfi } from "@/lib/billing/efi";
 import { applyPaidCharge, type ChargeRow } from "@/lib/billing/activate";
 
-// Confirma o pagamento consultando a Efí direto (mesmo princípio do
-// /api/stripe/confirm: a ativação NÃO depende do webhook). O checkout
-// faz polling aqui enquanto o QR está na tela.
+// Confirma o pagamento consultando a Efí direto — a ativação NÃO depende
+// do webhook. O checkout faz polling aqui enquanto o QR está na tela.
 export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
