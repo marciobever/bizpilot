@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser, getServiceSupabase } from "@/lib/api-auth";
+import { requireUser, getServiceSupabase, assertPublicHttpUrl, SsrfError } from "@/lib/api-auth";
 import { normalizePlan, computeCampaignQuota, addonCountsFromRows } from "@/lib/plans";
+import { normalizeBrazilPhone } from "@/lib/phone";
 
 // Limite de segurança por disparo — evita que uma lista gigante estoure a
 // cota inteira de uma vez ou derrube a instância Evolution (rate limit do WhatsApp).
@@ -50,12 +51,31 @@ export async function POST(req: NextRequest) {
   const message = (body.message || "").trim();
   const name = (body.name || "").trim() || "Campanha";
   const imageUrl = (body.imageUrl || "").trim();
-  if (imageUrl && !/^https:\/\//i.test(imageUrl)) {
-    return NextResponse.json({ error: "A URL da imagem precisa ser https:// e pública." }, { status: 400 });
+  if (imageUrl) {
+    try {
+      const url = await assertPublicHttpUrl(imageUrl);
+      // A Evolution só aceita jpeg/png/webp — checar aqui evita criar a
+      // campanha inteira pra descobrir só no Windmill que a URL não é imagem.
+      const head = await fetch(url, { method: "GET", headers: { Range: "bytes=0-0" } });
+      const contentType = head.headers.get("content-type") || "";
+      if (!/^image\/(jpeg|png|webp)/i.test(contentType)) {
+        return NextResponse.json({
+          error: `Essa URL não é um arquivo de imagem direto (veio como "${contentType || "desconhecido"}"). Cole o link direto do arquivo .jpg/.png/.webp — não o link de uma página que exibe a imagem.`,
+        }, { status: 400 });
+      }
+    } catch (e) {
+      if (e instanceof SsrfError) return NextResponse.json({ error: e.message }, { status: 400 });
+      return NextResponse.json({ error: "Não consegui acessar essa URL de imagem. Confira se ela é pública." }, { status: 400 });
+    }
   }
+  // Normaliza cada telefone pro padrão do WhatsApp (55+DDD+9 dígitos) — aceita
+  // qualquer formato colado pelo usuário; descarta o que não dá pra corrigir.
+  const seenPhones = new Set<string>();
   const recipients = (body.recipients ?? [])
-    .map((r) => ({ phone: (r.phone || "").replace(/\D/g, ""), name: (r.name || "").trim() || null }))
-    .filter((r) => r.phone.length >= 10);
+    .map((r) => ({ norm: normalizeBrazilPhone(r.phone || ""), name: (r.name || "").trim() || null }))
+    .filter((r) => r.norm.valid)
+    .map((r) => ({ phone: r.norm.phone, name: r.name }))
+    .filter((r) => (seenPhones.has(r.phone) ? false : (seenPhones.add(r.phone), true))); // dedupe
 
   if (!body.agentId) return NextResponse.json({ error: "Selecione um agente." }, { status: 400 });
   if (!message) return NextResponse.json({ error: "A mensagem não pode ficar vazia." }, { status: 400 });

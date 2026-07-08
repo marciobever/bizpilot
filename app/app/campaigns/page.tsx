@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Megaphone, Loader2, Send, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Megaphone, Loader2, Send, AlertTriangle, CheckCircle2, Sparkles, XCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { authFetch } from "@/lib/api-client";
+import { normalizeBrazilPhone } from "@/lib/phone";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -13,6 +14,20 @@ interface Campaign {
   id: string; name: string; status: string;
   total_recipients: number; sent_count: number; failed_count: number;
   created_at: string;
+}
+interface Recipient { id: string; phone: string; name: string | null; status: string; error: string | null; sent_at: string | null }
+
+const RECIPIENT_STATUS: Record<string, { label: string; className: string; icon: typeof CheckCircle2 }> = {
+  pending: { label: "Aguardando", className: "text-muted-foreground", icon: Loader2 },
+  sent:    { label: "Enviado",    className: "text-emerald-500",      icon: CheckCircle2 },
+  failed:  { label: "Falhou",     className: "text-red-400",          icon: XCircle },
+};
+
+// Formata 5511999998888 -> (11) 99999-8888 pra facilitar a leitura na lista.
+function formatPhoneDisplay(phone: string): string {
+  const p = phone.replace(/^55/, "");
+  if (p.length === 11) return `(${p.slice(0, 2)}) ${p.slice(2, 7)}-${p.slice(7)}`;
+  return phone;
 }
 
 const STATUS_LABEL: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
@@ -36,8 +51,64 @@ export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [quota, setQuota] = useState<{ used: number; limit: number } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [aiDescription, setAiDescription] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
 
-  const recipientCount = recipientsRaw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).length;
+  // Formata os números em tempo real (aceita qualquer formato colado) e
+  // separa quem deu certo de quem precisa de correção manual.
+  const parsedRecipients = useMemo(() => {
+    const lines = recipientsRaw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const seen = new Set<string>();
+    return lines.map((line) => {
+      const [phoneRaw, ...rest] = line.split(",");
+      const norm = normalizeBrazilPhone(phoneRaw || "");
+      const duplicate = norm.valid && seen.has(norm.phone);
+      if (norm.valid) seen.add(norm.phone);
+      return { line, name: rest.join(",").trim(), ...norm, duplicate };
+    });
+  }, [recipientsRaw]);
+  const validRecipients = parsedRecipients.filter((r) => r.valid && !r.duplicate);
+  const invalidRecipients = parsedRecipients.filter((r) => !r.valid);
+  const duplicateCount = parsedRecipients.filter((r) => r.duplicate).length;
+
+  const handleGenerateMessage = async () => {
+    if (!aiDescription.trim()) { setError("Descreva o que você quer anunciar pra IA escrever a mensagem."); return; }
+    setAiLoading(true);
+    setError("");
+    try {
+      const res = await authFetch("/api/agents/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ field: "campaign_message", description: aiDescription }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.text) throw new Error(json.error || "Não foi possível gerar a mensagem.");
+      setMessage(json.text);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const loadDetail = async (id: string) => {
+    setDetailLoading(true);
+    const res = await authFetch(`/api/campaigns/${id}`);
+    if (res.ok) {
+      const json = await res.json();
+      setRecipients(json.recipients ?? []);
+    }
+    setDetailLoading(false);
+  };
+
+  const toggleExpand = (id: string) => {
+    if (expandedId === id) { setExpandedId(null); setRecipients([]); return; }
+    setExpandedId(id);
+    loadDetail(id);
+  };
 
   const loadCampaigns = async () => {
     const res = await authFetch("/api/campaigns");
@@ -60,31 +131,38 @@ export default function CampaignsPage() {
       if (opts.length > 0) setAgentId(opts.find((o) => o.connected)?.id ?? opts[0].id);
     });
     loadCampaigns();
-    // Atualiza progresso das campanhas em andamento a cada 10s.
-    const interval = setInterval(loadCampaigns, 10000);
-    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Atualiza progresso das campanhas em andamento a cada 5s — e o detalhe
+  // número a número da campanha aberta, se ela ainda estiver enviando.
+  useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(() => {
+      loadCampaigns();
+      if (expandedId) loadDetail(expandedId);
+    }, 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, expandedId]);
 
   const selectedAgent = agents.find((a) => a.id === agentId);
 
   const handleSend = async () => {
     setError("");
-    const recipients = recipientsRaw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
-      .map((line) => {
-        const [phone, ...rest] = line.split(",");
-        return { phone: phone.trim(), name: rest.join(",").trim() || undefined };
-      });
     if (!agentId) { setError("Selecione um agente."); return; }
     if (!message.trim()) { setError("Escreva a mensagem."); return; }
-    if (recipients.length === 0) { setError("Cole ao menos um número de telefone."); return; }
+    if (validRecipients.length === 0) { setError("Nenhum número válido na lista — corrija os destacados em vermelho."); return; }
 
     setSending(true);
     try {
       const res = await authFetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentId, name: name || "Campanha", message, imageUrl, recipients }),
+        body: JSON.stringify({
+          agentId, name: name || "Campanha", message, imageUrl,
+          recipients: validRecipients.map((r) => ({ phone: r.phone, name: r.name || undefined })),
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Não foi possível criar a campanha.");
@@ -149,12 +227,27 @@ export default function CampaignsPage() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Mensagem</label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Mensagem</label>
+            </div>
             <textarea
               className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[100px]"
               placeholder="Escreva a mensagem que será enviada a todos os contatos..."
               value={message} onChange={(e) => setMessage(e.target.value)}
             />
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-secondary/40 border border-border">
+              <Sparkles className="h-4 w-4 text-purple-500 shrink-0" />
+              <input
+                className="flex-1 h-8 bg-transparent text-xs placeholder:text-muted-foreground focus:outline-none"
+                placeholder="Descreva em poucas palavras o que anunciar e deixe a IA escrever (ex: promoção 20% em pizzas até domingo)"
+                value={aiDescription} onChange={(e) => setAiDescription(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleGenerateMessage(); } }}
+              />
+              <Button size="sm" variant="outline" onClick={handleGenerateMessage} disabled={aiLoading} className="h-7 gap-1.5 shrink-0">
+                {aiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                Gerar com IA
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-1.5">
@@ -174,19 +267,41 @@ export default function CampaignsPage() {
             <label className="text-sm font-medium">Lista de contatos</label>
             <textarea
               className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono min-h-[120px]"
-              placeholder={"Um por linha: telefone com DDD, opcionalmente nome depois de vírgula\n5511999998888, Maria\n5511988887777"}
+              placeholder={"Um por linha, em qualquer formato — a gente corrige sozinho:\n(11) 99999-8888, Maria\n11 98888-7777\n+55 21 97777-6666"}
               value={recipientsRaw} onChange={(e) => setRecipientsRaw(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">{recipientCount} contato(s) na lista. Máximo 500 por campanha.</p>
+            {parsedRecipients.length > 0 ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-3 text-xs flex-wrap">
+                  <span className="flex items-center gap-1 text-emerald-500 font-medium"><CheckCircle2 className="h-3.5 w-3.5" /> {validRecipients.length} prontos pra enviar</span>
+                  {invalidRecipients.length > 0 && (
+                    <span className="flex items-center gap-1 text-red-400 font-medium"><XCircle className="h-3.5 w-3.5" /> {invalidRecipients.length} com número inválido</span>
+                  )}
+                  {duplicateCount > 0 && (
+                    <span className="text-muted-foreground">{duplicateCount} duplicado(s) ignorado(s)</span>
+                  )}
+                  <span className="text-muted-foreground ml-auto">Máximo 500 por campanha.</span>
+                </div>
+                {invalidRecipients.length > 0 && (
+                  <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 space-y-0.5 max-h-24 overflow-y-auto">
+                    {invalidRecipients.map((r, i) => (
+                      <div key={i}>&quot;{r.line}&quot; — {r.reason} (confira o DDD e a quantidade de dígitos)</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Cole os números com DDD — aceita parênteses, traço, espaço ou +55, tanto faz.</p>
+            )}
           </div>
 
           {error && (
             <p className="text-sm text-red-400 flex items-center gap-1.5"><AlertTriangle className="h-4 w-4 shrink-0" /> {error}</p>
           )}
 
-          <Button onClick={handleSend} disabled={sending} className="gap-2">
+          <Button onClick={handleSend} disabled={sending || validRecipients.length === 0} className="gap-2">
             {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            Disparar campanha
+            Disparar campanha{validRecipients.length > 0 ? ` (${validRecipients.length})` : ""}
           </Button>
         </CardContent>
       </Card>
@@ -205,20 +320,48 @@ export default function CampaignsPage() {
               {campaigns.map((c) => {
                 const st = STATUS_LABEL[c.status] ?? STATUS_LABEL.queued;
                 const pct = c.total_recipients > 0 ? Math.round(((c.sent_count + c.failed_count) / c.total_recipients) * 100) : 0;
+                const isOpen = expandedId === c.id;
                 return (
-                  <div key={c.id} className="p-3 rounded-lg border border-border">
-                    <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <span className="font-medium text-sm truncate">{c.name}</span>
-                      <Badge variant={st.variant}>{st.label}</Badge>
-                    </div>
-                    <div className="h-1.5 rounded-full bg-muted overflow-hidden mb-1.5">
-                      <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${pct}%` }} />
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-500" /> {c.sent_count} enviados</span>
-                      {c.failed_count > 0 && <span className="text-red-400">{c.failed_count} falharam</span>}
-                      <span>{c.total_recipients} no total</span>
-                    </div>
+                  <div key={c.id} className="rounded-lg border border-border overflow-hidden">
+                    <button onClick={() => toggleExpand(c.id)} className="w-full p-3 text-left hover:bg-secondary/30 transition-colors">
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <span className="font-medium text-sm truncate">{c.name}</span>
+                        <Badge variant={st.variant}>{st.label}</Badge>
+                      </div>
+                      <div className="h-1.5 rounded-full bg-muted overflow-hidden mb-1.5">
+                        <div className="h-full rounded-full bg-brand-500 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3 text-emerald-500" /> {c.sent_count} enviados</span>
+                        {c.failed_count > 0 && <span className="text-red-400">{c.failed_count} falharam</span>}
+                        <span>{c.total_recipients} no total</span>
+                        <span className="ml-auto text-brand-400">{isOpen ? "Ocultar" : "Ver número a número"}</span>
+                      </div>
+                    </button>
+
+                    {isOpen && (
+                      <div className="border-t border-border bg-secondary/20 p-3">
+                        {detailLoading && recipients.length === 0 ? (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando...</div>
+                        ) : (
+                          <div className="space-y-1 max-h-64 overflow-y-auto">
+                            {recipients.map((r) => {
+                              const rst = RECIPIENT_STATUS[r.status] ?? RECIPIENT_STATUS.pending;
+                              const Icon = rst.icon;
+                              return (
+                                <div key={r.id} className="flex items-center gap-2 text-xs py-1">
+                                  <Icon className={`h-3.5 w-3.5 shrink-0 ${rst.className} ${r.status === "pending" ? "animate-spin" : ""}`} />
+                                  <span className="font-mono">{formatPhoneDisplay(r.phone)}</span>
+                                  {r.name && <span className="text-muted-foreground truncate">{r.name}</span>}
+                                  <span className={`ml-auto ${rst.className}`}>{rst.label}</span>
+                                  {r.error && <span className="text-red-400 truncate max-w-[200px]" title={r.error}>{r.error}</span>}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}

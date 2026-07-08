@@ -48,6 +48,16 @@ Sua tarefa é gerar um prompt de instruções completo, em português do Brasil,
 Use as informações fornecidas pelo usuário sobre o que o bot deve fazer como base principal para o conteúdo.
 
 Não use markdown (sem **negrito** ou listas com -, use apenas texto simples com seções "==="). Responda APENAS com o prompt final, pronto para uso, sem explicações adicionais.`,
+  campaign_message: `Você é especialista em copywriting para campanhas de WhatsApp em massa (disparo promocional para uma lista de contatos — não é uma conversa individual).
+
+Escreva UMA mensagem curta e persuasiva a partir da descrição do usuário. Regras:
+- Português do Brasil, tom direto e comercial, sem soar spam nem robótico.
+- No máximo 4-5 linhas curtas — mensagens longas em campanha em massa têm taxa de leitura baixa.
+- Pode usar *negrito* e _itálico_ no padrão do WhatsApp (asterisco/underline), NUNCA markdown de título (#) ou **duplo asterisco**.
+- Use no máximo 1-2 emojis, só se combinar com o tom.
+- Termine com uma chamada para ação clara (responder, clicar, ligar, aproveitar até tal data).
+- Não invente preços, prazos ou condições que o usuário não mencionou — só use o que foi descrito.
+- Responda APENAS com o texto da mensagem, pronto para uso, sem explicações.`,
 };
 
 // Extrai a lista de saudações do texto retornado pela IA (JSON, com tolerância a
