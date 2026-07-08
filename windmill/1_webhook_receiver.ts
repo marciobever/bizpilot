@@ -137,6 +137,8 @@ export async function main(payload: any) {
   let OPENAI_API_KEY = "";
   let SUPABASE_URL = "";
   let SUPABASE_SERVICE_KEY = "";
+  let APP_BASE_URL = "";
+  let INTERNAL_API_SECRET = "";
   try {
     const { getVariable } = await import("windmill-client");
     const tryGet = async (...paths: string[]) => {
@@ -148,9 +150,30 @@ export async function main(payload: any) {
     OPENAI_API_KEY      = await tryGet("u/bevervansomarcio/bizpilot/OPENAI_API_KEY",      "u/bevervansomarcio/OPENAI_API_KEY");
     SUPABASE_URL        = await tryGet("u/bevervansomarcio/bizpilot/SUPABASE_URL",        "u/bevervansomarcio/SUPABASE_URL");
     SUPABASE_SERVICE_KEY= await tryGet("u/bevervansomarcio/bizpilot/SUPABASE_SERVICE_ROLE_KEY", "u/bevervansomarcio/SUPABASE_SERVICE_ROLE_KEY");
+    APP_BASE_URL        = await tryGet("u/bevervansomarcio/bizpilot/APP_BASE_URL");
+    INTERNAL_API_SECRET = await tryGet("u/bevervansomarcio/bizpilot/INTERNAL_API_SECRET");
   } catch (e) { console.warn("windmill-client indisponível:", e); }
 
   const eventName = (payload.event || "").toLowerCase();
+
+  // Evento de status de conexão (sessão caiu/voltou) — repassa em tempo real
+  // pra rota Next.js que decide se precisa avisar o dono por e-mail, e
+  // encerra o flow aqui mesmo (não segue pro AI processor).
+  if (eventName === "connection" || eventName === "connection_update") {
+    const instanceName = payload.instanceName || payload.instance || "";
+    const state = payload.data?.state || payload.data?.Info?.state || payload.data?.status || "";
+    try {
+      if (APP_BASE_URL && INTERNAL_API_SECRET && instanceName) {
+        await fetch(`${APP_BASE_URL}/api/evolution/connection-webhook`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-internal-secret": INTERNAL_API_SECRET },
+          body: JSON.stringify({ instanceName, state }),
+        });
+      }
+    } catch (e) { console.error("connection-webhook forward falhou:", e); }
+    return { process: false, reason: `Evento de conexão processado (state: ${state}).` };
+  }
+
   // evolution-go envia "MESSAGE"; Baileys enviava "messages.upsert"
   if (eventName !== "messages.upsert" && eventName !== "message") {
     return { process: false, reason: `Evento ignorado (recebido: ${payload.event}).` };

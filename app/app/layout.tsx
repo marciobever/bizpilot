@@ -22,13 +22,16 @@ import {
   Shield,
   User as UserIcon,
   Cpu,
-  Megaphone
+  Megaphone,
+  AlertTriangle,
+  QrCode
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Logo, LogoWordmark } from "@/components/ui/Logo";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
+import { useWhatsappConnectionAlerts } from "@/lib/hooks/useWhatsappConnectionAlerts";
 
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -62,12 +65,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { theme, toggleTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [waAlertOpen, setWaAlertOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
   const [periodEnd, setPeriodEnd] = useState<string | null>(null);
   const [billingProvider, setBillingProvider] = useState<string | null>(null);
   const [subscriptionLoaded, setSubscriptionLoaded] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const waAlertRef = useRef<HTMLDivElement>(null);
+  const waAlerts = useWhatsappConnectionAlerts(user?.id);
 
   // Assinaturas que liberam o acesso ao painel. No modelo Efí (Pix mensal),
   // o período pago manda: ativo tem 7 dias de carência após vencer; cancelado
@@ -126,11 +132,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (location.startsWith("/app/settings")) setAccountOpen(true);
   }, [location]);
 
-  // Fecha o menu do usuário ao clicar fora dele.
+  // Fecha o menu do usuário (e o de alertas de WhatsApp) ao clicar fora.
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false);
+      }
+      if (waAlertRef.current && !waAlertRef.current.contains(e.target as Node)) {
+        setWaAlertOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -249,10 +258,43 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Menu className="h-5 w-5" />
           </button>
           <div className="flex-1" />
-          <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground mr-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            Sistemas Operacionais
-          </div>
+          {waAlerts.length === 0 ? (
+            <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground mr-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              Sistemas Operacionais
+            </div>
+          ) : (
+            <div className="relative mr-2" ref={waAlertRef}>
+              <button
+                onClick={() => setWaAlertOpen((v) => !v)}
+                className="flex items-center gap-2 text-sm text-amber-500 px-2 py-1.5 rounded-lg hover:bg-amber-500/10 transition-colors"
+              >
+                <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                <span className="hidden sm:inline">WhatsApp desconectado</span>
+              </button>
+              {waAlertOpen && (
+                <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border border-border bg-card shadow-xl py-2 z-20">
+                  <div className="px-3 pb-2 text-xs font-medium text-muted-foreground border-b border-border">
+                    {waAlerts.length === 1 ? "1 agente desconectado" : `${waAlerts.length} agentes desconectados`}
+                  </div>
+                  {waAlerts.map((a) => (
+                    <Link
+                      key={a.agent_id}
+                      href={`/app/agents/${a.agent_id}?setup=whatsapp`}
+                      onClick={() => setWaAlertOpen(false)}
+                      className="flex items-center gap-2 px-3 py-2 text-sm hover:bg-secondary transition-colors"
+                    >
+                      <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                      <span className="flex-1 truncate font-mono text-xs">{a.instance_name}</span>
+                      <span className="flex items-center gap-1 text-xs text-brand-400 shrink-0">
+                        <QrCode className="h-3.5 w-3.5" /> Reconectar
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* User menu */}
           <div className="relative" ref={userMenuRef}>
