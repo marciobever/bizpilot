@@ -94,13 +94,12 @@ export async function recordConnectionObservation(params: {
     await supabase.from("agents").update({ config: cfg, status: "offline" }).eq("id", agent.id);
   }
 
-  // Só alerta se o agente já esteve conectado de verdade em algum momento
-  // (wasConnected agora, OU já existe uma linha de alerta anterior — prova
-  // de que já conectou antes, mesmo que outro processo já tenha zerado o
-  // agents.config nesse meio-tempo). Evita alertar instância que nunca
-  // terminou de conectar (ainda esperando o QR ser escaneado).
-  if (!wasConnected && !existingAlert) return { changed: false, notified: false };
-
+  // Nota: não há gate de "só alerta se já esteve conectado" — wasConnected
+  // não é confiável aqui (outro processo pode já ter zerado o agents.config
+  // antes da gente chegar, ver comentário acima da função). O risco aceito
+  // é 1 e-mail a mais durante a configuração inicial (QR ainda não
+  // escaneado) — pior que perder um alerta de queda real, que é o objetivo
+  // principal desta feature.
   if (existingAlert?.status === "down") {
     // Já sabíamos — só atualiza o timestamp, não duplica e-mail.
     await supabase.from("whatsapp_connection_alerts")
