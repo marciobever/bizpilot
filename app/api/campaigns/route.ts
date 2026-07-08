@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from("campaigns")
-    .select("id, name, message, image_url, buttons, status, total_recipients, sent_count, failed_count, created_at, finished_at")
+    .select("id, name, message, image_url, buttons, poll_question, status, total_recipients, sent_count, failed_count, created_at, finished_at")
     .eq("user_id", auth.user.id)
     .order("created_at", { ascending: false })
     .limit(30);
@@ -45,15 +45,23 @@ export async function POST(req: NextRequest) {
   const userId = auth.user.id;
 
   const body = await req.json() as {
-    agentId?: string; name?: string; message?: string; imageUrl?: string; buttons?: string[];
+    agentId?: string; name?: string; message?: string; imageUrl?: string;
+    pollQuestion?: string; pollOptions?: string[];
     recipients?: { phone: string; name?: string }[];
   };
   const message = (body.message || "").trim();
   const name = (body.name || "").trim() || "Campanha";
   const imageUrl = (body.imageUrl || "").trim();
-  const buttons = (body.buttons ?? []).map((b) => b.trim()).filter(Boolean).slice(0, 3);
-  if (buttons.some((b) => b.length > 20)) {
-    return NextResponse.json({ error: "Cada botão pode ter no máximo 20 caracteres (limite do WhatsApp)." }, { status: 400 });
+  // Enquete opcional (segue como mensagem separada, depois do texto/imagem —
+  // WhatsApp poll não carrega texto longo junto). /send/button da Evolution
+  // ficou instável/não-documentado; /send/poll é o caminho estável.
+  const pollQuestion = (body.pollQuestion || "").trim();
+  const pollOptions = (body.pollOptions ?? []).map((b) => b.trim()).filter(Boolean).slice(0, 3);
+  if (pollOptions.length > 0 && !pollQuestion) {
+    return NextResponse.json({ error: "Defina a pergunta da enquete." }, { status: 400 });
+  }
+  if (pollQuestion && pollOptions.length < 2) {
+    return NextResponse.json({ error: "A enquete precisa de pelo menos 2 opções." }, { status: 400 });
   }
   if (imageUrl) {
     try {
@@ -129,7 +137,11 @@ export async function POST(req: NextRequest) {
 
   const { data: campaign, error: campaignError } = await supabase
     .from("campaigns")
-    .insert({ user_id: userId, agent_id: body.agentId, name, message, image_url: imageUrl || null, buttons: buttons.length ? buttons : null, total_recipients: recipients.length })
+    .insert({
+      user_id: userId, agent_id: body.agentId, name, message, image_url: imageUrl || null,
+      buttons: pollOptions.length ? pollOptions : null, poll_question: pollQuestion || null,
+      total_recipients: recipients.length,
+    })
     .select("id").single();
   if (campaignError) return NextResponse.json({ error: campaignError.message }, { status: 500 });
 

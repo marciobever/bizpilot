@@ -73,7 +73,7 @@ export async function main(
     console.error("[campaign_sender] erro ao buscar campanha:", await runRes.text());
     return { success: false };
   }
-  const { message: rawMessage, title, imageUrl, buttons, instanceToken, recipients } = await runRes.json();
+  const { message: rawMessage, imageUrl, pollQuestion, pollOptions, instanceToken, recipients } = await runRes.json();
   const message: string = formatForWhatsApp(rawMessage);
 
   if (!instanceToken || !Array.isArray(recipients) || recipients.length === 0) {
@@ -89,9 +89,6 @@ export async function main(
     const number = `${r.phone}@s.whatsapp.net`;
     try {
       let res: Response;
-      // Prioridade igual à do bot 1:1: imagem > botões > texto simples.
-      // Imagem e botões juntos não são combinados (Evolution não suporta bem)
-      // — se tem imagem, ela leva a legenda; senão, os botões entram.
       if (imageUrl) {
         res = await fetch(`${evolutionApiUrl}/send/media`, {
           method: "POST", headers,
@@ -104,22 +101,6 @@ export async function main(
             body: JSON.stringify({ number, text: message, linkPreview: false }),
           });
         }
-      } else if (Array.isArray(buttons) && buttons.length > 0) {
-        res = await fetch(`${evolutionApiUrl}/send/button`, {
-          method: "POST", headers,
-          body: JSON.stringify({
-            // Evolution passou a exigir title não-vazio numa atualização recente.
-            number, title: (title || "Oferta").slice(0, 24), description: message, footer: "",
-            buttons: buttons.map((b: string, i: number) => ({ id: `${i}`, displayText: b.slice(0, 20), type: "reply" })),
-          }),
-        });
-        if (!res.ok) {
-          console.error(`Evolution button error (fallback to text): ${await res.text()}`);
-          res = await fetch(`${evolutionApiUrl}/send/text`, {
-            method: "POST", headers,
-            body: JSON.stringify({ number, text: message, linkPreview: false }),
-          });
-        }
       } else {
         res = await fetch(`${evolutionApiUrl}/send/text`, {
           method: "POST", headers,
@@ -127,6 +108,18 @@ export async function main(
         });
       }
       if (!res.ok) throw new Error(await res.text());
+
+      // Enquete opcional, como mensagem separada logo depois (WhatsApp poll
+      // não carrega texto longo junto — /send/poll é estável e documentado,
+      // diferente do extinto /send/button).
+      if (pollQuestion && Array.isArray(pollOptions) && pollOptions.length >= 2) {
+        const pollRes = await fetch(`${evolutionApiUrl}/send/poll`, {
+          method: "POST", headers,
+          body: JSON.stringify({ number, question: pollQuestion, options: pollOptions, maxAnswer: 1 }),
+        });
+        if (!pollRes.ok) console.error(`Evolution poll error: ${await pollRes.text()}`);
+      }
+
       sent++;
       await reportProgress(appBaseUrl, internalSecret, campaignId, { recipientId: r.id, status: "sent" });
     } catch (e: any) {

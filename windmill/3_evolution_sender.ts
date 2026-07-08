@@ -252,9 +252,9 @@ async function sendEvolution(
       method: "POST", headers,
       body: JSON.stringify({
         number: remoteJid,
-        title: " ", // Evolution passou a exigir title não-vazio numa atualização recente
+        title: " ", // Evolution passou a exigir title/footer não-vazios numa atualização recente
         description: textBody,
-        footer: "",
+        footer: " ",
         buttons: buttons.map((b, i) => ({ id: `${i}`, displayText: b.substring(0, 20), type: "reply" })),
         delay: typingDelay,
       }),

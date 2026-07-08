@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Megaphone, Loader2, Send, AlertTriangle, CheckCircle2, Sparkles, XCircle, Clock, Users } from "lucide-react";
+import { Megaphone, Loader2, Send, AlertTriangle, CheckCircle2, Sparkles, XCircle, Clock, Users, ChevronDown, ListChecks, X, Radio } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { authFetch } from "@/lib/api-client";
@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/Badge";
 
 interface AgentOption { id: string; name: string; connected: boolean }
 interface Campaign {
-  id: string; name: string; message: string; image_url: string | null; buttons: string[] | null; status: string;
+  id: string; name: string; message: string; image_url: string | null;
+  buttons: string[] | null; poll_question: string | null; status: string;
   total_recipients: number; sent_count: number; failed_count: number;
   created_at: string;
 }
@@ -42,6 +43,31 @@ const STATUS_LABEL: Record<string, { label: string; variant: "success" | "warnin
   canceled: { label: "Cancelada",   variant: "secondary" },
 };
 
+// Lista número a número de uma campanha — usado tanto no painel "ao vivo"
+// quanto dentro do histórico expandido.
+function RecipientList({ recipients, loading }: { recipients: Recipient[]; loading: boolean }) {
+  if (loading && recipients.length === 0) {
+    return <div className="flex items-center gap-2 text-xs text-muted-foreground py-2"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando...</div>;
+  }
+  return (
+    <div className="space-y-1 max-h-64 overflow-y-auto">
+      {recipients.map((r) => {
+        const rst = RECIPIENT_STATUS[r.status] ?? RECIPIENT_STATUS.pending;
+        const Icon = rst.icon;
+        return (
+          <div key={r.id} className="flex items-center gap-2 text-xs py-1">
+            <Icon className={`h-3.5 w-3.5 shrink-0 ${rst.className} ${r.status === "pending" ? "animate-spin" : ""}`} />
+            <span className="font-mono">{formatPhoneDisplay(r.phone)}</span>
+            {r.name && <span className="text-muted-foreground truncate">{r.name}</span>}
+            <span className={`ml-auto ${rst.className}`}>{rst.label}</span>
+            {r.error && <span className="text-red-400 truncate max-w-[200px]" title={r.error}>{r.error}</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function CampaignsPage() {
   const { user } = useAuth();
   const [agents, setAgents] = useState<AgentOption[]>([]);
@@ -49,7 +75,9 @@ export default function CampaignsPage() {
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  const [buttons, setButtons] = useState<string[]>(["", "", ""]);
+  const [pollEnabled, setPollEnabled] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState("");
+  const [pollOptions, setPollOptions] = useState<string[]>(["", "", ""]);
   const [recipientsRaw, setRecipientsRaw] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -62,6 +90,18 @@ export default function CampaignsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [savedContacts, setSavedContacts] = useState<SavedContact[]>([]);
   const [showPastMessages, setShowPastMessages] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Campanha em andamento agora (a mais recente que ainda não terminou) —
+  // é o que fica visível por padrão; o resto vai pro histórico escondido.
+  const activeCampaign = useMemo(
+    () => campaigns.find((c) => c.status === "queued" || c.status === "sending") ?? null,
+    [campaigns]
+  );
+  const pastCampaigns = useMemo(
+    () => campaigns.filter((c) => c.id !== activeCampaign?.id),
+    [campaigns, activeCampaign]
+  );
 
   // Mensagens já usadas em campanhas anteriores, sem repetir texto igual —
   // mostra as mais recentes primeiro pra reaproveitar com um clique.
@@ -80,7 +120,15 @@ export default function CampaignsPage() {
   function reuseMessage(c: Campaign) {
     setMessage(c.message);
     setImageUrl(c.image_url || "");
-    setButtons(c.buttons?.length ? [c.buttons[0] || "", c.buttons[1] || "", c.buttons[2] || ""] : ["", "", ""]);
+    if (c.poll_question && c.buttons?.length) {
+      setPollEnabled(true);
+      setPollQuestion(c.poll_question);
+      setPollOptions([c.buttons[0] || "", c.buttons[1] || "", c.buttons[2] || ""]);
+    } else {
+      setPollEnabled(false);
+      setPollQuestion("");
+      setPollOptions(["", "", ""]);
+    }
     setShowPastMessages(false);
   }
 
@@ -175,17 +223,25 @@ export default function CampaignsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Atualiza progresso das campanhas em andamento a cada 5s — e o detalhe
-  // número a número da campanha aberta, se ela ainda estiver enviando.
+  // Enquanto tiver campanha em andamento, atualiza progresso geral +
+  // o detalhe número a número (o painel "ao vivo" e/ou o item expandido).
   useEffect(() => {
     if (!user) return;
     const interval = setInterval(() => {
       loadCampaigns();
-      if (expandedId) loadDetail(expandedId);
+      if (activeCampaign) loadDetail(activeCampaign.id);
+      else if (expandedId) loadDetail(expandedId);
     }, 5000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, expandedId]);
+  }, [user, expandedId, activeCampaign?.id]);
+
+  // Assim que uma campanha entra em andamento, carrega o detalhe dela na hora
+  // (sem precisar clicar) pro painel "ao vivo" já nascer preenchido.
+  useEffect(() => {
+    if (activeCampaign) loadDetail(activeCampaign.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCampaign?.id]);
 
   const selectedAgent = agents.find((a) => a.id === agentId);
 
@@ -194,6 +250,7 @@ export default function CampaignsPage() {
     if (!agentId) { setError("Selecione um agente."); return; }
     if (!message.trim()) { setError("Escreva a mensagem."); return; }
     if (validRecipients.length === 0) { setError("Nenhum número válido na lista — corrija os destacados em vermelho."); return; }
+    if (pollEnabled && !pollQuestion.trim()) { setError("Escreva a pergunta da enquete (ou desative a enquete)."); return; }
 
     setSending(true);
     try {
@@ -202,15 +259,18 @@ export default function CampaignsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           agentId, name: name || "Campanha", message, imageUrl,
-          buttons: buttons.map((b) => b.trim()).filter(Boolean),
+          pollQuestion: pollEnabled ? pollQuestion : "",
+          pollOptions: pollEnabled ? pollOptions.map((b) => b.trim()).filter(Boolean) : [],
           recipients: validRecipients.map((r) => ({ phone: r.phone, name: r.name || undefined })),
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Não foi possível criar a campanha.");
-      setName(""); setMessage(""); setImageUrl(""); setButtons(["", "", ""]); setRecipientsRaw("");
+      setName(""); setMessage(""); setImageUrl("");
+      setPollEnabled(false); setPollQuestion(""); setPollOptions(["", "", ""]);
+      setRecipientsRaw("");
       await loadCampaigns();
-      authFetch("/api/campaigns/contacts").then((r) => r.ok ? r.json() : null).then((json) => { if (json) setSavedContacts(json.contacts ?? []); });
+      authFetch("/api/campaigns/contacts").then((r) => r.ok ? r.json() : null).then((j) => { if (j) setSavedContacts(j.contacts ?? []); });
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -220,19 +280,41 @@ export default function CampaignsPage() {
 
   return (
     <div className="space-y-6 pb-20">
-      <div>
-        <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-          <Megaphone className="h-6 w-6 text-purple-500" /> Campanhas
-        </h2>
-        <p className="text-muted-foreground text-sm">Envie a mesma mensagem para uma lista de contatos via WhatsApp.</p>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+            <Megaphone className="h-6 w-6 text-purple-500" /> Campanhas
+          </h2>
+          <p className="text-muted-foreground text-sm">Envie a mesma mensagem para uma lista de contatos via WhatsApp.</p>
+        </div>
+        {quota && (
+          <Badge variant={quota.limit === 0 ? "destructive" : "outline"} className="h-7 px-3 text-xs">
+            {quota.limit === 0 ? "Plano sem cota de campanha" : `${quota.used} / ${quota.limit} disparos este mês`}
+          </Badge>
+        )}
       </div>
 
-      {quota && (
-        <div className="text-sm text-muted-foreground">
-          {quota.limit === 0
-            ? "Seu plano não inclui disparos de campanha — contrate o complemento Campanhas Extras em Minha Conta."
-            : `${quota.used} de ${quota.limit} disparos usados este mês.`}
-        </div>
+      {/* ── Painel ao vivo — só aparece quando tem campanha em andamento ── */}
+      {activeCampaign && (
+        <Card className="border-brand-500/40 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Radio className="h-4 w-4 text-brand-500 animate-pulse" /> Enviando agora: {activeCampaign.name}
+            </CardTitle>
+            <CardDescription>
+              {activeCampaign.sent_count} enviados · {activeCampaign.failed_count} falharam · {activeCampaign.total_recipients} no total
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-2 rounded-full bg-muted overflow-hidden mb-3">
+              <div
+                className="h-full rounded-full bg-brand-500 transition-all"
+                style={{ width: `${activeCampaign.total_recipients > 0 ? Math.round(((activeCampaign.sent_count + activeCampaign.failed_count) / activeCampaign.total_recipients) * 100) : 0}%` }}
+              />
+            </div>
+            <RecipientList recipients={recipients} loading={detailLoading} />
+          </CardContent>
+        </Card>
       )}
 
       <Card>
@@ -243,7 +325,7 @@ export default function CampaignsPage() {
             exige aprovação de modelo de mensagem para disparos em massa.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Agente</label>
@@ -272,19 +354,22 @@ export default function CampaignsPage() {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between gap-2">
               <label className="text-sm font-medium">Mensagem</label>
-              <div className="flex items-center gap-2">
-                {pastMessages.length > 0 && (
-                  <Button size="sm" variant="ghost" onClick={() => setShowPastMessages((v) => !v)} className="h-7 gap-1.5 text-muted-foreground">
-                    <Clock className="h-3.5 w-3.5" /> Reutilizar anterior
-                  </Button>
-                )}
-                <Button size="sm" variant="outline" onClick={handleGenerateMessage} disabled={aiLoading} className="h-7 gap-1.5">
-                  {aiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-purple-500" />}
-                  Gerar com IA
-                </Button>
-              </div>
+              <Button size="sm" variant="outline" onClick={handleGenerateMessage} disabled={aiLoading} className="h-7 gap-1.5">
+                {aiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-purple-500" />}
+                Gerar com IA
+              </Button>
             </div>
 
+            {pastMessages.length > 0 && (
+              <button
+                type="button" onClick={() => setShowPastMessages((v) => !v)}
+                className="w-full flex items-center gap-2 p-2.5 rounded-lg bg-secondary/40 border border-border hover:bg-secondary/60 transition-colors text-left"
+              >
+                <Clock className="h-4 w-4 text-brand-400 shrink-0" />
+                <span className="text-xs font-medium flex-1">Reutilizar uma mensagem já usada antes ({pastMessages.length})</span>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform shrink-0 ${showPastMessages ? "rotate-180" : ""}`} />
+              </button>
+            )}
             {showPastMessages && (
               <div className="border border-border rounded-lg divide-y divide-border max-h-48 overflow-y-auto">
                 {pastMessages.map((c) => (
@@ -320,38 +405,64 @@ export default function CampaignsPage() {
             )}
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Botões de resposta rápida (opcional, até 3)</label>
-            <div className="grid grid-cols-3 gap-2">
-              {[0, 1, 2].map((i) => (
-                <input
-                  key={i}
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs"
-                  placeholder={`Botão ${i + 1}`}
-                  maxLength={20}
-                  value={buttons[i] || ""}
-                  onChange={(e) => {
-                    const next = [...buttons];
-                    next[i] = e.target.value;
-                    setButtons(next);
-                  }}
-                />
-              ))}
+          {/* Enquete opcional — substitui os antigos botões de resposta rápida
+              (endpoint deles ficou instável/descontinuado na Evolution). */}
+          {!pollEnabled ? (
+            <button
+              type="button" onClick={() => setPollEnabled(true)}
+              className="w-full flex items-center gap-2 p-2.5 rounded-lg border border-dashed border-border hover:border-brand-500/50 hover:bg-secondary/30 transition-colors text-left"
+            >
+              <ListChecks className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-xs font-medium text-muted-foreground">+ Adicionar uma enquete (opcional) — o cliente escolhe entre até 3 opções</span>
+            </button>
+          ) : (
+            <div className="space-y-2 p-3 rounded-lg border border-border bg-secondary/20">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium flex items-center gap-1.5"><ListChecks className="h-4 w-4 text-brand-400" /> Enquete</label>
+                <button type="button" onClick={() => { setPollEnabled(false); setPollQuestion(""); setPollOptions(["", "", ""]); }} className="text-muted-foreground hover:text-foreground">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <input
+                className="flex h-9 w-full rounded-md border border-input bg-background px-2.5 text-sm"
+                placeholder="Pergunta da enquete (ex: Qual sabor você prefere?)"
+                value={pollQuestion} onChange={(e) => setPollQuestion(e.target.value)}
+              />
+              <div className="grid grid-cols-3 gap-2">
+                {[0, 1, 2].map((i) => (
+                  <input
+                    key={i}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs"
+                    placeholder={`Opção ${i + 1}`}
+                    maxLength={24}
+                    value={pollOptions[i] || ""}
+                    onChange={(e) => {
+                      const next = [...pollOptions];
+                      next[i] = e.target.value;
+                      setPollOptions(next);
+                    }}
+                  />
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                A enquete chega como uma mensagem separada, logo depois do texto/imagem. Pelo menos 2 opções preenchidas.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Até 20 caracteres por botão. {imageUrl ? "Com imagem selecionada, os botões não são enviados juntos — some a imagem se quiser usar botões." : "O cliente toca no botão pra responder na hora."}
-            </p>
-          </div>
+          )}
 
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between gap-2">
-              <label className="text-sm font-medium">Lista de contatos</label>
-              {savedContacts.length > 0 && (
-                <Button size="sm" variant="ghost" onClick={addSavedContactsToList} className="h-7 gap-1.5 text-muted-foreground">
-                  <Users className="h-3.5 w-3.5" /> Adicionar {savedContacts.length} contato(s) salvo(s)
-                </Button>
-              )}
-            </div>
+            <label className="text-sm font-medium">Lista de contatos</label>
+
+            {savedContacts.length > 0 && (
+              <button
+                type="button" onClick={addSavedContactsToList}
+                className="w-full flex items-center gap-2 p-2.5 rounded-lg bg-secondary/40 border border-border hover:bg-secondary/60 transition-colors text-left"
+              >
+                <Users className="h-4 w-4 text-brand-400 shrink-0" />
+                <span className="text-xs font-medium flex-1">Adicionar seus {savedContacts.length} contato(s) salvo(s) à lista</span>
+              </button>
+            )}
+
             <textarea
               className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono min-h-[120px]"
               placeholder={"Um por linha, em qualquer formato — a gente corrige sozinho:\n(11) 99999-8888, Maria\n11 98888-7777\nNúmero internacional? Comece com + ou 00: +44 7911 123456"}
@@ -396,18 +507,18 @@ export default function CampaignsPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Histórico</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</div>
-          ) : campaigns.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma campanha ainda.</p>
-          ) : (
-            <div className="space-y-3">
-              {campaigns.map((c) => {
+      {/* ── Histórico — recolhido por padrão, não disputa espaço com o resto ── */}
+      {!loading && pastCampaigns.length > 0 && (
+        <div className="rounded-lg border border-border overflow-hidden">
+          <button onClick={() => setShowHistory((v) => !v)} className="w-full flex items-center gap-2 p-3 text-left hover:bg-secondary/30 transition-colors">
+            <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+            <span className="text-sm font-medium flex-1">Histórico de campanhas ({pastCampaigns.length})</span>
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${showHistory ? "rotate-180" : ""}`} />
+          </button>
+
+          {showHistory && (
+            <div className="border-t border-border p-3 space-y-3">
+              {pastCampaigns.map((c) => {
                 const st = STATUS_LABEL[c.status] ?? STATUS_LABEL.queued;
                 const pct = c.total_recipients > 0 ? Math.round(((c.sent_count + c.failed_count) / c.total_recipients) * 100) : 0;
                 const isOpen = expandedId === c.id;
@@ -428,28 +539,9 @@ export default function CampaignsPage() {
                         <span className="ml-auto text-brand-400">{isOpen ? "Ocultar" : "Ver número a número"}</span>
                       </div>
                     </button>
-
                     {isOpen && (
                       <div className="border-t border-border bg-secondary/20 p-3">
-                        {detailLoading && recipients.length === 0 ? (
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando...</div>
-                        ) : (
-                          <div className="space-y-1 max-h-64 overflow-y-auto">
-                            {recipients.map((r) => {
-                              const rst = RECIPIENT_STATUS[r.status] ?? RECIPIENT_STATUS.pending;
-                              const Icon = rst.icon;
-                              return (
-                                <div key={r.id} className="flex items-center gap-2 text-xs py-1">
-                                  <Icon className={`h-3.5 w-3.5 shrink-0 ${rst.className} ${r.status === "pending" ? "animate-spin" : ""}`} />
-                                  <span className="font-mono">{formatPhoneDisplay(r.phone)}</span>
-                                  {r.name && <span className="text-muted-foreground truncate">{r.name}</span>}
-                                  <span className={`ml-auto ${rst.className}`}>{rst.label}</span>
-                                  {r.error && <span className="text-red-400 truncate max-w-[200px]" title={r.error}>{r.error}</span>}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
+                        <RecipientList recipients={recipients} loading={detailLoading} />
                       </div>
                     )}
                   </div>
@@ -457,8 +549,8 @@ export default function CampaignsPage() {
               })}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      )}
     </div>
   );
 }
