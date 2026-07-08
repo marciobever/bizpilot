@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Megaphone, Loader2, Send, AlertTriangle, CheckCircle2, Sparkles, XCircle } from "lucide-react";
+import { Megaphone, Loader2, Send, AlertTriangle, CheckCircle2, Sparkles, XCircle, Clock, Users } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { authFetch } from "@/lib/api-client";
@@ -11,11 +11,12 @@ import { Badge } from "@/components/ui/Badge";
 
 interface AgentOption { id: string; name: string; connected: boolean }
 interface Campaign {
-  id: string; name: string; status: string;
+  id: string; name: string; message: string; image_url: string | null; buttons: string[] | null; status: string;
   total_recipients: number; sent_count: number; failed_count: number;
   created_at: string;
 }
 interface Recipient { id: string; phone: string; name: string | null; status: string; error: string | null; sent_at: string | null }
+interface SavedContact { phone: string; name: string | null; updated_at: string }
 
 const RECIPIENT_STATUS: Record<string, { label: string; className: string; icon: typeof CheckCircle2 }> = {
   pending: { label: "Aguardando", className: "text-muted-foreground", icon: Loader2 },
@@ -24,10 +25,13 @@ const RECIPIENT_STATUS: Record<string, { label: string; className: string; icon:
 };
 
 // Formata 5511999998888 -> (11) 99999-8888 pra facilitar a leitura na lista.
+// Número internacional (não-BR) só ganha o "+" de volta pra ficar legível.
 function formatPhoneDisplay(phone: string): string {
-  const p = phone.replace(/^55/, "");
-  if (p.length === 11) return `(${p.slice(0, 2)}) ${p.slice(2, 7)}-${p.slice(7)}`;
-  return phone;
+  if (phone.startsWith("55") && (phone.length === 12 || phone.length === 13)) {
+    const p = phone.slice(2);
+    return `(${p.slice(0, 2)}) ${p.slice(2, p.length - 4)}-${p.slice(-4)}`;
+  }
+  return `+${phone}`;
 }
 
 const STATUS_LABEL: Record<string, { label: string; variant: "success" | "warning" | "destructive" | "secondary" }> = {
@@ -56,6 +60,37 @@ export default function CampaignsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [savedContacts, setSavedContacts] = useState<SavedContact[]>([]);
+  const [showPastMessages, setShowPastMessages] = useState(false);
+
+  // Mensagens já usadas em campanhas anteriores, sem repetir texto igual —
+  // mostra as mais recentes primeiro pra reaproveitar com um clique.
+  const pastMessages = useMemo(() => {
+    const seen = new Set<string>();
+    const out: Campaign[] = [];
+    for (const c of campaigns) {
+      if (!c.message || seen.has(c.message)) continue;
+      seen.add(c.message);
+      out.push(c);
+      if (out.length >= 8) break;
+    }
+    return out;
+  }, [campaigns]);
+
+  function reuseMessage(c: Campaign) {
+    setMessage(c.message);
+    setImageUrl(c.image_url || "");
+    setButtons(c.buttons?.length ? [c.buttons[0] || "", c.buttons[1] || "", c.buttons[2] || ""] : ["", "", ""]);
+    setShowPastMessages(false);
+  }
+
+  function addSavedContactsToList() {
+    const existingPhones = new Set(parsedRecipients.filter((r) => r.valid).map((r) => r.phone));
+    const toAdd = savedContacts.filter((c) => !existingPhones.has(c.phone));
+    if (toAdd.length === 0) return;
+    const lines = toAdd.map((c) => (c.name ? `${c.phone}, ${c.name}` : c.phone));
+    setRecipientsRaw((prev) => (prev.trim() ? `${prev.trim()}\n${lines.join("\n")}` : lines.join("\n")));
+  }
 
   // Formata os números em tempo real (aceita qualquer formato colado) e
   // separa quem deu certo de quem precisa de correção manual.
@@ -134,6 +169,9 @@ export default function CampaignsPage() {
       if (opts.length > 0) setAgentId(opts.find((o) => o.connected)?.id ?? opts[0].id);
     });
     loadCampaigns();
+    authFetch("/api/campaigns/contacts").then((res) => res.ok ? res.json() : null).then((json) => {
+      if (json) setSavedContacts(json.contacts ?? []);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
@@ -172,6 +210,7 @@ export default function CampaignsPage() {
       if (!res.ok) throw new Error(json.error || "Não foi possível criar a campanha.");
       setName(""); setMessage(""); setImageUrl(""); setButtons(["", "", ""]); setRecipientsRaw("");
       await loadCampaigns();
+      authFetch("/api/campaigns/contacts").then((r) => r.ok ? r.json() : null).then((json) => { if (json) setSavedContacts(json.contacts ?? []); });
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -231,13 +270,32 @@ export default function CampaignsPage() {
           </div>
 
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <label className="text-sm font-medium">Mensagem</label>
-              <Button size="sm" variant="outline" onClick={handleGenerateMessage} disabled={aiLoading} className="h-7 gap-1.5">
-                {aiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-purple-500" />}
-                Gerar com IA
-              </Button>
+              <div className="flex items-center gap-2">
+                {pastMessages.length > 0 && (
+                  <Button size="sm" variant="ghost" onClick={() => setShowPastMessages((v) => !v)} className="h-7 gap-1.5 text-muted-foreground">
+                    <Clock className="h-3.5 w-3.5" /> Reutilizar anterior
+                  </Button>
+                )}
+                <Button size="sm" variant="outline" onClick={handleGenerateMessage} disabled={aiLoading} className="h-7 gap-1.5">
+                  {aiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-purple-500" />}
+                  Gerar com IA
+                </Button>
+              </div>
             </div>
+
+            {showPastMessages && (
+              <div className="border border-border rounded-lg divide-y divide-border max-h-48 overflow-y-auto">
+                {pastMessages.map((c) => (
+                  <button key={c.id} type="button" onClick={() => reuseMessage(c)} className="w-full text-left p-2.5 hover:bg-secondary/40 transition-colors">
+                    <div className="text-xs font-medium truncate">{c.name}</div>
+                    <div className="text-xs text-muted-foreground truncate">{c.message}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+
             <textarea
               className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[100px]"
               placeholder="Escreva a mensagem (ex: promoção 20% em pizzas até domingo) ou clique em Gerar com IA"
@@ -286,12 +344,22 @@ export default function CampaignsPage() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Lista de contatos</label>
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-sm font-medium">Lista de contatos</label>
+              {savedContacts.length > 0 && (
+                <Button size="sm" variant="ghost" onClick={addSavedContactsToList} className="h-7 gap-1.5 text-muted-foreground">
+                  <Users className="h-3.5 w-3.5" /> Adicionar {savedContacts.length} contato(s) salvo(s)
+                </Button>
+              )}
+            </div>
             <textarea
               className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono min-h-[120px]"
-              placeholder={"Um por linha, em qualquer formato — a gente corrige sozinho:\n(11) 99999-8888, Maria\n11 98888-7777\n+55 21 97777-6666"}
+              placeholder={"Um por linha, em qualquer formato — a gente corrige sozinho:\n(11) 99999-8888, Maria\n11 98888-7777\nNúmero internacional? Comece com + ou 00: +44 7911 123456"}
               value={recipientsRaw} onChange={(e) => setRecipientsRaw(e.target.value)}
             />
+            <p className="text-xs text-muted-foreground">
+              Todo número enviado com sucesso entra automaticamente na sua base de contatos, pra reaproveitar depois.
+            </p>
             {parsedRecipients.length > 0 ? (
               <div className="space-y-1.5">
                 <div className="flex items-center gap-3 text-xs flex-wrap">

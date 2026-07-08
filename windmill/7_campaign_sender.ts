@@ -73,7 +73,7 @@ export async function main(
     console.error("[campaign_sender] erro ao buscar campanha:", await runRes.text());
     return { success: false };
   }
-  const { message: rawMessage, imageUrl, buttons, instanceToken, recipients } = await runRes.json();
+  const { message: rawMessage, title, imageUrl, buttons, instanceToken, recipients } = await runRes.json();
   const message: string = formatForWhatsApp(rawMessage);
 
   if (!instanceToken || !Array.isArray(recipients) || recipients.length === 0) {
@@ -108,7 +108,8 @@ export async function main(
         res = await fetch(`${evolutionApiUrl}/send/button`, {
           method: "POST", headers,
           body: JSON.stringify({
-            number, title: "", description: message, footer: "",
+            // Evolution passou a exigir title não-vazio numa atualização recente.
+            number, title: (title || "Oferta").slice(0, 24), description: message, footer: "",
             buttons: buttons.map((b: string, i: number) => ({ id: `${i}`, displayText: b.slice(0, 20), type: "reply" })),
           }),
         });

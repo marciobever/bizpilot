@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await supabase
     .from("campaigns")
-    .select("id, name, message, status, total_recipients, sent_count, failed_count, created_at, finished_at")
+    .select("id, name, message, image_url, buttons, status, total_recipients, sent_count, failed_count, created_at, finished_at")
     .eq("user_id", auth.user.id)
     .order("created_at", { ascending: false })
     .limit(30);
@@ -137,6 +137,15 @@ export async function POST(req: NextRequest) {
     .from("campaign_recipients")
     .insert(recipients.map((r) => ({ campaign_id: campaign.id, phone: r.phone, name: r.name })));
   if (recError) return NextResponse.json({ error: recError.message }, { status: 500 });
+
+  // Guarda os contatos pra reaproveitar em campanhas futuras (base que cresce
+  // sozinha a cada disparo). Best-effort — não trava a campanha se falhar.
+  await supabase.from("campaign_contacts")
+    .upsert(
+      recipients.map((r) => ({ user_id: userId, phone: r.phone, name: r.name, updated_at: new Date().toISOString() })),
+      { onConflict: "user_id,phone" },
+    )
+    .then(({ error }) => { if (error) console.error("[campaigns] falha ao salvar contatos:", error.message); });
 
   // Dispara o envio no Windmill (fire-and-forget — progresso é consultado via GET).
   // Token dedicado só a este script (rota fixa do campaign_sender).
