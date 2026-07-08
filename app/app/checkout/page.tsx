@@ -43,10 +43,6 @@ const ITEM_DETAILS: Record<string, { desc: string; features?: string[] }> = {
     desc: "Operação sem limites.",
     features: ["Agentes ilimitados", "Conversas ilimitadas", "Documentos ilimitados", "Histórico de 1 ano", "Suporte dedicado"],
   },
-  addon_test: {
-    desc: "Cobrança real de R$ 3,00 para validar o fluxo de pagamento em produção (visível só pro admin).",
-    features: ["Pix ou cartão", "Valor simbólico de teste"],
-  },
   addon_bot: {
     desc: "Mais um agente inteligente além do limite do seu plano — ideal pra atender outro número ou outra área do negócio.",
     features: ["+1 agente no seu limite", "Vale enquanto a assinatura estiver ativa", "Pode contratar mais de um"],

@@ -7,7 +7,6 @@ import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
 import { addonCountsFromRows } from "@/lib/plans";
-import { isAdminEmail } from "@/lib/admin";
 import { useRouter, useSearchParams } from "next/navigation";
 import { PerfilTab } from "./_tabs/PerfilTab";
 import { AparenciaTab } from "./_tabs/AparenciaTab";
@@ -165,7 +164,7 @@ function SettingsInner() {
       )}
       {activeTab === "aparencia" && <AparenciaTab theme={theme} setTheme={(v) => setTheme(v as any)} />}
       {activeTab === "plano" && (
-        <PlanoTab plan={plan} loadingPlan={loadingPlan} subscriptionStatus={subscriptionStatus} billingProvider={billingProvider} currentPeriodEnd={periodEnd} hasEfiSubscription={hasEfiSubscription} planActionLoading={planActionLoading} planFeedback={planFeedback} addonCounts={addonCounts} usage={usage} isAdmin={isAdminEmail(user?.email)} onUpgrade={handleUpgrade} onCancelEfi={handleCancelEfi} />
+        <PlanoTab plan={plan} loadingPlan={loadingPlan} subscriptionStatus={subscriptionStatus} billingProvider={billingProvider} currentPeriodEnd={periodEnd} hasEfiSubscription={hasEfiSubscription} planActionLoading={planActionLoading} planFeedback={planFeedback} addonCounts={addonCounts} usage={usage} onUpgrade={handleUpgrade} onCancelEfi={handleCancelEfi} />
       )}
       {activeTab === "seguranca" && (
         <SegurancaTab newPassword={newPassword} setNewPassword={setNewPassword} confirmPassword={confirmPassword} setConfirmPassword={setConfirmPassword} savingPassword={savingPassword} passwordFeedback={passwordFeedback} onChangePassword={handleChangePassword} onSignOut={handleSignOut} />

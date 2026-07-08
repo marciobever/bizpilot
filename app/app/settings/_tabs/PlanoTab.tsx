@@ -58,15 +58,6 @@ const PLANS = [
   },
 ];
 
-// Produto de teste (R$1) — só aparece pro admin, pra validar o checkout em produção.
-const TEST_ADDON = {
-  id: "addon_test",
-  name: "Teste de Pagamento",
-  price: "R$ 3,00",
-  icon: Zap,
-  desc: "Cobrança real de R$ 3,00 para validar Pix e cartão em produção (mínimo do cartão na Efí).",
-};
-
 const ADDONS = [
   {
     id: "addon_bot",
@@ -118,7 +109,6 @@ interface Props {
   planFeedback: { type: "success" | "error"; message: string } | null;
   addonCounts?: Record<string, number>;
   usage?: UsageResponse | null;
-  isAdmin?: boolean;
   onUpgrade: (targetPlan: string) => void;
   onCancelEfi?: () => void;
 }
@@ -147,9 +137,8 @@ export function PlanoTab({
   plan, loadingPlan, subscriptionStatus,
   billingProvider, currentPeriodEnd, hasEfiSubscription,
   planActionLoading, planFeedback, addonCounts = {}, usage,
-  isAdmin, onUpgrade, onCancelEfi,
+  onUpgrade, onCancelEfi,
 }: Props) {
-  const addons = isAdmin ? [...ADDONS, TEST_ADDON] : ADDONS;
   // Normaliza nomes antigos
   const normalizedPlan = plan === "basico" ? "starter" : plan === "profissional" ? "pro" : plan === "avancado" ? "business" : (plan || "starter");
   const currentPlan = PLANS.find((p) => p.id === normalizedPlan) || PLANS[0];
@@ -326,7 +315,7 @@ export function PlanoTab({
             <CardDescription>Adicione recursos extras ao seu plano atual, sem precisar fazer upgrade.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
-            {addons.map((addon) => {
+            {ADDONS.map((addon) => {
               const Icon = addon.icon;
               const owned = addonCounts[addon.id] ?? 0;
               const singleInstance = addon.id === "addon_voice"; // voz é liga/desliga

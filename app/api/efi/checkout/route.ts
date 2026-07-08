@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, getServiceSupabase } from "@/lib/api-auth";
-import { isAdminEmail } from "@/lib/admin";
 import { BILLING_ITEMS, normalizeBillingItem } from "@/lib/billing/prices";
 import {
   isEfiPixConfigured, isEfiCardConfigured,
@@ -32,10 +31,6 @@ export async function POST(req: NextRequest) {
   const item = normalizeBillingItem(body.item || "");
   const billing = BILLING_ITEMS[item];
   if (!billing) return NextResponse.json({ error: "Item inválido." }, { status: 400 });
-  // Item de teste (R$1): só o admin compra.
-  if (item === "addon_test" && !isAdminEmail(auth.user.email)) {
-    return NextResponse.json({ error: "Item inválido." }, { status: 400 });
-  }
 
   const supabase = getServiceSupabase();
 

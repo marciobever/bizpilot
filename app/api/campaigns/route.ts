@@ -111,15 +111,16 @@ export async function POST(req: NextRequest) {
   if (recError) return NextResponse.json({ error: recError.message }, { status: 500 });
 
   // Dispara o envio no Windmill (fire-and-forget — progresso é consultado via GET).
-  const webhookUrl = process.env.WINDMILL_CAMPAIGN_WEBHOOK_URL;
-  if (webhookUrl) {
-    fetch(webhookUrl, {
+  // Rota fixa do script + token de API (mesmo workspace/paths dos outros scripts do BizPilot).
+  const windmillToken = process.env.WINDMILL_API_TOKEN;
+  if (windmillToken) {
+    fetch("https://windmill.seureview.com.br/api/w/foodsnap/jobs/run/p/u/bevervansomarcio/bizpilot/campaign_sender", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${windmillToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ campaignId: campaign.id }),
     }).catch((e) => console.error("[campaigns] falha ao disparar Windmill:", e));
   } else {
-    console.warn("[campaigns] WINDMILL_CAMPAIGN_WEBHOOK_URL não configurada — campanha ficará em 'queued'.");
+    console.warn("[campaigns] WINDMILL_API_TOKEN não configurada — campanha ficará em 'queued'.");
   }
 
   return NextResponse.json({ id: campaign.id });
