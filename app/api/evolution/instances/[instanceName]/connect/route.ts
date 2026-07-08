@@ -16,7 +16,9 @@ export async function GET(req: Request, context: any) {
       headers: { apikey: creds.token },
     });
     const data = await res.json();
-    const qrcode: string = data?.data?.Qrcode ?? '';
+    // A Evolution mudou o campo pra minúsculo numa atualização recente
+    // ("Qrcode" -> "qrcode") — aceita os dois pra não quebrar de novo.
+    const qrcode: string = data?.data?.qrcode ?? data?.data?.Qrcode ?? '';
     // base64 é um data URI completo (data:image/png;base64,...) — o frontend usa direto como src
     return NextResponse.json({ base64: qrcode, instance: { state: 'connecting', qr: qrcode } });
   } catch (error: any) {
