@@ -1,16 +1,18 @@
 import { getServiceSupabase } from "@/lib/api-auth";
 import { sendSystemEmail } from "@/lib/systemMail";
 
-export type EvolutionConnState = "open" | "connecting" | "down";
+export type EvolutionConnState = "open" | "down";
 
-// A Evolution manda nomes de estado variados conforme o evento/versão — só
-// 'open' é "conectado de verdade"; tudo mais tratamos como caído (exceto
-// 'connecting', que é transitório e não deve nem entrar nem sair de alerta).
+// Confirmado empiricamente (testado em produção): uma sessão caída de
+// verdade (após desvincular o dispositivo) reporta Connected:true,
+// LoggedIn:false — que /api/evolution/instances/.../connectionState mapeia
+// pra 'connecting', não 'close'. O hook useWhatsappChannel.ts (usado na tela
+// do agente, com o usuário olhando) trata 'connecting' como transitório e dá
+// alguns retries rápidos antes de decidir. Aqui NÃO fazemos esse retry — as
+// checagens já são espaçadas (webhook pontual, ou 1x por login) — então
+// qualquer coisa que não seja 'open' já é motivo suficiente pra alertar.
 export function normalizeEvolutionState(raw: string): EvolutionConnState {
-  const s = (raw || "").toLowerCase();
-  if (s === "open") return "open";
-  if (s === "connecting") return "connecting";
-  return "down"; // close, logged_out, ou qualquer outro valor
+  return (raw || "").toLowerCase() === "open" ? "open" : "down";
 }
 
 async function resolveUserEmail(userId: string): Promise<string | null> {
@@ -47,6 +49,14 @@ async function sendWhatsappDisconnectedEmail(params: {
 // quanto pela checagem de segurança no login. Reivindicação atômica do envio
 // de e-mail (UPDATE ... WHERE notified_email_at IS NULL) evita duplicar
 // aviso se as duas camadas observarem a queda quase ao mesmo tempo.
+//
+// IMPORTANTE: o "já sabíamos disso?" é decidido pela PRÓPRIA linha em
+// whatsapp_connection_alerts, não por agents.config.whatsapp.evolution.connected.
+// Esse campo também é escrito por um sistema mais antigo e independente
+// (useWhatsappChannel.ts / syncEvolutionStatuses, na tela do agente) — se
+// usássemos ele como sinal de "mudou desde a última vez", uma corrida entre
+// os dois sistemas (o antigo grava connected:false primeiro) faria a gente
+// achar que "nada mudou" e nunca alertar.
 export async function recordConnectionObservation(params: {
   agentId: string; instanceName: string; normalizedState: EvolutionConnState;
 }): Promise<{ changed: boolean; notified: boolean }> {
@@ -59,27 +69,46 @@ export async function recordConnectionObservation(params: {
   if (cfg.whatsapp?.provider !== "evolution") return { changed: false, notified: false };
   const wasConnected = cfg.whatsapp?.evolution?.connected === true;
 
-  if (params.normalizedState === "connecting") return { changed: false, notified: false };
+  const { data: existingAlert } = await supabase.from("whatsapp_connection_alerts")
+    .select("id, status").eq("agent_id", agent.id).maybeSingle();
 
   if (params.normalizedState === "open") {
+    let changed = false;
     if (!wasConnected) {
       cfg.whatsapp.evolution.connected = true;
       await supabase.from("agents").update({ config: cfg, status: "online" }).eq("id", agent.id);
+      changed = true;
     }
-    await supabase.from("whatsapp_connection_alerts")
-      .update({ status: "resolved", resolved_at: new Date().toISOString() })
-      .eq("agent_id", agent.id).eq("status", "down");
-    return { changed: !wasConnected, notified: false };
+    if (existingAlert?.status === "down") {
+      await supabase.from("whatsapp_connection_alerts")
+        .update({ status: "resolved", resolved_at: new Date().toISOString() })
+        .eq("agent_id", agent.id);
+      changed = true;
+    }
+    return { changed, notified: false };
   }
 
-  // down — só alerta se já esteve conectado (evita alerta pra instância que nunca conectou)
-  if (!wasConnected) return { changed: false, notified: false };
-  cfg.whatsapp.evolution.connected = false;
-  await supabase.from("agents").update({ config: cfg, status: "offline" }).eq("id", agent.id);
+  // down
+  if (wasConnected) {
+    cfg.whatsapp.evolution.connected = false;
+    await supabase.from("agents").update({ config: cfg, status: "offline" }).eq("id", agent.id);
+  }
 
-  // Zera notified_email_at/resolved_at explicitamente: sem isso, numa 2ª
-  // queda (depois de já ter resolvido uma vez), o valor antigo persistiria e
-  // o e-mail nunca mais dispararia depois da primeira vez.
+  // Só alerta se o agente já esteve conectado de verdade em algum momento
+  // (wasConnected agora, OU já existe uma linha de alerta anterior — prova
+  // de que já conectou antes, mesmo que outro processo já tenha zerado o
+  // agents.config nesse meio-tempo). Evita alertar instância que nunca
+  // terminou de conectar (ainda esperando o QR ser escaneado).
+  if (!wasConnected && !existingAlert) return { changed: false, notified: false };
+
+  if (existingAlert?.status === "down") {
+    // Já sabíamos — só atualiza o timestamp, não duplica e-mail.
+    await supabase.from("whatsapp_connection_alerts")
+      .update({ last_checked_at: new Date().toISOString() }).eq("agent_id", agent.id);
+    return { changed: false, notified: false };
+  }
+
+  // Queda nova (primeira vez, ou reconectou e caiu de novo).
   await supabase.from("whatsapp_connection_alerts").upsert({
     agent_id: agent.id, user_id: agent.user_id, provider: "evolution",
     instance_name: params.instanceName, status: "down",
