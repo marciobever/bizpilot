@@ -14,6 +14,7 @@ interface Props {
   whatsappProvider: "evolution" | "meta";
   setWhatsappProvider: (v: "evolution" | "meta") => void;
   waConnected: boolean;
+  sessionDropped?: boolean;
   waQrCode: string;
   waLoading: boolean;
   checkingWa: boolean;
@@ -42,7 +43,7 @@ interface Props {
 
 export function ChannelsTab({
   agentId, isNew, whatsappProvider, setWhatsappProvider,
-  waConnected, waQrCode, waLoading, checkingWa, customInstanceName,
+  waConnected, sessionDropped, waQrCode, waLoading, checkingWa, customInstanceName,
   onConnectWhatsapp, onDisconnectWhatsapp, onFetchQrCode, onSwitchToMeta,
   metaConnected, metaTesting, metaTestMsg,
   metaPhoneNumberId, setMetaPhoneNumberId,
@@ -109,6 +110,16 @@ export function ChannelsTab({
 
             {whatsappProvider === "evolution" && (
               <div className="pt-2 border-t border-border">
+                {sessionDropped && !waConnected && (
+                  <div className="mb-3 flex gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+                    <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
+                      <strong className="text-foreground">A sessão do WhatsApp caiu.</strong> O agente estava conectado, mas
+                      o celular saiu do WhatsApp Web/dispositivos conectados (ficou sem internet, deslogou, etc). Clique em
+                      &quot;Conectar via QR&quot; e escaneie de novo pra voltar a receber mensagens.
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`h-9 w-9 rounded-lg flex items-center justify-center shrink-0 ${waConnected ? "bg-emerald-500/10" : "bg-secondary"}`}>
@@ -119,12 +130,14 @@ export function ChannelsTab({
                         <div className="font-medium text-sm">Conexão via QR Code</div>
                         {waConnected ? (
                           <Badge variant="outline" className="text-[10px] h-4 bg-muted text-emerald-500 border-0">Conectado</Badge>
+                        ) : sessionDropped ? (
+                          <Badge variant="outline" className="text-[10px] h-4 bg-amber-500/10 text-amber-500 border-0">Sessão caiu</Badge>
                         ) : (
                           <Badge variant="outline" className="text-[10px] h-4 bg-muted text-muted-foreground border-0">Desconectado</Badge>
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        {waConnected ? `Instância '${instanceLabel}' ativa e recebendo mensagens.` : "Escaneie o QR Code com o celular que vai atender."}
+                        {waConnected ? `Instância '${instanceLabel}' ativa e recebendo mensagens.` : sessionDropped ? "Reconecte escaneando o QR Code novamente." : "Escaneie o QR Code com o celular que vai atender."}
                       </div>
                     </div>
                   </div>

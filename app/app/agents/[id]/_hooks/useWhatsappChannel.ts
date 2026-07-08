@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { authFetch } from "@/lib/api-client";
 import { supabase } from "@/lib/supabase";
 
@@ -23,6 +23,11 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
   const [waConnected, setWaConnected] = useState(false);
   const [waQrCode, setWaQrCode] = useState("");
   const [checkingWa, setCheckingWa] = useState(false);
+  // true quando a instância já esteve conectada e a sessão caiu (deslogou do
+  // WhatsApp) — distinto de "nunca conectada", pra avisar que precisa reescanear.
+  const [sessionDropped, setSessionDropped] = useState(false);
+  const waConnectedRef = useRef(false);
+  useEffect(() => { waConnectedRef.current = waConnected; }, [waConnected]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -45,18 +50,33 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
     }
   };
 
-  const checkWhatsappStatus = async () => {
+  // retriesLeft: "connecting" pode ser só o instante da troca de estado —
+  // tenta mais algumas vezes antes de assumir que caiu de vez.
+  const checkWhatsappStatus = async (retriesLeft = 3) => {
     if (!id || id === "new") return;
     try {
       const res = await authFetch(`/api/evolution/instances/agent_${id}/connectionState`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.instance?.state === "open") {
-          setWaConnected(true);
-        } else if (data.instance?.state === "connecting") {
-          setTimeout(checkWhatsappStatus, 5000);
-        }
+      if (!res.ok) return;
+      const data = await res.json();
+      const state = data.instance?.state;
+
+      if (state === "open") {
+        setWaConnected(true);
+        setSessionDropped(false);
+        return;
       }
+      if (state === "connecting" && retriesLeft > 0) {
+        setTimeout(() => checkWhatsappStatus(retriesLeft - 1), 5000);
+        return;
+      }
+
+      // Sessão realmente caiu (deslogou do WhatsApp) — corrige aqui E no
+      // banco, senão a lista de agentes continua achando que está tudo bem.
+      if (waConnectedRef.current) {
+        setSessionDropped(true);
+        await persistEvolutionConnected(`agent_${id}`, false);
+      }
+      setWaConnected(false);
     } catch (e) {
       console.log("Instance not found or error", e);
     }
@@ -73,6 +93,7 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
     }
     setWaLoading(true);
     setShowInstanceModal(false);
+    setSessionDropped(false);
     const finalInstanceName = customInstanceName.trim()
       ? `agent_${id}_${customInstanceName.trim().replace(/\s+/g, "")}`
       : `agent_${id}`;
@@ -316,6 +337,7 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
     waConnected, setWaConnected,
     waQrCode, setWaQrCode,
     checkingWa, setCheckingWa,
+    sessionDropped, setSessionDropped,
     copyToClipboard,
     checkWhatsappStatus,
     handleConnectWhatsapp,

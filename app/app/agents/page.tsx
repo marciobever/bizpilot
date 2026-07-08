@@ -45,10 +45,38 @@ export default function Agents() {
         .from('agents').select('*').is('deleted_at', null).order('created_at', { ascending: false });
       if (error) throw error;
       setAgents(data || []);
+      syncEvolutionStatuses(data || []);
     } catch (error) {
       console.error('Erro ao buscar agentes:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // O banco só grava "conectado" quando o QR é escaneado — nunca corrige de
+  // volta quando a sessão do WhatsApp cai sozinha (celular sem internet,
+  // deslogou, etc). Confere o estado real na Evolution pra essa lista (e a
+  // badge "Aguardando WhatsApp") não mentir que está tudo bem.
+  const syncEvolutionStatuses = async (list: Agent[]) => {
+    for (const agent of list) {
+      const cfg = typeof (agent as any).config === "string" ? JSON.parse((agent as any).config) : (agent as any).config || {};
+      const wa = cfg.whatsapp;
+      if (wa?.provider !== "evolution" || !wa.evolution?.connected) continue;
+
+      const instanceName = wa.evolution.instanceName || `agent_${agent.id}`;
+      try {
+        const res = await authFetch(`/api/evolution/instances/${instanceName}/connectionState`);
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (data.instance?.state === "open") continue; // segue conectado, nada a corrigir
+
+        // Sessão caiu: corrige o config local + o banco.
+        const newCfg = { ...cfg, whatsapp: { ...wa, evolution: { ...wa.evolution, connected: false } } };
+        await supabase.from("agents").update({ config: newCfg, status: "offline" }).eq("id", agent.id);
+        setAgents((prev) => prev.map((a) => (a.id === agent.id ? { ...a, config: newCfg, status: "offline" } as any : a)));
+      } catch {
+        // Falha ao checar não deve travar a lista — mantém o que já tinha.
+      }
     }
   };
 

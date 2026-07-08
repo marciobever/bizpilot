@@ -418,7 +418,7 @@ export default function AgentConfig() {
             <ChannelsTab
               agentId={agentId} isNew={isNew}
               whatsappProvider={waChannel.whatsappProvider} setWhatsappProvider={waChannel.setWhatsappProvider}
-              waConnected={waChannel.waConnected} waQrCode={waChannel.waQrCode}
+              waConnected={waChannel.waConnected} sessionDropped={waChannel.sessionDropped} waQrCode={waChannel.waQrCode}
               waLoading={waChannel.waLoading} checkingWa={waChannel.checkingWa}
               customInstanceName={waChannel.customInstanceName}
               onConnectWhatsapp={waChannel.handleConnectWhatsapp}
