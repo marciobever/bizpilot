@@ -104,7 +104,12 @@ export function useWhatsappChannel(id: string, agentName: string, isNew: boolean
         body: JSON.stringify({ instanceName: finalInstanceName, agentId: id }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erro desconhecido ao criar instância");
+      if (!res.ok) {
+        // Instância já existe no servidor (ex: sessão anterior que só caiu) —
+        // o token salvo continua válido, só falta um QR novo. Não precisa recriar.
+        const alreadyExists = /already exists/i.test(data.error || "");
+        if (!alreadyExists) throw new Error(data.error || "Erro desconhecido ao criar instância");
+      }
       setCheckingWa(true);
       fetchQrCode(finalInstanceName);
     } catch (e: any) {
