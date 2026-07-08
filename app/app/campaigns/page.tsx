@@ -45,6 +45,7 @@ export default function CampaignsPage() {
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [buttons, setButtons] = useState<string[]>(["", "", ""]);
   const [recipientsRaw, setRecipientsRaw] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -163,12 +164,13 @@ export default function CampaignsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           agentId, name: name || "Campanha", message, imageUrl,
+          buttons: buttons.map((b) => b.trim()).filter(Boolean),
           recipients: validRecipients.map((r) => ({ phone: r.phone, name: r.name || undefined })),
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Não foi possível criar a campanha.");
-      setName(""); setMessage(""); setImageUrl(""); setRecipientsRaw("");
+      setName(""); setMessage(""); setImageUrl(""); setButtons(["", "", ""]); setRecipientsRaw("");
       await loadCampaigns();
     } catch (e: any) {
       setError(e.message);
@@ -243,6 +245,7 @@ export default function CampaignsPage() {
             />
             <p className="text-xs text-muted-foreground">
               Sem escrever nada ainda? A IA usa o nome da campanha como ideia. Já tem um rascunho? Ela lapida o que estiver escrito.
+              Formatação do WhatsApp: <span className="font-mono">*negrito*</span> e <span className="font-mono">_itálico_</span>.
             </p>
           </div>
 
@@ -257,6 +260,29 @@ export default function CampaignsPage() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={imageUrl} alt="Prévia" className="mt-2 max-h-32 rounded-lg border border-border" onError={(e) => (e.currentTarget.style.display = "none")} />
             )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Botões de resposta rápida (opcional, até 3)</label>
+            <div className="grid grid-cols-3 gap-2">
+              {[0, 1, 2].map((i) => (
+                <input
+                  key={i}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-2.5 text-xs"
+                  placeholder={`Botão ${i + 1}`}
+                  maxLength={20}
+                  value={buttons[i] || ""}
+                  onChange={(e) => {
+                    const next = [...buttons];
+                    next[i] = e.target.value;
+                    setButtons(next);
+                  }}
+                />
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Até 20 caracteres por botão. {imageUrl ? "Com imagem selecionada, os botões não são enviados juntos — some a imagem se quiser usar botões." : "O cliente toca no botão pra responder na hora."}
+            </p>
           </div>
 
           <div className="space-y-1.5">

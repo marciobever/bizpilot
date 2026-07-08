@@ -11,7 +11,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const supabase = getServiceSupabase();
   const { data: campaign, error } = await supabase
-    .from("campaigns").select("id, message, image_url, agent_id, status").eq("id", id).single();
+    .from("campaigns").select("id, message, image_url, buttons, agent_id, status").eq("id", id).single();
   if (error || !campaign) return NextResponse.json({ error: "Campanha não encontrada." }, { status: 404 });
 
   const { data: agent } = await supabase.from("agents").select("config").eq("id", campaign.agent_id).single();
@@ -32,6 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json({
     message: campaign.message,
     imageUrl: campaign.image_url || null,
+    buttons: campaign.buttons || null,
     instanceToken: wa.instanceToken,
     instanceName: wa.evolution?.instanceName || wa.instanceName,
     recipients: recipients ?? [],

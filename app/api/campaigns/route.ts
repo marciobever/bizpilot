@@ -45,12 +45,16 @@ export async function POST(req: NextRequest) {
   const userId = auth.user.id;
 
   const body = await req.json() as {
-    agentId?: string; name?: string; message?: string; imageUrl?: string;
+    agentId?: string; name?: string; message?: string; imageUrl?: string; buttons?: string[];
     recipients?: { phone: string; name?: string }[];
   };
   const message = (body.message || "").trim();
   const name = (body.name || "").trim() || "Campanha";
   const imageUrl = (body.imageUrl || "").trim();
+  const buttons = (body.buttons ?? []).map((b) => b.trim()).filter(Boolean).slice(0, 3);
+  if (buttons.some((b) => b.length > 20)) {
+    return NextResponse.json({ error: "Cada botão pode ter no máximo 20 caracteres (limite do WhatsApp)." }, { status: 400 });
+  }
   if (imageUrl) {
     try {
       const url = await assertPublicHttpUrl(imageUrl);
@@ -125,7 +129,7 @@ export async function POST(req: NextRequest) {
 
   const { data: campaign, error: campaignError } = await supabase
     .from("campaigns")
-    .insert({ user_id: userId, agent_id: body.agentId, name, message, image_url: imageUrl || null, total_recipients: recipients.length })
+    .insert({ user_id: userId, agent_id: body.agentId, name, message, image_url: imageUrl || null, buttons: buttons.length ? buttons : null, total_recipients: recipients.length })
     .select("id").single();
   if (campaignError) return NextResponse.json({ error: campaignError.message }, { status: 500 });
 

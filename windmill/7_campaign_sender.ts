@@ -13,6 +13,18 @@ function randomDelay(minMs: number, maxMs: number) {
   return minMs + Math.random() * (maxMs - minMs);
 }
 
+// Mesma conversão do bot 1:1 (evolution_sender.ts): WhatsApp usa *negrito* e
+// _itálico_, não **duplo asterisco** nem # título de markdown.
+function formatForWhatsApp(text: string): string {
+  return text
+    .replace(/\*\*\*(.+?)\*\*\*/gs, '*$1*')
+    .replace(/\*\*(.+?)\*\*/gs, '*$1*')
+    .replace(/^#{1,6}\s+(.+)$/gm, '*$1*')
+    .replace(/^[ \t]*[•●▪○]\s*/gm, '- ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 async function reportProgress(
   APP_BASE_URL: string, INTERNAL_API_SECRET: string, campaignId: string,
   body: Record<string, unknown>
@@ -61,7 +73,8 @@ export async function main(
     console.error("[campaign_sender] erro ao buscar campanha:", await runRes.text());
     return { success: false };
   }
-  const { message, imageUrl, instanceToken, recipients } = await runRes.json();
+  const { message: rawMessage, imageUrl, buttons, instanceToken, recipients } = await runRes.json();
+  const message: string = formatForWhatsApp(rawMessage);
 
   if (!instanceToken || !Array.isArray(recipients) || recipients.length === 0) {
     console.warn("[campaign_sender] nada para enviar (sem instância ou sem destinatários).");
@@ -76,14 +89,31 @@ export async function main(
     const number = `${r.phone}@s.whatsapp.net`;
     try {
       let res: Response;
+      // Prioridade igual à do bot 1:1: imagem > botões > texto simples.
+      // Imagem e botões juntos não são combinados (Evolution não suporta bem)
+      // — se tem imagem, ela leva a legenda; senão, os botões entram.
       if (imageUrl) {
-        // Imagem com legenda; se a instância recusar mídia, cai pro texto simples.
         res = await fetch(`${evolutionApiUrl}/send/media`, {
           method: "POST", headers,
           body: JSON.stringify({ number, type: "image", url: imageUrl, caption: message }),
         });
         if (!res.ok) {
           console.error(`Evolution media error (fallback to text): ${await res.text()}`);
+          res = await fetch(`${evolutionApiUrl}/send/text`, {
+            method: "POST", headers,
+            body: JSON.stringify({ number, text: message, linkPreview: false }),
+          });
+        }
+      } else if (Array.isArray(buttons) && buttons.length > 0) {
+        res = await fetch(`${evolutionApiUrl}/send/button`, {
+          method: "POST", headers,
+          body: JSON.stringify({
+            number, title: "", description: message, footer: "",
+            buttons: buttons.map((b: string, i: number) => ({ id: `${i}`, displayText: b.slice(0, 20), type: "reply" })),
+          }),
+        });
+        if (!res.ok) {
+          console.error(`Evolution button error (fallback to text): ${await res.text()}`);
           res = await fetch(`${evolutionApiUrl}/send/text`, {
             method: "POST", headers,
             body: JSON.stringify({ number, text: message, linkPreview: false }),
