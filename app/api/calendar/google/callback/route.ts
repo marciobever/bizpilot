@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyOAuthState } from '@/lib/oauth-state';
+import { encryptSecret } from '@/lib/secret-crypto';
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -8,13 +10,15 @@ function getServiceSupabase() {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-// GET /api/calendar/google/callback?code=...&state=<userId>:<agentId?>
+// GET /api/calendar/google/callback?code=...&state=<assinado>
 // Troca o código de autorização por um refresh token. Sem agentId, salva no
 // calendário padrão da conta; com agentId, salva como override daquele bot.
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code');
-  const state = req.nextUrl.searchParams.get('state') || '';
-  const [userId, agentId] = state.split(':');
+  const rawState = req.nextUrl.searchParams.get('state') || '';
+  const state = verifyOAuthState<{ userId: string; agentId: string }>(rawState);
+  const userId = state?.userId;
+  const agentId = state?.agentId || '';
   const redirectBack = (status: string) =>
     NextResponse.redirect(agentId
       ? `${req.nextUrl.origin}/app/agents/${agentId}?tab=channels&calendar=${status}`
@@ -45,6 +49,7 @@ export async function GET(req: NextRequest) {
     });
     const tokens = await tokenRes.json();
     if (!tokenRes.ok || !tokens.refresh_token) return redirectBack('error');
+    const encryptedRefreshToken = encryptSecret(tokens.refresh_token);
 
     if (agentId) {
       await supabase.from('agent_calendar_integrations').upsert({
@@ -52,7 +57,7 @@ export async function GET(req: NextRequest) {
         user_id: userId,
         provider: 'google',
         status: 'connected',
-        config: { provider: 'google', clientId, clientSecret, refreshToken: tokens.refresh_token, calendarId: 'primary' },
+        config: { provider: 'google', clientId, clientSecret, refreshToken: encryptedRefreshToken, calendarId: 'primary' },
         updated_at: new Date().toISOString(),
       }, { onConflict: 'agent_id' });
     } else {
@@ -61,7 +66,7 @@ export async function GET(req: NextRequest) {
         provider: 'calendar',
         name: 'Calendário / Agenda',
         status: 'connected',
-        config: { ...integration?.config, refreshToken: tokens.refresh_token, calendarId: integration?.config?.calendarId || 'primary' },
+        config: { ...integration?.config, refreshToken: encryptedRefreshToken, calendarId: integration?.config?.calendarId || 'primary' },
       }, { onConflict: 'user_id,provider' });
     }
 

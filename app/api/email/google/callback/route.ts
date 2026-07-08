@@ -1,5 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyOAuthState } from '@/lib/oauth-state';
+import { encryptSecret } from '@/lib/secret-crypto';
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -8,12 +10,13 @@ function getServiceSupabase() {
   return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
-// GET /api/email/google/callback?code=...&state=<userId>
+// GET /api/email/google/callback?code=...&state=<assinado>
 // Troca o código por um refresh token, descobre o e-mail da conta e salva a
 // integração de e-mail com provider 'google'.
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get('code');
-  const userId = req.nextUrl.searchParams.get('state');
+  const state = verifyOAuthState<{ userId: string }>(req.nextUrl.searchParams.get('state') || '');
+  const userId = state?.userId;
   const redirectBack = (status: string) => NextResponse.redirect(`${req.nextUrl.origin}/app/automations?email=${status}`);
 
   if (!code || !userId) return redirectBack('error');
@@ -58,7 +61,7 @@ export async function GET(req: NextRequest) {
       status: 'connected',
       config: {
         provider: 'google',
-        refreshToken: tokens.refresh_token,
+        refreshToken: encryptSecret(tokens.refresh_token),
         fromEmail,
         fromName: existing?.config?.fromName || '',
       },

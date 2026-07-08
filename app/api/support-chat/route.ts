@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TOOL_DEFINITIONS, executeTool, getUserPlan } from "./tools";
 import { PLAN_LABEL, type PlanId } from "@/lib/plans";
-import { requireUser } from "@/lib/api-auth";
+import { requireUser, getServiceSupabase } from "@/lib/api-auth";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const SYSTEM_PROMPT = `Você é o assistente do BizPilot — sistema de bots de WhatsApp para empresas brasileiras.
 Você responde dúvidas E também pode fazer configurações diretamente pelo chat.
@@ -102,6 +103,15 @@ export async function POST(req: NextRequest) {
   // userId vem SEMPRE da sessão (nunca do corpo) para gatear plano e tools.
   const userId = auth.user.id;
   const agentId = context?.agentId || "";
+
+  // 20 mensagens/min — protege custo de OpenAI contra automação/abuso.
+  const rl = await checkRateLimit(getServiceSupabase(), userId, "support-chat", 20, 60);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Muitas mensagens em pouco tempo. Aguarde um instante e tente de novo." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } },
+    );
+  }
 
   const userPlan = userId ? await getUserPlan(userId) : "basico";
   const planLabel = PLAN_LABEL[(userPlan as PlanId)] ?? userPlan;

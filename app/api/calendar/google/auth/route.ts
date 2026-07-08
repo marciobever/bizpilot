@@ -1,22 +1,19 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser, getServiceSupabase } from '@/lib/api-auth';
+import { signOAuthState } from '@/lib/oauth-state';
 
-function getServiceSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error('SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY ausente.');
-  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-}
+// POST /api/calendar/google/auth { agentId? } — devolve a URL de consentimento
+// do Google. userId vem SEMPRE da sessão autenticada (nunca do body), e vai
+// assinado dentro do state — sem isso, um link forjado poderia levar a
+// vítima a autorizar o Google dela e o token acabar salvo na conta de outra
+// pessoa (CSRF no round-trip do OAuth, que não carrega header de auth).
+export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const userId = auth.user.id;
 
-// GET /api/calendar/google/auth?userId=...&agentId=... (agentId opcional)
-// Redireciona o usuário para a tela de consentimento do Google usando o
-// Client ID/Secret que ele mesmo cadastrou (BYO OAuth app, sempre no nível da
-// conta). Se vier agentId, o refresh token resultante é salvo como override
-// específico daquele bot em vez do calendário padrão da conta.
-export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get('userId');
-  const agentId = req.nextUrl.searchParams.get('agentId') || '';
-  if (!userId) return NextResponse.json({ error: 'userId é obrigatório' }, { status: 400 });
+  const body = await req.json().catch(() => ({}));
+  const agentId = String(body?.agentId || '');
 
   const supabase = getServiceSupabase();
   const { data: integration } = await supabase
@@ -27,6 +24,7 @@ export async function GET(req: NextRequest) {
   if (!clientId) return NextResponse.json({ error: 'Configure o Client ID do Google primeiro.' }, { status: 400 });
 
   const redirectUri = `${req.nextUrl.origin}/api/calendar/google/callback`;
+  const state = signOAuthState({ userId, agentId });
   const params = new URLSearchParams({
     client_id: clientId,
     redirect_uri: redirectUri,
@@ -34,8 +32,8 @@ export async function GET(req: NextRequest) {
     scope: 'https://www.googleapis.com/auth/calendar',
     access_type: 'offline',
     prompt: 'consent',
-    state: `${userId}:${agentId}`,
+    state,
   });
 
-  return NextResponse.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`);
+  return NextResponse.json({ url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` });
 }

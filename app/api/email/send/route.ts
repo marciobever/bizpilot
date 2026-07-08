@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 import nodemailer from 'nodemailer';
 import { requireInternalSecret } from '@/lib/api-auth';
+import { decryptSecret } from '@/lib/secret-crypto';
 
 function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;
@@ -229,7 +230,7 @@ export async function POST(req: NextRequest) {
       );
     } else if (provider === 'google') {
       if (!config.refreshToken) throw new Error('Conta Google não autorizada. Reconecte via SMTP.');
-      await sendViaGoogle(config.refreshToken, from, to, subject, body, html);
+      await sendViaGoogle(decryptSecret(config.refreshToken) as string, from, to, subject, body, html);
     } else {
       if (!apiKey) throw new Error('Chave de API ausente.');
       await sendViaResend(apiKey, from, to, subject, body, html);

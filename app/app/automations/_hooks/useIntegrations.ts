@@ -243,7 +243,9 @@ export function useIntegrations() {
           const data = await res.json();
           if (!data.success) { setCalendarMsg({ ok: false, text: data.error || "Dados inválidos." }); return; }
           await upsertIntegration("calendar", "Calendário / Agenda", existing.refreshToken ? "connected" : "disconnected", { ...existing, provider, clientId, clientSecret: finalSecret, reminderHours: Number(calendarForm.reminderHours) || 2 });
-          window.location.href = `/api/calendar/google/auth?userId=${user.id}`;
+          const authRes = await authFetch("/api/calendar/google/auth", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+          const authData = await authRes.json();
+          if (authData.url) window.location.href = authData.url;
         }
       } else if (id === "external_db") {
         const provider = externalDbForm.provider;

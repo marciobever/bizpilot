@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/api-auth';
+import { requireUser, getServiceSupabase } from '@/lib/api-auth';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 const GREETING_RULES = `Estrutura ideal de cada saudação (2 a 4 linhas curtas, fáceis de ler no celular):
 1. Boas-vindas calorosas citando o nome da empresa/negócio (quando houver um claro).
@@ -83,6 +84,15 @@ function parseGreetingOptions(raw: string): string[] {
 export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.response;
+
+  // 15 gerações/min — protege custo de OpenAI contra automação/abuso.
+  const rl = await checkRateLimit(getServiceSupabase(), auth.user.id, "agents-generate", 15, 60);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: 'Muitas gerações em pouco tempo. Aguarde um instante e tente de novo.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } },
+    );
+  }
 
   const body = await req.json();
   const { field, description, context } = body as {

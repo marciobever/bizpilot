@@ -77,9 +77,15 @@ export function AgentCalendarCard({ agentId, isNew }: Props) {
     }
   };
 
-  const handleConnectGoogle = () => {
+  const handleConnectGoogle = async () => {
     if (!user) return;
-    window.location.href = `/api/calendar/google/auth?userId=${user.id}&agentId=${agentId}`;
+    const res = await authFetch("/api/calendar/google/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId }),
+    });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
   };
 
   if (isNew) return null;
