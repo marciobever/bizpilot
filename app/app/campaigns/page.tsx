@@ -51,7 +51,6 @@ export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [quota, setQuota] = useState<{ used: number; limit: number } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [aiDescription, setAiDescription] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
@@ -75,14 +74,17 @@ export default function CampaignsPage() {
   const duplicateCount = parsedRecipients.filter((r) => r.duplicate).length;
 
   const handleGenerateMessage = async () => {
-    if (!aiDescription.trim()) { setError("Descreva o que você quer anunciar pra IA escrever a mensagem."); return; }
+    // Usa o que já foi escrito na mensagem como base; se estiver vazia, usa
+    // o nome da campanha como ponto de partida.
+    const basis = message.trim() || name.trim();
+    if (!basis) { setError("Escreva algo na mensagem (ou dê um nome à campanha) pra IA ter o que trabalhar."); return; }
     setAiLoading(true);
     setError("");
     try {
       const res = await authFetch("/api/agents/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ field: "campaign_message", description: aiDescription }),
+        body: JSON.stringify({ field: "campaign_message", description: basis }),
       });
       const json = await res.json();
       if (!res.ok || !json.text) throw new Error(json.error || "Não foi possível gerar a mensagem.");
@@ -229,25 +231,19 @@ export default function CampaignsPage() {
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">Mensagem</label>
-            </div>
-            <textarea
-              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[100px]"
-              placeholder="Escreva a mensagem que será enviada a todos os contatos..."
-              value={message} onChange={(e) => setMessage(e.target.value)}
-            />
-            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-secondary/40 border border-border">
-              <Sparkles className="h-4 w-4 text-purple-500 shrink-0" />
-              <input
-                className="flex-1 h-8 bg-transparent text-xs placeholder:text-muted-foreground focus:outline-none"
-                placeholder="Descreva em poucas palavras o que anunciar e deixe a IA escrever (ex: promoção 20% em pizzas até domingo)"
-                value={aiDescription} onChange={(e) => setAiDescription(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleGenerateMessage(); } }}
-              />
-              <Button size="sm" variant="outline" onClick={handleGenerateMessage} disabled={aiLoading} className="h-7 gap-1.5 shrink-0">
-                {aiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              <Button size="sm" variant="outline" onClick={handleGenerateMessage} disabled={aiLoading} className="h-7 gap-1.5">
+                {aiLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-purple-500" />}
                 Gerar com IA
               </Button>
             </div>
+            <textarea
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[100px]"
+              placeholder="Escreva a mensagem (ex: promoção 20% em pizzas até domingo) ou clique em Gerar com IA"
+              value={message} onChange={(e) => setMessage(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Sem escrever nada ainda? A IA usa o nome da campanha como ideia. Já tem um rascunho? Ela lapida o que estiver escrito.
+            </p>
           </div>
 
           <div className="space-y-1.5">
