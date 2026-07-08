@@ -326,6 +326,15 @@ export default function CampaignsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
+          <div className="flex gap-2.5 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
+            <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-700 dark:text-amber-400 leading-relaxed">
+              <strong className="text-foreground">Funciona melhor com quem já falou com o bot antes.</strong> O WhatsApp
+              bloqueia mensagens pra contatos "frios" (que nunca conversaram com esse número) como proteção
+              anti-spam — aparece como <span className="font-mono">erro 463</span> no envio. Use pra reengajar clientes
+              que já conversaram com o agente; pra prospecção de gente nova, o caminho é o WhatsApp Oficial.
+            </p>
+          </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Agente</label>

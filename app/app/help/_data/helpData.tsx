@@ -1,7 +1,7 @@
 import React from "react";
 import {
   Smartphone, Bot, Brain, Webhook, Mic, Tags, Wrench, Sparkles, AlertTriangle,
-  MessageSquare, CreditCard, ShieldCheck, Lightbulb, HelpCircle, Zap, Mail,
+  MessageSquare, CreditCard, ShieldCheck, Lightbulb, HelpCircle, Zap, Mail, Megaphone,
 } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { Step, Code, Tip, ScreenMock, FeatureTag } from "../_components/HelpComponents";
@@ -340,6 +340,38 @@ export const SECTIONS: Section[] = [
     ),
   },
   {
+    id: "campaigns",
+    icon: Megaphone,
+    color: "text-purple-400 bg-purple-500/10",
+    title: "Campanhas em massa",
+    subtitle: "Envie a mesma mensagem para uma lista de contatos",
+    readTime: "3 min",
+    content: (
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Acesse <strong className="text-foreground">Campanhas</strong> no menu lateral para disparar uma mensagem
+          (texto, imagem e enquete opcional) para vários contatos de uma vez. Funciona apenas com agentes conectados
+          via <strong className="text-foreground">WhatsApp Evolution (QR Code)</strong> — o WhatsApp Oficial (Meta)
+          exige um template de mensagem pré-aprovado para iniciar conversas em massa, então esse canal fica de fora por ora.
+        </p>
+        <Step n={1} title="Escreva a mensagem">Digite direto ou use o botão <strong className="text-foreground">Gerar com IA</strong> — ele usa o que você já escreveu (ou o nome da campanha) como base.</Step>
+        <Step n={2} title="Imagem e enquete são opcionais">A imagem precisa ser um link direto de arquivo (.jpg/.png/.webp — não o link de uma página). A enquete chega como uma segunda mensagem, logo depois do texto/imagem, com até 3 opções para o cliente escolher.</Step>
+        <Step n={3} title="Cole a lista de contatos">Um número por linha, em qualquer formato (a gente corrige DDD, traços, parênteses etc). Para número fora do Brasil, comece com <Code>+</Code> ou <Code>00</Code>.</Step>
+        <Step n={4} title="Dispare e acompanhe ao vivo">Um painel mostra o envio número a número em tempo real. Todo número enviado com sucesso entra automaticamente na sua base de contatos, para reaproveitar em campanhas futuras.</Step>
+
+        <Tip variant="warn">
+          <strong>Funciona melhor com quem já falou com o bot antes.</strong> O WhatsApp bloqueia mensagens de números
+          não-oficiais (como o QR Code) para contatos "frios" — pessoas que nunca trocaram mensagem com aquele número —
+          como proteção contra spam. Isso aparece como <Code>erro 463</Code> no histórico da campanha e é uma limitação
+          do próprio WhatsApp, não um problema da sua conta. Use campanhas para <strong className="text-foreground">reengajar
+          clientes que já conversaram com o agente</strong> (ex: base de leads, clientes antigos); para alcançar gente
+          totalmente nova, o caminho é o WhatsApp Oficial com mensagens de template aprovadas.
+        </Tip>
+        <Tip>Cada plano inclui uma cota mensal de disparos (Starter não inclui; Pro e Business incluem uma cota). O complemento <strong>Campanhas Extras</strong> soma +1.000 disparos/mês.</Tip>
+      </div>
+    ),
+  },
+  {
     id: "tags",
     icon: Tags,
     color: "text-teal-400 bg-teal-500/10",
@@ -388,6 +420,10 @@ export const SECTIONS: Section[] = [
             items: ["QR Codes expiram após ~1 minuto — gere um novo e escaneie rapidamente.", "Evite usar o mesmo número de WhatsApp em outro celular ou no WhatsApp Web ao mesmo tempo.", "Se o celular ficar sem internet por tempo prolongado, a conexão cai — basta reconectar."],
           },
           {
+            title: "Campanha mostra 'Falhou' com erro 463",
+            items: ["É o WhatsApp bloqueando contato 'frio' (que nunca falou com esse número) — proteção anti-spam deles, não um erro do BizPilot.", "Funciona de forma confiável só com contatos que já trocaram mensagem com o agente antes.", "Para prospecção de gente nova, use o canal WhatsApp Oficial (Meta) com mensagem de template aprovada."],
+          },
+          {
             title: "O agente não envia áudio, imagem ou documento",
             items: ["Confirme que o módulo correspondente está ativado na aba Addons (Voz, Mídia).", "Para envio de arquivo, adicione o arquivo na aba Mídia do agente e instrua o agente a usar a ferramenta 'enviar_arquivo' no prompt."],
           },
@@ -434,6 +470,7 @@ export const CATEGORIES: Category[] = [
   { id: "canais", label: "Canais", icon: Smartphone, sectionIds: ["whatsapp"], description: "Conecte o WhatsApp via QR Code ou Meta Oficial." },
   { id: "inteligencia", label: "Inteligência", icon: Brain, sectionIds: ["knowledge", "tools", "memory", "audio"], description: "Base de conhecimento, ferramentas, memória e áudio." },
   { id: "integracoes", label: "Integrações", icon: Zap, sectionIds: ["email"], description: "E-mail, automações e sistemas externos." },
+  { id: "campanhas", label: "Campanhas", icon: Megaphone, sectionIds: ["campaigns"], description: "Disparo em massa via WhatsApp, com enquete e base de contatos." },
   { id: "avancado", label: "Avançado", icon: Tags, sectionIds: ["tags"], description: "Tags, variáveis e configurações para usuários avançados." },
   { id: "problemas", label: "Problemas", icon: Wrench, sectionIds: ["troubleshooting"], description: "Diagnóstico e solução dos erros mais comuns." },
   { id: "faq", label: "FAQ", icon: HelpCircle, sectionIds: [], description: "Perguntas frequentes respondidas de forma direta." },
