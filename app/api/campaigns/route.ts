@@ -111,8 +111,8 @@ export async function POST(req: NextRequest) {
   if (recError) return NextResponse.json({ error: recError.message }, { status: 500 });
 
   // Dispara o envio no Windmill (fire-and-forget — progresso é consultado via GET).
-  // Rota fixa do script + token de API (mesmo workspace/paths dos outros scripts do BizPilot).
-  const windmillToken = process.env.WINDMILL_API_TOKEN;
+  // Token dedicado só a este script (rota fixa do campaign_sender).
+  const windmillToken = process.env.WINDMILL_CAMPAIGN_TOKEN;
   if (windmillToken) {
     fetch("https://windmill.seureview.com.br/api/w/foodsnap/jobs/run/p/u/bevervansomarcio/bizpilot/campaign_sender", {
       method: "POST",
@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
       body: JSON.stringify({ campaignId: campaign.id }),
     }).catch((e) => console.error("[campaigns] falha ao disparar Windmill:", e));
   } else {
-    console.warn("[campaigns] WINDMILL_API_TOKEN não configurada — campanha ficará em 'queued'.");
+    console.warn("[campaigns] WINDMILL_CAMPAIGN_TOKEN não configurada — campanha ficará em 'queued'.");
   }
 
   return NextResponse.json({ id: campaign.id });
