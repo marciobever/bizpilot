@@ -61,7 +61,7 @@ export async function main(
     console.error("[campaign_sender] erro ao buscar campanha:", await runRes.text());
     return { success: false };
   }
-  const { message, instanceToken, recipients } = await runRes.json();
+  const { message, imageUrl, instanceToken, recipients } = await runRes.json();
 
   if (!instanceToken || !Array.isArray(recipients) || recipients.length === 0) {
     console.warn("[campaign_sender] nada para enviar (sem instância ou sem destinatários).");
@@ -75,10 +75,26 @@ export async function main(
   for (const r of recipients) {
     const number = `${r.phone}@s.whatsapp.net`;
     try {
-      const res = await fetch(`${evolutionApiUrl}/send/text`, {
-        method: "POST", headers,
-        body: JSON.stringify({ number, text: message, linkPreview: false }),
-      });
+      let res: Response;
+      if (imageUrl) {
+        // Imagem com legenda; se a instância recusar mídia, cai pro texto simples.
+        res = await fetch(`${evolutionApiUrl}/send/media`, {
+          method: "POST", headers,
+          body: JSON.stringify({ number, type: "image", url: imageUrl, caption: message }),
+        });
+        if (!res.ok) {
+          console.error(`Evolution media error (fallback to text): ${await res.text()}`);
+          res = await fetch(`${evolutionApiUrl}/send/text`, {
+            method: "POST", headers,
+            body: JSON.stringify({ number, text: message, linkPreview: false }),
+          });
+        }
+      } else {
+        res = await fetch(`${evolutionApiUrl}/send/text`, {
+          method: "POST", headers,
+          body: JSON.stringify({ number, text: message, linkPreview: false }),
+        });
+      }
       if (!res.ok) throw new Error(await res.text());
       sent++;
       await reportProgress(appBaseUrl, internalSecret, campaignId, { recipientId: r.id, status: "sent" });

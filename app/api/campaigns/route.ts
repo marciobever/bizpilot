@@ -44,11 +44,15 @@ export async function POST(req: NextRequest) {
   const userId = auth.user.id;
 
   const body = await req.json() as {
-    agentId?: string; name?: string; message?: string;
+    agentId?: string; name?: string; message?: string; imageUrl?: string;
     recipients?: { phone: string; name?: string }[];
   };
   const message = (body.message || "").trim();
   const name = (body.name || "").trim() || "Campanha";
+  const imageUrl = (body.imageUrl || "").trim();
+  if (imageUrl && !/^https:\/\//i.test(imageUrl)) {
+    return NextResponse.json({ error: "A URL da imagem precisa ser https:// e pública." }, { status: 400 });
+  }
   const recipients = (body.recipients ?? [])
     .map((r) => ({ phone: (r.phone || "").replace(/\D/g, ""), name: (r.name || "").trim() || null }))
     .filter((r) => r.phone.length >= 10);
@@ -101,7 +105,7 @@ export async function POST(req: NextRequest) {
 
   const { data: campaign, error: campaignError } = await supabase
     .from("campaigns")
-    .insert({ user_id: userId, agent_id: body.agentId, name, message, total_recipients: recipients.length })
+    .insert({ user_id: userId, agent_id: body.agentId, name, message, image_url: imageUrl || null, total_recipients: recipients.length })
     .select("id").single();
   if (campaignError) return NextResponse.json({ error: campaignError.message }, { status: 500 });
 

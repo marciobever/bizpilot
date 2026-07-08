@@ -29,6 +29,7 @@ export default function CampaignsPage() {
   const [agentId, setAgentId] = useState("");
   const [name, setName] = useState("");
   const [message, setMessage] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [recipientsRaw, setRecipientsRaw] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -83,11 +84,11 @@ export default function CampaignsPage() {
       const res = await authFetch("/api/campaigns", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agentId, name: name || "Campanha", message, recipients }),
+        body: JSON.stringify({ agentId, name: name || "Campanha", message, imageUrl, recipients }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Não foi possível criar a campanha.");
-      setName(""); setMessage(""); setRecipientsRaw("");
+      setName(""); setMessage(""); setImageUrl(""); setRecipientsRaw("");
       await loadCampaigns();
     } catch (e: any) {
       setError(e.message);
@@ -154,6 +155,19 @@ export default function CampaignsPage() {
               placeholder="Escreva a mensagem que será enviada a todos os contatos..."
               value={message} onChange={(e) => setMessage(e.target.value)}
             />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Imagem (opcional)</label>
+            <input
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+              placeholder="https://... (URL pública da imagem, ex: banner de promoção)"
+              value={imageUrl} onChange={(e) => setImageUrl(e.target.value)}
+            />
+            {imageUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imageUrl} alt="Prévia" className="mt-2 max-h-32 rounded-lg border border-border" onError={(e) => (e.currentTarget.style.display = "none")} />
+            )}
           </div>
 
           <div className="space-y-1.5">
