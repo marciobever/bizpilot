@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Megaphone, Loader2, Send, AlertTriangle, CheckCircle2, Sparkles, XCircle, Clock, Users, ChevronDown, ListChecks, X, Radio } from "lucide-react";
+import { Megaphone, Loader2, Send, AlertTriangle, CheckCircle2, Sparkles, XCircle, Clock, Users, ChevronDown, ListChecks, X, Radio, UserCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { authFetch } from "@/lib/api-client";
@@ -18,6 +18,7 @@ interface Campaign {
 }
 interface Recipient { id: string; phone: string; name: string | null; status: string; error: string | null; sent_at: string | null }
 interface SavedContact { phone: string; name: string | null; updated_at: string }
+interface LeadContact { phone: string; name: string | null }
 
 const RECIPIENT_STATUS: Record<string, { label: string; className: string; icon: typeof CheckCircle2 }> = {
   pending: { label: "Aguardando", className: "text-muted-foreground", icon: Loader2 },
@@ -89,6 +90,7 @@ export default function CampaignsPage() {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [savedContacts, setSavedContacts] = useState<SavedContact[]>([]);
+  const [leadContacts, setLeadContacts] = useState<LeadContact[]>([]);
   const [showPastMessages, setShowPastMessages] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
@@ -135,6 +137,14 @@ export default function CampaignsPage() {
   function addSavedContactsToList() {
     const existingPhones = new Set(parsedRecipients.filter((r) => r.valid).map((r) => r.phone));
     const toAdd = savedContacts.filter((c) => !existingPhones.has(c.phone));
+    if (toAdd.length === 0) return;
+    const lines = toAdd.map((c) => (c.name ? `${c.phone}, ${c.name}` : c.phone));
+    setRecipientsRaw((prev) => (prev.trim() ? `${prev.trim()}\n${lines.join("\n")}` : lines.join("\n")));
+  }
+
+  function addLeadsToList() {
+    const existingPhones = new Set(parsedRecipients.filter((r) => r.valid).map((r) => r.phone));
+    const toAdd = leadContacts.filter((c) => !existingPhones.has(c.phone));
     if (toAdd.length === 0) return;
     const lines = toAdd.map((c) => (c.name ? `${c.phone}, ${c.name}` : c.phone));
     setRecipientsRaw((prev) => (prev.trim() ? `${prev.trim()}\n${lines.join("\n")}` : lines.join("\n")));
@@ -219,6 +229,17 @@ export default function CampaignsPage() {
     loadCampaigns();
     authFetch("/api/campaigns/contacts").then((res) => res.ok ? res.json() : null).then((json) => {
       if (json) setSavedContacts(json.contacts ?? []);
+    });
+    // Leads já conversaram com o bot (número de verdade) — quase sempre
+    // "contato quente", que não esbarra no bloqueio anti-spam do WhatsApp.
+    supabase.from("leads").select("phone, name").eq("user_id", user.id).not("phone", "is", null).then(({ data }) => {
+      const valid = (data ?? [])
+        .map((l: any) => ({ norm: normalizeBrazilPhone(l.phone || ""), name: (l.name || "").trim() || null }))
+        .filter((l) => l.norm.valid)
+        .map((l) => ({ phone: l.norm.phone, name: l.name }));
+      // Um lead pode aparecer mais de uma vez com o mesmo telefone — mantém só 1.
+      const seen = new Set<string>();
+      setLeadContacts(valid.filter((l) => (seen.has(l.phone) ? false : (seen.add(l.phone), true))));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -462,6 +483,15 @@ export default function CampaignsPage() {
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Lista de contatos</label>
 
+            {leadContacts.length > 0 && (
+              <button
+                type="button" onClick={addLeadsToList}
+                className="w-full flex items-center gap-2 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/15 transition-colors text-left"
+              >
+                <UserCheck className="h-4 w-4 text-emerald-500 shrink-0" />
+                <span className="text-xs font-medium flex-1">Adicionar seus {leadContacts.length} lead(s) com WhatsApp à lista — já conversaram com o bot</span>
+              </button>
+            )}
             {savedContacts.length > 0 && (
               <button
                 type="button" onClick={addSavedContactsToList}
