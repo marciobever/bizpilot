@@ -17,11 +17,18 @@ export const PLAN_LIMITS: Record<PlanId, {
   conversations: number;
   kbDocs: number;
   historyDays: number;
+  campaignsBase: number; // disparos de campanha incluídos no plano, por mês
 }> = {
-  starter:  { bots: 1,  conversations: 500,   kbDocs: 50,  historyDays: 30  },
-  pro:      { bots: 3,  conversations: 3000,  kbDocs: 200, historyDays: 90  },
-  business: { bots: -1, conversations: -1,    kbDocs: -1,  historyDays: 365 },
+  starter:  { bots: 1,  conversations: 500,   kbDocs: 50,  historyDays: 30,  campaignsBase: 0    },
+  pro:      { bots: 3,  conversations: 3000,  kbDocs: 200, historyDays: 90,  campaignsBase: 500  },
+  business: { bots: -1, conversations: -1,    kbDocs: -1,  historyDays: 365, campaignsBase: 2000 },
 };
+
+// Cota de disparos de campanha do mês = base do plano + 1.000 por addon_campaigns.
+export function computeCampaignQuota(plan: string | null | undefined, extraCampaigns: number): number {
+  const base = PLAN_LIMITS[normalizePlan(plan)].campaignsBase;
+  return base + extraCampaigns * 1000;
+}
 
 // Todas as integrações abertas para todos os planos.
 // Gating é por volume (PLAN_LIMITS), não por feature.

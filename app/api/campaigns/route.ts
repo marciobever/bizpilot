@@ -1,0 +1,126 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireUser, getServiceSupabase } from "@/lib/api-auth";
+import { normalizePlan, computeCampaignQuota, addonCountsFromRows } from "@/lib/plans";
+
+// Limite de segurança por disparo — evita que uma lista gigante estoure a
+// cota inteira de uma vez ou derrube a instância Evolution (rate limit do WhatsApp).
+const MAX_RECIPIENTS_PER_CAMPAIGN = 500;
+
+export async function GET(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const supabase = getServiceSupabase();
+
+  const { data, error } = await supabase
+    .from("campaigns")
+    .select("id, name, message, status, total_recipients, sent_count, failed_count, created_at, finished_at")
+    .eq("user_id", auth.user.id)
+    .order("created_at", { ascending: false })
+    .limit(30);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Cota do mês corrente (soma de sent_count de todas as campanhas desde o dia 1).
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const { data: monthRows } = await supabase
+    .from("campaigns")
+    .select("sent_count")
+    .eq("user_id", auth.user.id)
+    .gte("created_at", monthStart.toISOString());
+  const usedThisMonth = (monthRows ?? []).reduce((acc, r) => acc + (r.sent_count ?? 0), 0);
+
+  const { data: profile } = await supabase.from("profiles").select("plan").eq("id", auth.user.id).single();
+  const { data: addonRows } = await supabase.from("user_addons").select("addon_id, status, current_period_end").eq("user_id", auth.user.id);
+  const extra = addonCountsFromRows(addonRows as any)["addon_campaigns"] ?? 0;
+  const quota = computeCampaignQuota(profile?.plan, extra);
+
+  return NextResponse.json({ campaigns: data, quota: { used: usedThisMonth, limit: quota } });
+}
+
+export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.response;
+  const userId = auth.user.id;
+
+  const body = await req.json() as {
+    agentId?: string; name?: string; message?: string;
+    recipients?: { phone: string; name?: string }[];
+  };
+  const message = (body.message || "").trim();
+  const name = (body.name || "").trim() || "Campanha";
+  const recipients = (body.recipients ?? [])
+    .map((r) => ({ phone: (r.phone || "").replace(/\D/g, ""), name: (r.name || "").trim() || null }))
+    .filter((r) => r.phone.length >= 10);
+
+  if (!body.agentId) return NextResponse.json({ error: "Selecione um agente." }, { status: 400 });
+  if (!message) return NextResponse.json({ error: "A mensagem não pode ficar vazia." }, { status: 400 });
+  if (recipients.length === 0) return NextResponse.json({ error: "Nenhum número de telefone válido na lista." }, { status: 400 });
+  if (recipients.length > MAX_RECIPIENTS_PER_CAMPAIGN) {
+    return NextResponse.json({ error: `Máximo de ${MAX_RECIPIENTS_PER_CAMPAIGN} contatos por campanha.` }, { status: 400 });
+  }
+
+  const supabase = getServiceSupabase();
+
+  const { data: agent, error: agentError } = await supabase
+    .from("agents").select("id, user_id, config").eq("id", body.agentId).single();
+  if (agentError || !agent || agent.user_id !== userId) {
+    return NextResponse.json({ error: "Agente não encontrado." }, { status: 404 });
+  }
+  const cfg = typeof agent.config === "string" ? JSON.parse(agent.config) : agent.config || {};
+  const wa = cfg.whatsapp || {};
+  // Meta Cloud API exige template pré-aprovado pra iniciar conversa fora da
+  // janela de 24h — disparo de texto livre em massa violaria a política.
+  if (wa.provider !== "evolution" || !wa.evolution?.connected) {
+    return NextResponse.json({
+      error: "Campanhas exigem um agente conectado via WhatsApp Evolution (QR Code). Conecte na aba Canais.",
+    }, { status: 400 });
+  }
+
+  // Checa a cota do mês antes de aceitar a campanha.
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const { data: monthRows } = await supabase
+    .from("campaigns").select("sent_count").eq("user_id", userId).gte("created_at", monthStart.toISOString());
+  const usedThisMonth = (monthRows ?? []).reduce((acc, r) => acc + (r.sent_count ?? 0), 0);
+
+  const { data: profile } = await supabase.from("profiles").select("plan").eq("id", userId).single();
+  const { data: addonRows } = await supabase.from("user_addons").select("addon_id, status, current_period_end").eq("user_id", userId);
+  const extra = addonCountsFromRows(addonRows as any)["addon_campaigns"] ?? 0;
+  const quota = computeCampaignQuota(profile?.plan, extra);
+
+  if (usedThisMonth + recipients.length > quota) {
+    const remaining = Math.max(0, quota - usedThisMonth);
+    return NextResponse.json({
+      error: quota === 0
+        ? "Seu plano não inclui disparos de campanha. Contrate o complemento Campanhas Extras."
+        : `Cota de campanhas quase esgotada: restam ${remaining} disparo(s) este mês. Compre Campanhas Extras para liberar mais.`,
+    }, { status: 400 });
+  }
+
+  const { data: campaign, error: campaignError } = await supabase
+    .from("campaigns")
+    .insert({ user_id: userId, agent_id: body.agentId, name, message, total_recipients: recipients.length })
+    .select("id").single();
+  if (campaignError) return NextResponse.json({ error: campaignError.message }, { status: 500 });
+
+  const { error: recError } = await supabase
+    .from("campaign_recipients")
+    .insert(recipients.map((r) => ({ campaign_id: campaign.id, phone: r.phone, name: r.name })));
+  if (recError) return NextResponse.json({ error: recError.message }, { status: 500 });
+
+  // Dispara o envio no Windmill (fire-and-forget — progresso é consultado via GET).
+  const webhookUrl = process.env.WINDMILL_CAMPAIGN_WEBHOOK_URL;
+  if (webhookUrl) {
+    fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ campaignId: campaign.id }),
+    }).catch((e) => console.error("[campaigns] falha ao disparar Windmill:", e));
+  } else {
+    console.warn("[campaigns] WINDMILL_CAMPAIGN_WEBHOOK_URL não configurada — campanha ficará em 'queued'.");
+  }
+
+  return NextResponse.json({ id: campaign.id });
+}
