@@ -370,7 +370,7 @@ Use SEMPRE a ferramenta buscar_conhecimento antes de responder sobre produtos, s
     try {
       const { data, error } = await supabase
         .from("agents")
-        .insert([{ user_id: user.id, name: agentName, type: agentType, system_prompt: finalPrompt, status: "online", config: configData }])
+        .insert([{ user_id: user.id, name: agentName, type: agentType, system_prompt: finalPrompt, status: "offline", config: configData }])
         .select();
       if (error) throw error;
       if (data && data.length > 0) navigate.push(`/app/agents/${data[0].id}?setup=whatsapp`);

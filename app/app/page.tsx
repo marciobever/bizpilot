@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
+import { agentHasNumber } from "@/lib/agentChannel";
 import type { Agent } from "@/types/database";
 
 const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
@@ -158,11 +159,13 @@ export default function DashboardMetrics() {
   const hasActivity = totalLeads > 0 || agentMessagesTotal > 0 || resolvedTotal > 0;
 
   const statusColor = (status: string) => {
+    if (status === 'aguardando') return 'bg-amber-500';
     if (status === 'online') return 'bg-emerald-500';
     if (status === 'paused') return 'bg-amber-500';
     return 'bg-zinc-500';
   };
   const statusLabel = (status: string) => {
+    if (status === 'aguardando') return 'Aguardando WhatsApp';
     if (status === 'online') return 'Online';
     if (status === 'paused') return 'Pausado';
     return 'Offline';
@@ -348,15 +351,18 @@ export default function DashboardMetrics() {
               </div>
             ) : (
               <div className="space-y-5">
-                {agents.slice(0, 6).map((agent) => (
-                  <Link key={agent.id} href={`/app/agents/${agent.id}`} className="flex items-center justify-between group">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`w-2 h-2 rounded-full shrink-0 ${statusColor(agent.status)}`} />
-                      <div className="font-medium text-sm truncate group-hover:text-primary transition-colors">{agent.name}</div>
-                    </div>
-                    <div className="text-xs text-muted-foreground shrink-0 ml-2">{statusLabel(agent.status)}</div>
-                  </Link>
-                ))}
+                {agents.slice(0, 6).map((agent) => {
+                  const displayStatus = agentHasNumber((agent as any).config) ? agent.status : 'aguardando';
+                  return (
+                    <Link key={agent.id} href={`/app/agents/${agent.id}`} className="flex items-center justify-between group">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${statusColor(displayStatus)}`} />
+                        <div className="font-medium text-sm truncate group-hover:text-primary transition-colors">{agent.name}</div>
+                      </div>
+                      <div className="text-xs text-muted-foreground shrink-0 ml-2">{statusLabel(displayStatus)}</div>
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </CardContent>
