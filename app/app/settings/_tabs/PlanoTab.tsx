@@ -320,6 +320,8 @@ export function PlanoTab({
               const owned = addonCounts[addon.id] ?? 0;
               const singleInstance = addon.id === "addon_voice"; // voz é liga/desliga
               const isMaxed = singleInstance && owned > 0;
+              // Business já tem bots ilimitados — comprar bot adicional não faz sentido.
+              const includedInPlan = addon.id === "addon_bot" && normalizedPlan === "business";
               return (
                 <div key={addon.id} className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
                   <div className="flex items-start gap-3">
@@ -329,21 +331,31 @@ export function PlanoTab({
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm">{addon.name}</span>
-                        {owned > 0 && (
+                        {includedInPlan ? (
+                          <Badge variant="success" className="text-[10px]">Incluso no plano</Badge>
+                        ) : owned > 0 && (
                           <Badge variant="success" className="text-[10px]">
                             {singleInstance ? "Ativo" : `Ativo (${owned})`}
                           </Badge>
                         )}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">{addon.desc}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        {includedInPlan ? "Seu plano já inclui agentes ilimitados." : addon.desc}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold">{addon.price}<span className="text-xs font-normal text-muted-foreground">/mês</span></span>
-                    <Button size="sm" variant="outline" onClick={() => onUpgrade(addon.id)} disabled={planActionLoading !== null || isMaxed}>
-                      {planActionLoading === addon.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
-                      {isMaxed ? "Contratado" : owned > 0 ? "Adicionar outro" : "Adicionar"}
-                    </Button>
+                    {includedInPlan ? (
+                      <span className="text-sm font-semibold text-emerald-500">Incluso</span>
+                    ) : (
+                      <span className="text-lg font-bold">{addon.price}<span className="text-xs font-normal text-muted-foreground">/mês</span></span>
+                    )}
+                    {!includedInPlan && (
+                      <Button size="sm" variant="outline" onClick={() => onUpgrade(addon.id)} disabled={planActionLoading !== null || isMaxed}>
+                        {planActionLoading === addon.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
+                        {isMaxed ? "Contratado" : owned > 0 ? "Adicionar outro" : "Adicionar"}
+                      </Button>
+                    )}
                   </div>
                 </div>
               );
