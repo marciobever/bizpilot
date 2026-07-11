@@ -1321,6 +1321,42 @@ export async function main(
   const phoneNumber = remoteJid.replace('@s.whatsapp.net', '');
   const config = agentData.config || {};
 
+  // ── Gate de assinatura ────────────────────────────────────────────────────
+  // Sem assinatura válida o bot não responde — senão um único Pix pago viraria
+  // custo de IA vitalício. Mesma regra do painel (app/app/layout.tsx): no modelo
+  // Efí o período pago manda (ativo tem 7 dias de carência após vencer; cancelado
+  // mantém acesso até o fim do período já pago); contas legadas seguem só o status.
+  // Falha na consulta NÃO bloqueia — soluço de DB não pode silenciar cliente pagante.
+  let profileData: any = null;
+  try {
+    const { data, error } = await supabase.from('profiles')
+      .select('plan, subscription_status, current_period_end, billing_provider')
+      .eq('id', userId).single();
+    if (error) {
+      // Migration 019 ainda não aplicada (colunas novas ausentes): recai no
+      // select antigo e avalia só pelo status, como o painel faz.
+      const { data: legacy } = await supabase.from('profiles')
+        .select('plan, subscription_status').eq('id', userId).single();
+      profileData = legacy;
+    } else {
+      profileData = data;
+    }
+    if (profileData) {
+      const statusOk = profileData.subscription_status === 'active' || profileData.subscription_status === 'trialing';
+      const endMs = profileData.current_period_end ? new Date(profileData.current_period_end).getTime() : null;
+      const SUBSCRIPTION_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+      const hasAccess = profileData.billing_provider === 'efi' && endMs
+        ? (statusOk ? Date.now() < endMs + SUBSCRIPTION_GRACE_MS : Date.now() < endMs)
+        : statusOk;
+      if (!hasAccess) {
+        console.warn(`[GATE] Assinatura sem acesso para user ${userId} (status: ${profileData.subscription_status}, fim: ${profileData.current_period_end || 'n/a'}).`);
+        return { send: false, reason: `Assinatura vencida ou inativa (status: ${profileData.subscription_status || 'nenhuma'}) — bot não responde.` };
+      }
+    }
+  } catch (e) {
+    console.warn('[GATE] Erro ao verificar assinatura — continuando sem bloquear:', e);
+  }
+
   // ── Lead / Conversa ───────────────────────────────────────────────────────
 
   let { data: lead } = await supabase.from('leads').select('*')
@@ -1342,8 +1378,7 @@ export async function main(
   // Só verifica quando seria uma nova conversa (sem existente ou fechada).
   if (!conversation || conversation.status === 'closed') {
     try {
-      const { data: profile } = await supabase.from('profiles').select('plan').eq('id', userId).single();
-      const rawPlan = profile?.plan || 'starter';
+      const rawPlan = profileData?.plan || 'starter';
       const pn = rawPlan === 'basico' ? 'starter' : rawPlan === 'profissional' ? 'pro' : rawPlan === 'avancado' ? 'business' : rawPlan;
       const CONV_LIMITS: Record<string, number> = { starter: 500, pro: 3000, business: -1 };
       const convLimit = CONV_LIMITS[pn] ?? 500;
@@ -1757,6 +1792,20 @@ async function generateTTS(
 ): Promise<{ data: string | null }> {
   if (!config.voice_enabled || !wasAudio || !openaiKey) return { data: null };
   try {
+    // Voz é add-on pago: valida no servidor antes de gastar TTS. A UI também
+    // trava, mas config.voice_enabled é gravável pelo dono via supabase-js —
+    // sem este check, seria TTS grátis. Mesma regra de carência de 7 dias do
+    // addonCountsFromRows (src/lib/plans.ts). Falha na consulta = sem áudio
+    // (fail-closed: degrada pra texto, nunca gera custo sem cobertura).
+    const { data: voiceRows } = await supabase.from('user_addons')
+      .select('status, current_period_end')
+      .eq('user_id', userId).eq('addon_id', 'addon_voice');
+    const ADDON_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+    const hasVoice = (voiceRows ?? []).some((r: any) =>
+      (r.status === 'active' || r.status === 'trialing') &&
+      (!r.current_period_end || Date.now() <= new Date(r.current_period_end).getTime() + ADDON_GRACE_MS));
+    if (!hasVoice) return { data: null };
+
     const clean = buildTtsText(text);
     const res = await fetch('https://api.openai.com/v1/audio/speech', {
       method: 'POST',

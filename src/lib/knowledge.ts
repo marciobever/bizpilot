@@ -1,7 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { PLAN_LIMITS, normalizePlan } from '@/lib/plans';
 
 const CHUNK_SIZE = 1000;
 const CHUNK_OVERLAP = 100;
+
+// Quantos documentos de KB o usuário ainda pode criar (-1 = ilimitado).
+// Fonte única: PLAN_LIMITS — antes cada rota re-hardcodava os números.
+export async function remainingKbSlots(supabase: SupabaseClient, userId: string): Promise<number> {
+  const { data: profile } = await supabase.from('profiles').select('plan').eq('id', userId).single();
+  const kbLimit = PLAN_LIMITS[normalizePlan(profile?.plan)].kbDocs;
+  if (kbLimit === -1) return -1;
+  const { data: agentIds } = await supabase.from('agents').select('id').eq('user_id', userId);
+  if (!agentIds || agentIds.length === 0) return kbLimit;
+  const { count } = await supabase.from('knowledge_base')
+    .select('*', { count: 'exact', head: true })
+    .in('agent_id', agentIds.map((a: { id: string }) => a.id));
+  return Math.max(0, kbLimit - (count ?? 0));
+}
 
 export function getServiceSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL;

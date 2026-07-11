@@ -3,11 +3,18 @@ import crypto from 'crypto';
 import { getServiceSupabase, getMetaConfig, graphUrl } from '../utils';
 
 // Valida a assinatura X-Hub-Signature-256 que a Meta envia em todo POST.
-// Só é aplicada se META_APP_SECRET estiver configurado. Modelo BYO-app:
-// guarde o app secret por agente e valide contra ele.
+// META_APP_SECRET é OBRIGATÓRIO: sem ele o webhook falha fechado (401) —
+// aceitar POST sem validação permitiria injetar mensagens forjadas no
+// pipeline de IA (custo OpenAI) e fazer o bot enviar WhatsApp a números
+// arbitrários. Se o canal Meta parar de receber, confira essa env primeiro.
+// (Modelo BYO-app por agente: quando existir, guardar o secret por agente
+// e validar contra ele — hoje o secret é global.)
 function verifyMetaSignature(rawBody: string, signatureHeader: string | null): boolean {
   const appSecret = process.env.META_APP_SECRET;
-  if (!appSecret) return true; // sem secret configurado, não há como validar
+  if (!appSecret) {
+    console.error('[META WEBHOOK] META_APP_SECRET não configurado — rejeitando POST (fail-closed).');
+    return false;
+  }
   if (!signatureHeader) return false;
   const expected = 'sha256=' + crypto.createHmac('sha256', appSecret).update(rawBody).digest('hex');
   const a = Buffer.from(signatureHeader);

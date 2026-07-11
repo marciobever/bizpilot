@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServiceSupabase, fetchUrlContent, ingestKnowledgeEntry } from '@/lib/knowledge';
+import { getServiceSupabase, fetchUrlContent, ingestKnowledgeEntry, remainingKbSlots } from '@/lib/knowledge';
 import { requireUser, userOwnsAgent, assertPublicHttpUrl, SsrfError } from '@/lib/api-auth';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 // GET /api/knowledge?agentId=xxx
 export async function GET(req: NextRequest) {
@@ -45,22 +46,18 @@ export async function POST(req: NextRequest) {
   }
   const userId = agent.user_id;
 
+  // 20 ingestões/min — cada documento gera embeddings pagos na OpenAI.
+  const rl = await checkRateLimit(supabase, userId, 'knowledge-ingest', 20, 60);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: 'Muitos documentos em pouco tempo. Aguarde um instante e tente de novo.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } },
+    );
+  }
+
   // Verifica limite de documentos do plano
-  const { data: profile } = await supabase.from('profiles').select('plan').eq('id', userId).single();
-  const rawPlan = profile?.plan || 'starter';
-  const planNorm = (rawPlan === 'basico' ? 'starter' : rawPlan === 'profissional' ? 'pro' : rawPlan === 'avancado' ? 'business' : rawPlan) as 'starter' | 'pro' | 'business';
-  const LIMITS: Record<string, number> = { starter: 50, pro: 200, business: -1 };
-  const kbLimit = LIMITS[planNorm] ?? 50;
-  if (kbLimit !== -1) {
-    const { data: agentIds } = await supabase.from('agents').select('id').eq('user_id', userId);
-    if (agentIds && agentIds.length > 0) {
-      const { count } = await supabase.from('knowledge_base')
-        .select('*', { count: 'exact', head: true })
-        .in('agent_id', agentIds.map((a: any) => a.id));
-      if ((count ?? 0) >= kbLimit) {
-        return NextResponse.json({ error: `Limite de ${kbLimit} documentos atingido no plano ${planNorm}. Faça upgrade em Configurações → Plano.` }, { status: 403 });
-      }
-    }
+  if ((await remainingKbSlots(supabase, userId)) === 0) {
+    return NextResponse.json({ error: 'Limite de documentos do seu plano atingido. Faça upgrade em Configurações → Plano.' }, { status: 403 });
   }
 
   let finalContent = content || '';

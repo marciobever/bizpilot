@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServiceSupabase, fetchUrlContent, fetchSitemapUrls, titleFromUrl, ingestKnowledgeEntry } from '@/lib/knowledge';
+import { getServiceSupabase, fetchUrlContent, fetchSitemapUrls, titleFromUrl, ingestKnowledgeEntry, remainingKbSlots } from '@/lib/knowledge';
 import { requireUser, assertPublicHttpUrl, SsrfError } from '@/lib/api-auth';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const maxDuration = 300;
 
@@ -31,6 +32,23 @@ export async function POST(req: NextRequest) {
   }
   const userId = agent.user_id;
 
+  // 2 importações/min — cada uma pode buscar até 50 páginas e gerar embeddings
+  // pagos de todas; sem trava, um loop de importações vira custo OpenAI em escala.
+  const rl = await checkRateLimit(supabase, userId, 'knowledge-import-sitemap', 2, 60);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: 'Aguarde a importação anterior terminar antes de iniciar outra.' },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfterSeconds) } },
+    );
+  }
+
+  // Respeita o limite de documentos do plano — antes o import por sitemap
+  // passava por cima da cota que o upload individual respeita.
+  const slots = await remainingKbSlots(supabase, userId);
+  if (slots === 0) {
+    return NextResponse.json({ error: 'Limite de documentos do seu plano atingido. Faça upgrade em Configurações → Plano.' }, { status: 403 });
+  }
+
   let urls: string[];
   try {
     await assertPublicHttpUrl(String(sitemapUrl));
@@ -43,7 +61,8 @@ export async function POST(req: NextRequest) {
   if (urlFilter && typeof urlFilter === 'string' && urlFilter.trim()) {
     urls = urls.filter(u => u.includes(urlFilter.trim()));
   }
-  urls = urls.slice(0, limit);
+  // Importa no máximo o que ainda cabe na cota do plano (-1 = ilimitado).
+  urls = urls.slice(0, slots === -1 ? limit : Math.min(limit, slots));
 
   if (urls.length === 0) {
     return NextResponse.json({ error: 'Nenhuma URL encontrada no sitemap com esse filtro.' }, { status: 400 });
