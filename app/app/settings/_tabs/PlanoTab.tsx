@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { CreditCard, Check, Loader2, ArrowUpRight, AlertTriangle, CheckCircle2, Zap, Bot, Megaphone, Volume2, Phone } from "lucide-react";
+import { CreditCard, Check, Loader2, ArrowUpRight, AlertTriangle, CheckCircle2, Zap, Bot, Megaphone, Volume2, Phone, MessageCircle } from "lucide-react";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -67,6 +67,13 @@ const ADDONS = [
     desc: "Adicione mais um agente além do limite do seu plano.",
   },
   {
+    id: "addon_conversations",
+    name: "Conversas Extras",
+    price: "R$ 14,90",
+    icon: MessageCircle,
+    desc: "+500 conversas/mês além do limite do seu plano.",
+  },
+  {
     id: "addon_campaigns",
     name: "Campanhas Extras",
     price: "R$ 29,90",
@@ -86,6 +93,9 @@ const ADDONS = [
     price: "R$ 49,90",
     icon: Phone,
     desc: "Número virtual dedicado conectado à nossa infraestrutura.",
+    // Sem estoque de números ainda (whatsapp_number_pool não existe) —
+    // não vender o que não conseguimos entregar.
+    comingSoon: true,
   },
 ];
 
@@ -167,6 +177,7 @@ export function PlanoTab({
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="text-lg font-bold">{currentPlan.name}</h3>
                     {subscriptionStatus === "active" && <Badge variant="success">Ativo</Badge>}
+                    {subscriptionStatus === "trialing" && <Badge variant="secondary" className="bg-brand-500/10 text-brand-500 border-0">Período de teste</Badge>}
                     {subscriptionStatus === "canceled" && <Badge variant="destructive">Cancelado</Badge>}
                     {subscriptionStatus === "past_due" && <Badge variant="destructive">Pagamento pendente</Badge>}
                     {(!subscriptionStatus || subscriptionStatus === "incomplete") && <Badge variant="secondary">Sem assinatura</Badge>}
@@ -212,9 +223,11 @@ export function PlanoTab({
               <span className="text-xs text-muted-foreground">
                 {hasEfiSubscription
                   ? `Renova automaticamente em ${periodEndLabel}.`
-                  : subscriptionStatus === "canceled"
-                    ? `Acesso até ${periodEndLabel}.`
-                    : `Pago até ${periodEndLabel} — renove com um novo Pix.`}
+                  : subscriptionStatus === "trialing"
+                    ? `Teste grátis até ${periodEndLabel} — assine para continuar depois.`
+                    : subscriptionStatus === "canceled"
+                      ? `Acesso até ${periodEndLabel}.`
+                      : `Pago até ${periodEndLabel} — renove com um novo Pix.`}
               </span>
             )}
           </div>
@@ -223,7 +236,7 @@ export function PlanoTab({
             {isEfi && !hasEfiSubscription && subscriptionStatus !== "canceled" && (
               <Button asChild variant="outline">
                 <Link href={`/app/checkout?plan=${normalizedPlan}&change=1`}>
-                  <CreditCard className="h-4 w-4 mr-2" /> Renovar agora
+                  <CreditCard className="h-4 w-4 mr-2" /> {subscriptionStatus === "trialing" ? "Assinar agora" : "Renovar agora"}
                 </Link>
               </Button>
             )}
@@ -320,8 +333,11 @@ export function PlanoTab({
               const owned = addonCounts[addon.id] ?? 0;
               const singleInstance = addon.id === "addon_voice"; // voz é liga/desliga
               const isMaxed = singleInstance && owned > 0;
-              // Business já tem bots ilimitados — comprar bot adicional não faz sentido.
-              const includedInPlan = addon.id === "addon_bot" && normalizedPlan === "business";
+              const comingSoon = (addon as { comingSoon?: boolean }).comingSoon === true;
+              // Business já tem bots e conversas ilimitados — vender esses
+              // add-ons nesse plano seria cobrar por nada.
+              const includedInPlan = normalizedPlan === "business" && (addon.id === "addon_bot" || addon.id === "addon_conversations");
+              const includedDesc = addon.id === "addon_bot" ? "Seu plano já inclui agentes ilimitados." : "Seu plano já inclui conversas ilimitadas.";
               return (
                 <div key={addon.id} className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3">
                   <div className="flex items-start gap-3">
@@ -331,7 +347,9 @@ export function PlanoTab({
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-semibold text-sm">{addon.name}</span>
-                        {includedInPlan ? (
+                        {comingSoon ? (
+                          <Badge variant="secondary" className="text-[10px]">Em breve</Badge>
+                        ) : includedInPlan ? (
                           <Badge variant="success" className="text-[10px]">Incluso no plano</Badge>
                         ) : owned > 0 && (
                           <Badge variant="success" className="text-[10px]">
@@ -340,17 +358,19 @@ export function PlanoTab({
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        {includedInPlan ? "Seu plano já inclui agentes ilimitados." : addon.desc}
+                        {includedInPlan ? includedDesc : addon.desc}
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
-                    {includedInPlan ? (
+                    {comingSoon ? (
+                      <span className="text-sm font-semibold text-muted-foreground">Em breve</span>
+                    ) : includedInPlan ? (
                       <span className="text-sm font-semibold text-emerald-500">Incluso</span>
                     ) : (
                       <span className="text-lg font-bold">{addon.price}<span className="text-xs font-normal text-muted-foreground">/mês</span></span>
                     )}
-                    {!includedInPlan && (
+                    {!includedInPlan && !comingSoon && (
                       <Button size="sm" variant="outline" onClick={() => onUpgrade(addon.id)} disabled={planActionLoading !== null || isMaxed}>
                         {planActionLoading === addon.id ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : null}
                         {isMaxed ? "Contratado" : owned > 0 ? "Adicionar outro" : "Adicionar"}

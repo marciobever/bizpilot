@@ -4,7 +4,8 @@
 // subscription_status, current_period_end) — o gate do painel não muda.
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { PIX_PERIOD_DAYS } from "./prices";
+import { PIX_PERIOD_DAYS, BILLING_ITEMS } from "./prices";
+import { sendReceiptEmail } from "./notices";
 
 export type ChargeRow = {
   id: string;
@@ -17,9 +18,9 @@ export type ChargeRow = {
   status: string;
 };
 
-function nextPeriodEnd(currentEnd: string | null): string {
+function nextPeriodEnd(currentEnd: string | null, days: number = PIX_PERIOD_DAYS): string {
   const base = currentEnd && new Date(currentEnd) > new Date() ? new Date(currentEnd) : new Date();
-  base.setDate(base.getDate() + PIX_PERIOD_DAYS);
+  base.setDate(base.getDate() + days);
   return base.toISOString();
 }
 
@@ -42,21 +43,28 @@ export async function applyPaidCharge(supabase: SupabaseClient, charge: ChargeRo
       .eq("id", charge.user_id)
       .single();
 
+    const billing = BILLING_ITEMS[charge.item];
     const update: Record<string, any> = {
-      plan: charge.item,
+      // Variante anual grava o plano base (pro_anual → pro) e compra 365 dias.
+      plan: billing?.plan ?? charge.item,
       subscription_status: "active",
       billing_provider: "efi",
-      current_period_end: nextPeriodEnd(profile?.current_period_end ?? null),
+      current_period_end: nextPeriodEnd(profile?.current_period_end ?? null, billing?.periodDays ?? PIX_PERIOD_DAYS),
     };
     if (charge.method === "card" && charge.efi_subscription_id) {
       update.efi_subscription_id = charge.efi_subscription_id;
     }
     await supabase.from("profiles").update(update).eq("id", charge.user_id);
+    // Recibo por e-mail — fire-and-forget, nunca trava a ativação.
+    sendReceiptEmail(supabase, charge.user_id, charge.item, charge.method, update.current_period_end)
+      .catch(() => {});
     return true;
   }
 
   // Add-on: renovação atualiza a linha existente; compra nova insere outra
   // (o limite efetivo conta linhas ativas — 2x addon_bot = +2 bots).
+  sendReceiptEmail(supabase, charge.user_id, charge.item, charge.method, nextPeriodEnd(null))
+    .catch(() => {});
   if (charge.addon_row_id) {
     const { data: row } = await supabase
       .from("user_addons")

@@ -84,10 +84,15 @@ const softwareJsonLd = {
   description: SITE_DESCRIPTION,
   offers: {
     "@type": "Offer",
-    price: "39.99",
+    price: "29.90", // plano Starter — manter em linha com src/lib/planTiers.ts
     priceCurrency: "BRL",
   },
 };
+
+// Analytics leve e sem cookies (Umami/Plausible-compatível). Só entra no HTML
+// quando as duas envs estão setadas — sem elas, nenhum script de terceiro.
+const ANALYTICS_SRC = process.env.NEXT_PUBLIC_ANALYTICS_SRC;
+const ANALYTICS_WEBSITE_ID = process.env.NEXT_PUBLIC_ANALYTICS_WEBSITE_ID;
 
 export default function RootLayout({
   children,
@@ -106,6 +111,9 @@ export default function RootLayout({
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }}
         />
+        {ANALYTICS_SRC && ANALYTICS_WEBSITE_ID && (
+          <script defer src={ANALYTICS_SRC} data-website-id={ANALYTICS_WEBSITE_ID} />
+        )}
       </head>
       <body>
         <ThemeProvider>

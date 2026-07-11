@@ -10,19 +10,19 @@ import { CardForm } from "./_components/CardForm";
 
 const PLANS = [
   {
-    id: "starter", name: "Starter", price: "R$ 29,90",
+    id: "starter", name: "Starter", price: "R$ 29,90", annualPrice: "R$ 299,00",
     desc: "Para começar a automatizar o essencial.",
     features: ["1 agente inteligente", "500 conversas/mês", "50 documentos na base", "Histórico de 30 dias"],
     highlight: false,
   },
   {
-    id: "pro", name: "Pro", price: "R$ 79,90",
+    id: "pro", name: "Pro", price: "R$ 79,90", annualPrice: "R$ 799,00",
     desc: "Para escalar com múltiplos agentes.",
     features: ["3 agentes inteligentes", "3.000 conversas/mês", "200 documentos na base", "Histórico de 90 dias", "Suporte prioritário"],
     highlight: true,
   },
   {
-    id: "business", name: "Business", price: "R$ 149,00",
+    id: "business", name: "Business", price: "R$ 149,00", annualPrice: "R$ 1.490,00",
     desc: "Operação sem limites.",
     features: ["Agentes ilimitados", "Conversas ilimitadas", "Documentos ilimitados", "Histórico de 1 ano", "Suporte dedicado"],
     highlight: false,
@@ -46,6 +46,22 @@ const ITEM_DETAILS: Record<string, { desc: string; features?: string[] }> = {
   addon_bot: {
     desc: "Mais um agente inteligente além do limite do seu plano — ideal pra atender outro número ou outra área do negócio.",
     features: ["+1 agente no seu limite", "Vale enquanto a assinatura estiver ativa", "Pode contratar mais de um"],
+  },
+  starter_anual: {
+    desc: "Plano Starter por 12 meses — 2 meses grátis, Pix à vista.",
+    features: ["Tudo do Starter por 1 ano", "Equivale a 10x a mensalidade", "Pagamento único via Pix"],
+  },
+  pro_anual: {
+    desc: "Plano Pro por 12 meses — 2 meses grátis, Pix à vista.",
+    features: ["Tudo do Pro por 1 ano", "Equivale a 10x a mensalidade", "Pagamento único via Pix"],
+  },
+  business_anual: {
+    desc: "Plano Business por 12 meses — 2 meses grátis, Pix à vista.",
+    features: ["Tudo do Business por 1 ano", "Equivale a 10x a mensalidade", "Pagamento único via Pix"],
+  },
+  addon_conversations: {
+    desc: "Mais volume de atendimento sem trocar de plano.",
+    features: ["+500 conversas/mês", "Soma com o limite do plano", "Pode contratar mais de um"],
   },
   addon_campaigns: {
     desc: "Amplie seus disparos em massa para campanhas e promoções.",
@@ -74,6 +90,7 @@ function CheckoutInner() {
   const isChange = searchParams.get("change") === "1";
 
   const [phase, setPhase] = useState<Phase>("loading");
+  const [annual, setAnnual] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [busyPlan, setBusyPlan] = useState<string | null>(null);
   const [efi, setEfi] = useState<{ pix: boolean; card: boolean }>({ pix: false, card: false });
@@ -142,11 +159,12 @@ function CheckoutInner() {
       if (cancelledFlag) return;
       setEfi(methods);
 
-      // 2) Já tem assinatura ativa? Vai pro app — exceto upgrade/add-on (change=1).
+      // 2) Já tem assinatura PAGA ativa? Vai pro app — exceto upgrade/add-on
+      // (change=1). Quem está em trial PODE seguir: veio aqui pra assinar.
       if (!isChange) {
         const { data: profile } = await supabase.from("profiles")
           .select("subscription_status").eq("id", user.id).single();
-        if (profile?.subscription_status === "active" || profile?.subscription_status === "trialing") {
+        if (profile?.subscription_status === "active") {
           router.replace("/app");
           return;
         }
@@ -282,25 +300,36 @@ function CheckoutInner() {
                         <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 rounded-full px-2 py-0.5">Aprovação na hora</span>
                       </div>
                       <div className="text-sm text-muted-foreground mt-0.5">
-                        QR Code aqui na tela, confirmado em segundos. Renovação mensal por um novo Pix.
+                        {selectedBilling?.periodDays === 365
+                          ? "QR Code aqui na tela, confirmado em segundos. Pagamento único — vale por 12 meses."
+                          : "QR Code aqui na tela, confirmado em segundos. Renovação mensal por um novo Pix."}
                       </div>
                     </div>
                   </button>
                 )}
-                <button onClick={() => efi.card && setPhase("card")} disabled={!efi.card || busyPlan !== null} className={`w-full flex items-start gap-3.5 p-4 rounded-xl border-2 border-border transition-all text-left ${efi.card ? "hover:border-brand-500 hover:bg-brand-500/5 disabled:opacity-60" : "opacity-50 cursor-not-allowed"}`}>
+                {(() => {
+                  // Plano anual é Pix à vista — assinatura de cartão da Efí é mensal.
+                  const isAnnual = selectedBilling?.periodDays === 365;
+                  const cardEnabled = efi.card && !isAnnual;
+                  return (
+                <button onClick={() => cardEnabled && setPhase("card")} disabled={!cardEnabled || busyPlan !== null} className={`w-full flex items-start gap-3.5 p-4 rounded-xl border-2 border-border transition-all text-left ${cardEnabled ? "hover:border-brand-500 hover:bg-brand-500/5 disabled:opacity-60" : "opacity-50 cursor-not-allowed"}`}>
                   <CreditCard className="h-6 w-6 text-brand-500 shrink-0 mt-0.5" />
                   <div>
                     <div className="font-semibold text-base flex items-center gap-2 flex-wrap">
                       Cartão de crédito
-                      {efi.card
+                      {cardEnabled
                         ? <span className="text-[11px] font-semibold text-brand-500 bg-brand-500/10 rounded-full px-2 py-0.5">Renova sozinho</span>
-                        : <span className="text-[11px] font-semibold text-muted-foreground bg-secondary rounded-full px-2 py-0.5">Indisponível no momento</span>}
+                        : <span className="text-[11px] font-semibold text-muted-foreground bg-secondary rounded-full px-2 py-0.5">{isAnnual ? "Anual é só Pix à vista" : "Indisponível no momento"}</span>}
                     </div>
                     <div className="text-sm text-muted-foreground mt-0.5">
-                      Assinatura recorrente: cobra automaticamente todo mês. Não guardamos os dados do seu cartão.
+                      {isAnnual
+                        ? "No plano anual o pagamento é um Pix único — sem cobrança recorrente."
+                        : "Assinatura recorrente: cobra automaticamente todo mês. Não guardamos os dados do seu cartão."}
                     </div>
                   </div>
                 </button>
+                  );
+                })()}
               </div>
             )}
 
@@ -391,6 +420,23 @@ function CheckoutInner() {
         )}
       </div>
 
+      {/* Toggle mensal/anual — anual = 10x o mensal (2 meses grátis), Pix à vista */}
+      <div className="flex items-center gap-1 rounded-full border border-border bg-card p-1 text-sm font-medium">
+        <button
+          onClick={() => setAnnual(false)}
+          className={`px-4 py-1.5 rounded-full transition-colors ${!annual ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          Mensal
+        </button>
+        <button
+          onClick={() => setAnnual(true)}
+          className={`px-4 py-1.5 rounded-full transition-colors flex items-center gap-2 ${annual ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          Anual
+          <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${annual ? "bg-white/20" : "bg-emerald-500/10 text-emerald-500"}`}>2 meses grátis</span>
+        </button>
+      </div>
+
       <div className="grid gap-5 md:grid-cols-3 w-full max-w-5xl">
         {PLANS.map((p) => (
           <div
@@ -409,8 +455,9 @@ function CheckoutInner() {
               <p className="text-sm text-muted-foreground h-10">{p.desc}</p>
             </div>
             <div>
-              <span className="text-3xl font-bold">{p.price}</span>
-              <span className="text-muted-foreground text-sm">/mês</span>
+              <span className="text-3xl font-bold">{annual ? p.annualPrice : p.price}</span>
+              <span className="text-muted-foreground text-sm">{annual ? "/ano" : "/mês"}</span>
+              {annual && <p className="text-xs text-emerald-500 font-medium mt-1">Pix à vista — equivale a 10x a mensalidade</p>}
             </div>
             <ul className="space-y-2 flex-1">
               {p.features.map((f) => (
@@ -420,7 +467,7 @@ function CheckoutInner() {
               ))}
             </ul>
             <button
-              onClick={() => startCheckout(p.id)}
+              onClick={() => startCheckout(annual ? `${p.id}_anual` : p.id)}
               disabled={busyPlan !== null}
               className={`w-full h-11 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-colors ${
                 p.highlight

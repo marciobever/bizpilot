@@ -1,90 +1,57 @@
 "use client";
-import { Code2, Key, Webhook, BookOpen } from "lucide-react";
+import Link from "next/link";
+import { Code2, Webhook, Bell, ArrowRight } from "lucide-react";
 import { motion } from "motion/react";
 
+// A API pública ainda não existe — esta página é honesta sobre isso e captura
+// o interesse de quem precisa dela. Quando a API for construída, a doc real
+// volta a viver nesta rota.
 export default function ApiDocs() {
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="w-full max-w-5xl mx-auto px-6 py-24 md:py-32"
+      className="w-full max-w-3xl mx-auto px-6 py-24 md:py-32 text-center"
     >
-      <div className="mb-12">
-         <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">Documentação da API</h1>
-         <p className="text-xl text-muted-foreground">
-           Integre poderosos agentes de IA na sua aplicação via REST API ou Webhooks.
-         </p>
+      <div className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-500 bg-amber-500/10 rounded-full px-4 py-1.5 mb-8">
+        <Bell className="h-3.5 w-3.5" /> Em breve
       </div>
 
-      <div className="grid md:grid-cols-4 gap-8">
-        <motion.div 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="md:col-span-1 space-y-2 text-sm"
-        >
-          <div className="font-semibold text-foreground mb-4">Sumário</div>
-          <a href="#" className="block py-1 text-brand-400 font-medium">Autenticação</a>
-          <a href="#" className="block py-1 text-muted-foreground hover:text-foreground">Criar Agente (POST)</a>
-          <a href="#" className="block py-1 text-muted-foreground hover:text-foreground">Enviar Mensagem (POST)</a>
-          <a href="#" className="block py-1 text-muted-foreground hover:text-foreground">Webhook de Tools</a>
-          <a href="#" className="block py-1 text-muted-foreground hover:text-foreground">Evolution API Sync</a>
-        </motion.div>
+      <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-6">API pública da BizPilot</h1>
+      <p className="text-xl text-muted-foreground leading-relaxed mb-12">
+        Estamos construindo uma API REST para você integrar seus agentes de IA
+        diretamente na sua aplicação — criar agentes, enviar mensagens e receber
+        eventos por webhook, tudo programaticamente.
+      </p>
 
-        <div className="md:col-span-3 space-y-12">
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <Key className="h-5 w-5 text-brand-400" />
-              <h2 className="text-2xl font-bold">Autenticação</h2>
-            </div>
-            <p className="text-muted-foreground leading-relaxed mb-4">
-              Todas as requisições para a API da BizPilot exigem um token Bearer que pode ser
-              obtido no painel de controle (Menu Configurações &gt; API Keys).
-            </p>
-            <div className="bg-black/90 p-4 rounded-lg border border-border/50 text-sm font-mono text-gray-300">
-              Authorization: Bearer sk_live_YOUR_API_KEY
-            </div>
-          </motion.section>
-
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <Code2 className="h-5 w-5 text-brand-400" />
-              <h2 className="text-2xl font-bold">Enviar Mensagem</h2>
-            </div>
-            <p className="text-muted-foreground leading-relaxed mb-4">
-              Envia uma nova mensagem para a sessão de um agente, retornando também a resposta (se bloqueada)
-              ou acionando o webhook caso funcione de forma assíncrona.
-            </p>
-            
-            <div className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 px-3 py-1.5 rounded text-sm font-bold inline-block mb-4">
-              POST /v1/agents/&#123;agentId&#125;/messages
-            </div>
-
-            <div className="bg-black/90 p-4 rounded-lg border border-border/50 text-sm font-mono text-gray-300 overflow-x-auto">
-              <pre>{`{
-  "sessionId": "usr_123984",
-  "message": "Quero agendar uma consulta para amanhã",
-  "metadata": {
-    "channel": "whatsapp",
-    "customer": {
-      "name": "João",
-      "phone": "+5511999999999"
-    }
-  }
-}`}</pre>
-            </div>
-          </motion.section>
+      <div className="grid sm:grid-cols-2 gap-4 text-left mb-12">
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <Code2 className="h-6 w-6 text-brand-500 mb-3" />
+          <div className="font-semibold mb-1">REST API</div>
+          <p className="text-sm text-muted-foreground">
+            Endpoints para gerenciar agentes e conversas a partir do seu sistema.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-border bg-card p-6">
+          <Webhook className="h-6 w-6 text-brand-500 mb-3" />
+          <div className="font-semibold mb-1">Webhooks</div>
+          <p className="text-sm text-muted-foreground">
+            Receba eventos de novas mensagens, leads e agendamentos em tempo real.
+          </p>
         </div>
       </div>
+
+      <p className="text-muted-foreground mb-6">
+        Precisa da API para o seu caso de uso? Fale com a gente — priorizamos o
+        roadmap com base em quem pede.
+      </p>
+      <Link
+        href="/contato"
+        className="inline-flex items-center gap-2 h-12 px-6 rounded-lg bg-brand-500 hover:bg-brand-600 text-white font-semibold text-sm transition-colors"
+      >
+        Falar com o time <ArrowRight className="h-4 w-4" />
+      </Link>
     </motion.div>
   );
 }

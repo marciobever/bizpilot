@@ -64,11 +64,14 @@ export function requiredPlanLabel(feature: string): string {
 }
 
 // ─── Complementos (add-ons) ───────────────────────────────────────────────────
-export type AddonId = "addon_bot" | "addon_campaigns" | "addon_voice" | "addon_whatsapp_number";
+export type AddonId = "addon_bot" | "addon_campaigns" | "addon_voice" | "addon_whatsapp_number" | "addon_conversations";
+
+// Cada addon_conversations soma este tanto ao limite mensal de conversas.
+export const CONVERSATIONS_PER_ADDON = 500;
 
 export interface EffectiveLimits {
   bots: number;            // base + addon_bot (-1 = ilimitado)
-  conversations: number;   // limite base do plano (-1 = ilimitado)
+  conversations: number;   // base + addon_conversations (-1 = ilimitado)
   kbDocs: number;          // limite base do plano (-1 = ilimitado)
   historyDays: number;
   voice: boolean;          // liberado por addon_voice
@@ -106,9 +109,10 @@ export function computeEffectiveLimits(
 ): EffectiveLimits {
   const base = PLAN_LIMITS[normalizePlan(plan)];
   const extraBots = addonCounts["addon_bot"] ?? 0;
+  const extraConvos = addonCounts["addon_conversations"] ?? 0;
   return {
     bots: base.bots === -1 ? -1 : base.bots + extraBots,
-    conversations: base.conversations,
+    conversations: base.conversations === -1 ? -1 : base.conversations + extraConvos * CONVERSATIONS_PER_ADDON,
     kbDocs: base.kbDocs,
     historyDays: base.historyDays,
     voice: (addonCounts["addon_voice"] ?? 0) > 0,
@@ -133,6 +137,7 @@ export const AI_COST_LIMIT_USD: Record<PlanId, number> = {
 // Normaliza nomes de planos antigos → novo padrão
 export function normalizePlan(plan: string | null | undefined): PlanId {
   if (!plan) return "starter";
+  if (plan.endsWith("_anual")) plan = plan.slice(0, -"_anual".length);
   if (plan === "basico")       return "starter";
   if (plan === "profissional") return "pro";
   if (plan === "avancado")     return "business";

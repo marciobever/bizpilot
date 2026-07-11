@@ -76,14 +76,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const waAlerts = useWhatsappConnectionAlerts(user?.id);
 
   // Assinaturas que liberam o acesso ao painel. No modelo Efí (Pix mensal),
-  // o período pago manda: ativo tem 7 dias de carência após vencer; cancelado
-  // mantém acesso até o fim do período já pago. Contas legadas Stripe seguem
-  // só pelo status (lá a renovação era automática).
+  // o período pago manda: ativo tem 7 dias de carência após vencer; trial e
+  // cancelado valem só até o fim do período (carência é cortesia de quem já
+  // pagou — trial com carência viraria 14 dias grátis). Contas legadas Stripe
+  // seguem só pelo status (lá a renovação era automática).
   const statusOk = subscriptionStatus === "active" || subscriptionStatus === "trialing";
   const GRACE_MS = 7 * 24 * 60 * 60 * 1000;
   const endMs = periodEnd ? new Date(periodEnd).getTime() : null;
   const hasAccess = billingProvider === "efi" && endMs
-    ? (statusOk ? Date.now() < endMs + GRACE_MS : Date.now() < endMs)
+    ? (subscriptionStatus === "active" ? Date.now() < endMs + GRACE_MS : Date.now() < endMs)
     : statusOk;
   // A rota de checkout fica fora do bloqueio (senão entraria em loop de redirect).
   const onCheckoutRoute = location.startsWith("/app/checkout");

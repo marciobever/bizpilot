@@ -5,13 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Skeleton } from "@/components/ui/Skeleton";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, type TooltipContentProps } from 'recharts';
 import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent';
-import { Bot, MessageSquare, TrendingUp, Clock, CheckCircle2, Sparkles, ArrowRight, BarChart3 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Bot, MessageSquare, TrendingUp, Clock, CheckCircle2, BarChart3 } from "lucide-react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/lib/theme";
 import { supabase } from "@/lib/supabase";
 import { agentHasNumber } from "@/lib/agentChannel";
+import { OnboardingChecklist } from "./_components/OnboardingChecklist";
 import type { Agent } from "@/types/database";
 
 const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
@@ -204,27 +204,9 @@ export default function DashboardMetrics() {
         </div>
       </div>
 
-      {/* CTA: criar primeiro agente */}
-      {agents.length === 0 && (
-        <Card className="border-brand-500/30 bg-brand-500/5">
-          <CardContent className="p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <div className="h-10 w-10 rounded-full bg-brand-500/10 flex items-center justify-center shrink-0">
-                <Sparkles className="h-5 w-5 text-brand-500" />
-              </div>
-              <div>
-                <h3 className="font-semibold">Crie seu primeiro agente de IA</h3>
-                <p className="text-sm text-muted-foreground mt-0.5">Um passo a passo guiado te ajuda a configurar tudo e conectar o WhatsApp em poucos minutos.</p>
-              </div>
-            </div>
-            <Button asChild className="bg-brand-500 hover:bg-brand-600 text-white gap-2 shrink-0">
-              <Link href="/app/agents/wizard">
-                Criar meu primeiro agente <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {/* Checklist de ativação: cobre do primeiro agente até o bot no ar;
+          some sozinho quando os 4 passos estão completos. */}
+      <OnboardingChecklist agents={agents} agentMessagesTotal={agentMessagesTotal} />
 
       {/* Destaques: o que realmente importa */}
       <div className="grid gap-4 md:grid-cols-2">

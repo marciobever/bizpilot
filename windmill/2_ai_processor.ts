@@ -1345,8 +1345,10 @@ export async function main(
       const statusOk = profileData.subscription_status === 'active' || profileData.subscription_status === 'trialing';
       const endMs = profileData.current_period_end ? new Date(profileData.current_period_end).getTime() : null;
       const SUBSCRIPTION_GRACE_MS = 7 * 24 * 60 * 60 * 1000;
+      // Carência de 7 dias só pra quem já pagou ('active') — trial e cancelado
+      // valem até a data, senão o trial de 7 dias viraria 14 na prática.
       const hasAccess = profileData.billing_provider === 'efi' && endMs
-        ? (statusOk ? Date.now() < endMs + SUBSCRIPTION_GRACE_MS : Date.now() < endMs)
+        ? (profileData.subscription_status === 'active' ? Date.now() < endMs + SUBSCRIPTION_GRACE_MS : Date.now() < endMs)
         : statusOk;
       if (!hasAccess) {
         console.warn(`[GATE] Assinatura sem acesso para user ${userId} (status: ${profileData.subscription_status}, fim: ${profileData.current_period_end || 'n/a'}).`);
@@ -1381,7 +1383,19 @@ export async function main(
       const rawPlan = profileData?.plan || 'starter';
       const pn = rawPlan === 'basico' ? 'starter' : rawPlan === 'profissional' ? 'pro' : rawPlan === 'avancado' ? 'business' : rawPlan;
       const CONV_LIMITS: Record<string, number> = { starter: 500, pro: 3000, business: -1 };
-      const convLimit = CONV_LIMITS[pn] ?? 500;
+      let convLimit = CONV_LIMITS[pn] ?? 500;
+      if (convLimit !== -1) {
+        // Add-on Conversas Extras: +500/mês por unidade ativa (com 7d de
+        // carência pós-vencimento, mesma regra do addonCountsFromRows).
+        const { data: convAddons } = await supabase.from('user_addons')
+          .select('status, current_period_end')
+          .eq('user_id', userId).eq('addon_id', 'addon_conversations');
+        const graceMs = 7 * 24 * 60 * 60 * 1000;
+        const extra = (convAddons ?? []).filter((r: any) =>
+          (r.status === 'active' || r.status === 'trialing') &&
+          (!r.current_period_end || Date.now() <= new Date(r.current_period_end).getTime() + graceMs)).length;
+        convLimit += extra * 500;
+      }
       if (convLimit !== -1) {
         const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
         const { count } = await supabase.from('conversations')

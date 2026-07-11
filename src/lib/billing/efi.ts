@@ -148,3 +148,25 @@ export async function getEfiNotification(token: string): Promise<any[]> {
   const res = await efi.getNotification({ token });
   return res.data || [];
 }
+
+// Detalhe de uma assinatura de cartão — usado pela reconciliação diária
+// (cinto e suspensório do webhook: se a notificação se perder, a consulta
+// direta descobre cobranças pagas que ainda não creditamos).
+export type EfiSubscriptionCharge = { chargeId: string; status: string; createdAt: string };
+
+export async function getEfiSubscriptionDetail(
+  subscriptionId: string,
+): Promise<{ status: string; charges: EfiSubscriptionCharge[] }> {
+  const efi = getEfi();
+  const res = await efi.detailSubscription({ id: Number(subscriptionId) });
+  const data = res?.data || {};
+  const raw: any[] = data.history ?? data.charges ?? [];
+  const charges = raw
+    .map((c: any) => ({
+      chargeId: String(c.charge_id ?? c.id ?? ""),
+      status: String(c.status ?? ""),
+      createdAt: String(c.created_at ?? c.create_at ?? ""),
+    }))
+    .filter((c) => c.chargeId);
+  return { status: String(data.status ?? ""), charges };
+}

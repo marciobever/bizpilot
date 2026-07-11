@@ -1,3 +1,5 @@
+"use client";
+import { useState } from "react";
 import Link from 'next/link';
 import { Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -6,14 +8,31 @@ import { PLAN_TIERS, PLAN_EXTRAS } from "@/lib/planTiers";
 export default function Pricing() {
   const tiers = PLAN_TIERS;
   const extras = PLAN_EXTRAS;
+  const [annual, setAnnual] = useState(false);
 
   return (
     <div className="w-full max-w-7xl mx-auto px-6 py-24 md:py-32">
       <div className="text-center max-w-3xl mx-auto mb-20">
         <h2 className="text-4xl font-bold tracking-tight mb-4">Investimento escalável.</h2>
         <p className="text-xl text-muted-foreground">
-          Todos os planos incluem acesso completo à plataforma. Use o cupom no checkout para 50% de desconto no primeiro mês.
+          Todos os planos incluem acesso completo à plataforma —
+          e começam com <span className="text-foreground font-semibold">7 dias grátis, sem cartão</span>.
         </p>
+        <div className="mt-8 inline-flex items-center gap-1 rounded-full border border-border bg-card p-1 text-sm font-medium">
+          <button
+            onClick={() => setAnnual(false)}
+            className={`px-4 py-1.5 rounded-full transition-colors ${!annual ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Mensal
+          </button>
+          <button
+            onClick={() => setAnnual(true)}
+            className={`px-4 py-1.5 rounded-full transition-colors flex items-center gap-2 ${annual ? "bg-brand-500 text-white" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            Anual
+            <span className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${annual ? "bg-white/20" : "bg-emerald-500/10 text-emerald-500"}`}>2 meses grátis</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-8 items-center max-w-6xl mx-auto">
@@ -35,8 +54,9 @@ export default function Pricing() {
             <p className="text-sm text-muted-foreground mb-6 h-10">{tier.desc}</p>
 
             <div className="mb-8">
-              <span className="text-4xl font-bold font-sans">R$ {tier.price}</span>
-              <span className="text-muted-foreground">/mês</span>
+              <span className="text-4xl font-bold font-sans">R$ {annual ? tier.annualPrice : tier.price}</span>
+              <span className="text-muted-foreground">{annual ? "/ano" : "/mês"}</span>
+              {annual && <p className="text-xs text-emerald-500 font-medium mt-1.5">Pix à vista — equivale a 10 mensalidades</p>}
             </div>
 
             <Button
@@ -69,9 +89,18 @@ export default function Pricing() {
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-5xl mx-auto">
           {extras.map((extra) => (
-            <div key={extra.name} className="rounded-2xl border border-border bg-card p-5">
-              <div className="text-sm font-semibold mb-1">{extra.name}</div>
-              <div className="text-2xl font-bold mb-2">R$ {extra.price}<span className="text-sm font-normal text-muted-foreground">/mês</span></div>
+            <div key={extra.name} className={`rounded-2xl border border-border bg-card p-5 ${extra.comingSoon ? "opacity-75" : ""}`}>
+              <div className="text-sm font-semibold mb-1 flex items-center gap-2">
+                {extra.name}
+                {extra.comingSoon && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-500 bg-amber-500/10 rounded-full px-2 py-0.5">Em breve</span>
+                )}
+              </div>
+              {extra.comingSoon ? (
+                <div className="text-2xl font-bold mb-2 text-muted-foreground">Em breve</div>
+              ) : (
+                <div className="text-2xl font-bold mb-2">R$ {extra.price}<span className="text-sm font-normal text-muted-foreground">/mês</span></div>
+              )}
               <p className="text-xs text-muted-foreground">{extra.desc}</p>
             </div>
           ))}

@@ -31,6 +31,15 @@ export async function POST(req: NextRequest) {
   const item = normalizeBillingItem(body.item || "");
   const billing = BILLING_ITEMS[item];
   if (!billing) return NextResponse.json({ error: "Item inválido." }, { status: 400 });
+  // Sem estoque de números ainda (whatsapp_number_pool não existe) — a UI já
+  // mostra "Em breve", isto barra a compra por URL direta.
+  if (item === "addon_whatsapp_number") {
+    return NextResponse.json({ error: "O complemento Número WhatsApp está em breve — ainda não disponível para compra." }, { status: 400 });
+  }
+  // Plano anual é Pix à vista — a assinatura de cartão da Efí é mensal.
+  if (billing.periodDays === 365 && body.method === "card") {
+    return NextResponse.json({ error: "O plano anual é pago via Pix à vista. Para cartão, use o plano mensal." }, { status: 400 });
+  }
 
   const supabase = getServiceSupabase();
 

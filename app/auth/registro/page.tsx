@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSearchParams } from 'next/navigation';
 import { supabase } from "@/lib/supabase";
+import { authFetch } from "@/lib/api-client";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
@@ -28,7 +29,13 @@ function RegisterForm() {
       const { data, error } = await supabase.auth.signUp({ email, password });
       if (error) throw error;
       if (data.user) {
-        navigate.push(plan ? `/app/checkout?plan=${plan}` : "/app/checkout");
+        // Conta nova nasce em trial de 7 dias (trigger handle_new_user).
+        // Se escolheu um plano em /precos, o trial roda nesse plano —
+        // best-effort: falha aqui não trava o cadastro (fica no starter).
+        if (plan) {
+          try { await authFetch("/api/billing/start-trial", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plan }) }); } catch {}
+        }
+        navigate.push("/app");
       }
     } catch (err: any) {
       setError(err.message || "Ocorreu um erro ao criar conta.");
