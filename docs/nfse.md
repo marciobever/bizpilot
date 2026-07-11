@@ -70,3 +70,16 @@ admin pra listar o que emitir. **Gatilho pra automatizar:** quando passar de
 ~50 notas/mês ou o processo manual começar a atrasar. Antes de tudo:
 **validar CNAE e código de serviço com o contador** — é o único item que
 pode travar a emissão e não depende de código.
+
+## Decisão (11/07/2026)
+
+Marcio vai integrar os sites com o **Bling** (ERP) mais pra frente — a
+emissão fica nativa por lá, cobrindo todos os produtos do CNPJ de uma vez.
+Até a integração existir:
+- **Cliente** recebe o recibo automático por e-mail (já no ar desde 11/07).
+- **Fisco**: emissão manual em lote mensal no Emissor Nacional.
+
+Quando a integração Bling entrar, o ponto de disparo no código é o
+`applyPaidCharge` (`src/lib/billing/activate.ts`) — mesmo lugar que envia o
+recibo. Pré-requisito que continua valendo (pro Bling também): coletar
+CPF/CNPJ do cliente no checkout Pix.
